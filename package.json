@@ -1,0 +1,24 @@
+{
+  "name": "acmilan-quickbuy-tests",
+  "version": "1.0.0",
+  "description": "Playwright tests for AC Milan Store quick-buy component",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:report": "playwright test && playwright show-report"
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "acmilan",
+    "ecommerce"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/mcp": "^0.0.77",
+    "@playwright/test": "^1.61.1"
+  }
+}
