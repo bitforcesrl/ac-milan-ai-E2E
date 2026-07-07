@@ -4,25 +4,10 @@
 
 Testare il flusso di personalizzazione e acquisto sulla Product Detail Page (PDP) del sito e-commerce AC Milan Store, identificando bug e problemi UX.
 
-## Cosa NON fare
-
-- NON scrivere test Playwright (_.spec.ts, _.spec.js, test/_.js, test/_.ts)
-- NON usare codegen
-- NON creare file di test automatizzati
-
-## Cosa fare
-
-Usare il browser MCP come un utente reale.
-
----
-
 ## Workflow di Testing
 
 ### 1. Apertura PDP
 
-- Navigare all'URL del prodotto fornito dall'utente
-- Accettare i cookie se richiesto
-- Attendere il caricamento completo della pagina
 - Verificare che la pagina prodotto sia visualizzata correttamente
 
 ### 2. Analisi Pagina Prodotto
@@ -67,11 +52,11 @@ Eseguire le seguenti azioni in sequenza:
 - Verificare che:
   - Leggere il costo indicato sul pulsante (es. "+ €X") e verificare che il prezzo si aggiorni dinamicamente di quell'importo
   - La patch appaia nell'anteprima
-  - Il pulsante mostri stato "active"
+  - Il pulsante mostri che la patch è attiva (stato active)
 
 #### 3.4 Verifica Prezzo
 
-- Leggere il prezzo base dalla pagina
+- Leggere il prezzo base mostrato al caricamento della PDP
 - Leggere i costi di personalizzazione e patch direttamente dai pulsanti/etichette
 - Calcolare il prezzo atteso dinamicamente:
   - Prezzo base letto + costo personalizzazione letto + costo patch letto
@@ -82,7 +67,7 @@ Eseguire le seguenti azioni in sequenza:
 #### 3.5 Verifica Anteprima
 
 - Controllare che l'anteprima mostri:
-  - Nome giocatore/nome personalizzato
+  - Nome giocatore o nome personalizzato
   - Numero
   - Patch selezionata
 - Verificare che l'anteprima si aggiorni in tempo reale
@@ -105,94 +90,3 @@ Eseguire le seguenti azioni in sequenza:
   - Il prezzo si aggiorni correttamente (diminuisca)
   - L'anteprima si aggiorni rimuovendo gli elementi deselezionati
   - I campi input si resettino se necessario
-
----
-
-## Cosa Monitorare
-
-Durante tutta la navigazione, registrare:
-
-### Errori Tecnici
-
-- [ ] Errori console (JavaScript errors)
-- [ ] Richieste HTTP con status 4xx o 5xx
-- [ ] JS exceptions
-- [ ] Elementi non cliccabili che dovrebbero esserlo
-- [ ] Pulsanti senza effetto
-- [ ] Pagine bianche
-- [ ] Loop di navigazione
-
-### Problemi UX
-
-- [ ] Prezzi non aggiornati correttamente
-- [ ] Anteprime non funzionanti
-- [ ] Form che si resettano inaspettatamente
-- [ ] Elementi aggiunti al carrello senza selezione utente
-- [ ] Messaggi di errore mancanti o poco chiari
-- [ ] Feedback visivo assente dopo azioni
-
----
-
-## Checklist PDP
-
-### Elementi Pagina
-
-- [ ] Titolo prodotto visibile
-- [ ] Prezzo base corretto
-- [ ] Galleria immagini funzionante
-- [ ] Selettore taglia presente
-- [ ] Sezione personalizzazione visibile
-- [ ] Pulsante aggiungi al carrello attivo
-
-### Selezione Taglia
-
-- [ ] Taglie disponibili cliccabili
-- [ ] Taglie non disponibili disabilitate
-- [ ] URL si aggiorna con variant
-- [ ] Selezione evidenziata visivamente
-
-### Personalizzazione Giocatore
-
-- [ ] Pulsante "Giocatore" cliccabile
-- [ ] Prezzo si aggiorna dinamicamente (leggere il costo dal pulsante)
-- [ ] Dropdown giocatori funzionante
-- [ ] Nome e numero appaiono in anteprima
-
-### Personalizzazione Tuo Nome
-
-- [ ] Pulsante "Tuo Nome" cliccabile
-- [ ] Prezzo si aggiorna dinamicamente (leggere il costo dal pulsante)
-- [ ] Campi input appaiono
-- [ ] Validazione input funzionante
-
-### Patch
-
-- [ ] Pulsante patch cliccabile
-- [ ] Prezzo si aggiorna dinamicamente (leggere il costo dal pulsante)
-- [ ] Patch appare in anteprima
-- [ ] Stato active visibile
-
-### Prezzo e Carrello
-
-- [ ] Prezzo totale calcolato correttamente
-- [ ] Aggiunta al carrello funzionante
-- [ ] Contenuto carrello corretto
-- [ ] Nessun prodotto non selezionato
-- [ ] Taglia corretta nel carrello
-- [ ] Personalizzazione corretta nel carrello
-
-### Feedback
-
-- [ ] Feedback visivo dopo aggiunta
-- [ ] Messaggio conferma visibile
-
----
-
-## Note
-
-- Il test deve essere eseguito come un utente reale
-- Documentare ogni anomalia, anche se sembra minore
-- Verificare sempre la coerenza tra selezione e carrello
-- Controllare che i prezzi siano calcolati correttamente leggendo i valori dalla pagina (non usare valori hardcoded)
-- Confrontare il comportamento PDP con quickbuy se entrambi disponibili
-- Verificare che l'anteprima si aggiorni in tempo reale

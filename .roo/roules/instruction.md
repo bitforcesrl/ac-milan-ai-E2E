@@ -31,112 +31,14 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 ---
 
-## Workflow di Testing
+## Step preliminari prima di inziare il test
 
-### 1. Apertura Pagina Prodotto
-
-- Navigare all'URL del prodotto fornito dall'utente
-- Accettare i cookie se richiesto
-- Attendere il caricamento completo della pagina (incluso il componente React)
-- Verificare che il personalizzatore sia renderizzato correttamente
-
-### 2. Analisi Pagina Prodotto
-
-Verificare la presenza e il corretto rendering di:
-
-- [ ] Titolo prodotto
-- [ ] Prezzo base (leggere il valore dalla pagina)
-- [ ] Galleria immagini
-- [ ] Selettore taglia
-- [ ] Sezione personalizzazione (componente React)
-- [ ] Pulsante "Aggiungi al carrello"
-- [ ] Descrizione prodotto
-
-### 3. Test Selezione Taglia
-
-- Identificare le taglie disponibili
-- Selezionare una taglia
-- Verificare che:
-  - [ ] La selezione sia evidenziata visivamente
-  - [ ] L'URL si aggiorni con il parametro `variant`
-  - [ ] Le taglie non disponibili siano disabilitate/visivamente distinte
-  - [ ] Il click sulla taglia abbia feedback visivo immediato
-
-### 4. Test Personalizzazione - Nome e Numero
-
-#### 4.1 Opzione "Giocatore" (se disponibile)
-
-- Cliccare sul pulsante "Giocatore"
-- Leggere il costo dal pulsante (es. "+ €X")
-- Verificare che il prezzo si aggiorni dinamicamente dell'importo indicato
-- Selezionare un giocatore dal dropdown
-- Verificare che nome e numero appaiano nell'anteprima
-
-#### 4.2 Opzione "Tuo Nome" (se disponibile)
-
-- Cliccare sul pulsante "Tuo Nome"
-- Leggere il costo dal pulsante (es. "+ €X")
-- Verificare che il prezzo si aggiorni dinamicamente dell'importo indicato
-- Verificare che i campi input appaiano
-- Testare la validazione:
-  - [ ] Limite caratteri nome (verificare counter)
-  - [ ] Limite caratteri numero (verificare counter)
-  - [ ] Input vuoti
-  - [ ] Caratteri speciali (se accettati o bloccati)
-
-### 5. Test Personalizzazione - Patch
-
-- Selezionare una patch disponibile
-- Leggere il costo dal pulsante (es. "+ €X")
-- Verificare che:
-  - [ ] Il prezzo si aggiorni dinamicamente dell'importo indicato
-  - [ ] La patch appaia nell'anteprima
-  - [ ] Il pulsante mostri stato "active"/selezionato
-
-### 6. Verifica Prezzo Dinamica
-
-- Leggere il prezzo base dalla pagina
-- Leggere i costi di personalizzazione e patch direttamente dai pulsanti/etichette
-- Calcolare il prezzo atteso: **Prezzo base letto + costo personalizzazione letto + costo patch letto**
-- Verificare che il prezzo visualizzato corrisponda al calcolo
-- **NOTA:** i prezzi possono variare, NON usare valori hardcoded ma sempre quelli letti dalla pagina
-
-### 7. Verifica Anteprima
-
-- Controllare che l'anteprima mostri:
-  - [ ] Nome giocatore/nome personalizzato
-  - [ ] Numero
-  - [ ] Patch selezionata
-- Verificare che l'anteprima si aggiorni in tempo reale ad ogni modifica
-- Verificare la qualità visiva dell'anteprima (font, colori, posizionamento)
-
-### 8. Test Deselezione
-
-- Deselezionare personalizzazioni già attivate
-- Verificare che:
-  - [ ] Il prezzo si aggiorni correttamente (diminuisca)
-  - [ ] L'anteprima si aggiorni rimuovendo gli elementi deselezionati
-  - [ ] I campi input si resettino se necessario
-
-### 9. Aggiunta al Carrello
-
-- Cliccare "Aggiungi al carrello"
-- Verificare che:
-  - [ ] Il carrello si apra/confermi l'aggiunta
-  - [ ] Il prodotto sia corretto
-  - [ ] La taglia sia corretta
-  - [ ] La personalizzazione sia corretta (nome, numero, patch)
-  - [ ] Il prezzo totale sia corretto
-
-### 10. Test Cambio Configurazione
-
-- Dopo aver aggiunto al carrello, modificare la personalizzazione
-- Aggiungere nuovamente al carrello con configurazione diversa
-- Verificare che il carrello contenga entrambe le configurazioni distinte
+- come prima cosa devi chiedermi che viewport devi usare per il test (desktop, tablet, mobile)
+- una volta che ti ho risposto il browser MCP ed attendere che io navighi alla pagina dove iniziare il test
 
 ---
 
-## Aspetti UI da Verificare
+## Aspetti UI da Verificare indipendentemente dal test
 
 ### Layout e Rendering
 
@@ -146,20 +48,9 @@ Verificare la presenza e il corretto rendering di:
 - [ ] Le immagini dell'anteprima sono di buona qualità
 - [ ] I pulsanti di personalizzazione sono ben distinguibili (attivo vs non attivo)
 
-### Responsive Design
-
-- [ ] Testare con viewport desktop (1280px+)
-- [ ] Testare con viewport tablet (768px)
-- [ ] Testare con viewport mobile (375px)
-- [ ] Verificare che il personalizzatore sia usabile su mobile
-- [ ] Verificare che l'anteprima sia visibile su mobile
-
 ### Feedback Visivo
 
 - [ ] Hover state sui pulsanti
-- [ ] Active/selected state sulle opzioni di personalizzazione
-- [ ] Loading state durante aggiornamenti prezzo
-- [ ] Transizioni smooth tra stati
 - [ ] Focus state visibile per accessibilità keyboard
 
 ### Tipografia e Colori
@@ -168,38 +59,6 @@ Verificare la presenza e il corretto rendering di:
 - [ ] Contrasto sufficiente per accessibilità
 - [ ] Colori coerenti con il brand
 - [ ] Dimensioni testo appropriate
-
----
-
-## Aspetti UX da Verificare
-
-### Flusso Utente
-
-- [ ] Il flusso di personalizzazione è intuitivo
-- [ ] L'ordine delle azioni è logico (taglia → personalizzazione → carrello)
-- [ ] L'utente capisce cosa sta personalizzando
-- [ ] Il prezzo è sempre visibile durante la personalizzazione
-
-### Gestione Errori
-
-- [ ] Messaggi di errore chiari quando la validazione fallisce
-- [ ] Impossibile aggiungere al carrello senza taglia selezionata
-- [ ] Impossibile aggiungere al carrello con personalizzazione incompleta
-- [ ] Feedback chiaro quando un'opzione non è disponibile
-
-### Performance Percepita
-
-- [ ] Il componente React carica rapidamente
-- [ ] Gli aggiornamenti del prezzo sono istantanei
-- [ ] L'anteprima si aggiorna senza lag
-- [ ] Nessun flickering o re-rendering eccessivo
-
-### Accessibilità
-
-- [ ] Navigazione da tastiera funzionante
-- [ ] ARIA labels presenti su elementi interattivi
-- [ ] Focus indicator visibile
-- [ ] Screen reader compatibility (verificare struttura semantica)
 
 ---
 
@@ -229,7 +88,7 @@ Verificare la presenza e il corretto rendering di:
 
 ## Output Richiesto
 
-Generare un file `PDP_QA_REPORT.md` contenente:
+Generare un file contenente:
 
 1. **Executive Summary** - Stato generale del test
 2. **Test Scenario** - Configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
@@ -276,9 +135,6 @@ Generare un file `PDP_QA_REPORT.md` contenente:
 - Documentare ogni anomalia, anche se sembra minore
 - Verificare sempre la coerenza tra selezione e carrello
 - Leggere i prezzi dinamicamente dalla pagina (non usare valori hardcoded)
-- Testare entrambi i flussi (PDP e quickbuy) se disponibili
 - Verificare che l'anteprima si aggiorni in tempo reale
 - Prestare attenzione a problemi specifici di React (state management, re-rendering, lifecycle)
-- Verificare la comunicazione tra componente React e Shopify cart API
-- Testare edge cases: deselezione, cambio configurazione, input invalidi
 - **Tracciare sempre il tempo di esecuzione** del test e includerlo nel report finale
