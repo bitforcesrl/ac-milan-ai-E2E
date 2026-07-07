@@ -50,6 +50,11 @@ Eseguire le seguenti azioni in sequenza:
 - Selezionare un giocatore dal dropdown
 - Verificare che il nome e numero appaiano nell'anteprima
 - Verificare che il dropdown contenga la lista completa dei giocatori
+- **Testare almeno 3 giocatori diversi scelti a random** dal dropdown:
+  - Per ogni giocatore, verificare che nome e numero appaiano correttamente nell'anteprima
+  - Verificare che il prezzo si mantenga consistente (stesso costo per tutti i giocatori)
+  - Verificare che non ci siano problemi di encoding caratteri (es. caratteri speciali come ã, é, ñ)
+  - Catturare screenshot per ogni giocatore testato
 
 ##### 3.2.2 Opzione "Tuo Nome" (se disponibile)
 
@@ -105,6 +110,7 @@ Eseguire le seguenti azioni in sequenza:
   - Prezzo totale corretto
 - Verificare che NON ci siano prodotti non selezionati dall'utente
 - Verificare coerenza tra ciò che l'utente ha selezionato e ciò che finisce nel carrello
+- **NOTA:** È comportamento atteso che venga aggiunto automaticamente un prodotto omaggio (es. "Figurine Omaggio") al carrello. Questo NON è un bug ma una funzionalità promozionale del sito.
 
 #### 3.7 Test Deselezione
 
@@ -121,6 +127,18 @@ Eseguire le seguenti azioni in sequenza:
 - Testare combinazioni multiple (Giocatore + Patch, Tuo Nome + Patch)
 - Verificare che lo stato del personalizzatore persista durante la navigazione
 - Testare deselezione e riselezione rapida per verificare stabilità
+
+#### 3.9 Rimozione dal Carrello
+
+- Aprire il carrello (se non già aperto)
+- Identificare il prodotto aggiunto in precedenza
+- Cliccare su "Rimuovi" per il prodotto personalizzato
+- Verificare che:
+  - Il prodotto venga rimosso correttamente dal carrello
+  - Il totale del carrello si aggiorni (diminuisca dell'importo corretto)
+  - Il carrello risulti vuoto (o mostri solo gli altri eventuali prodotti)
+  - Non ci siano residui di personalizzazione nel carrello
+- Questo step è fondamentale per garantire che lo stato del carrello sia pulito per il test successivo
 
 ### 4. Monitoraggio Errori Tecnici
 

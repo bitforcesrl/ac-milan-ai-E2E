@@ -60,8 +60,6 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 - [ ] Colori coerenti con il brand
 - [ ] Dimensioni testo appropriate
 
----
-
 ## Cosa Monitorare
 
 ### Errori Tecnici
@@ -86,9 +84,37 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 ---
 
+## Fine del test
+
+- Chiudi la finestra di chrome MCP
+
+---
+
 ## Output Richiesto
 
-Generare un file contenente:
+### Struttura Cartelle Report
+
+Il report e tutti gli screenshot devono essere salvati nella cartella `/reports` del progetto, organizzati come segue:
+
+```
+reports/
+└── {nome-file-test}_{YYYY-MM-DD}_{HH-MM}/
+    ├── QA_REPORT.md          (il report del test)
+    ├── screenshot-001.png    (screenshot catturati durante il test)
+    ├── screenshot-002.png
+    └── ...
+```
+
+- **Nome cartella:** `{nome-file-test}_{data-esecuzione}_{ora-esecuzione}` (es. `pdp-flow_2026-07-07_16-30`)
+- Il nome del file test è il nome del file `.md` senza estensione
+- La data è nel formato `YYYY-MM-DD`
+- L'ora è nel formato `HH-MM` (24h) per evitare clash tra test eseguiti nella stessa giornata
+- Tutti gli screenshot catturati durante il test devono essere salvati all'interno di questa cartella
+- Il file del report deve chiamarsi `QA_REPORT.md`
+
+### Contenuto del Report
+
+Generare un file `QA_REPORT.md` contenente:
 
 1. **Executive Summary** - Stato generale del test
 2. **Test Scenario** - Configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
