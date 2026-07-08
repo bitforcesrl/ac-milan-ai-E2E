@@ -72,7 +72,24 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 4. Per ogni test da eseguire:
    - Imposta il viewport del browser secondo le dimensioni sopra
    - Naviga all'`url` specificato nel launcher
+   - **Verifica che il carrello sia vuoto** (vedi sezione "Verifica carrello vuoto" sotto)
    - Esegui il test definito nel file `.md` corrispondente
+
+### Verifica carrello vuoto
+
+**PRIMA di iniziare ogni test**, devi verificare che il carrello sia vuoto per garantire che il test parta da uno stato pulito e non sia influenzato da sessioni precedenti.
+
+**Procedura:**
+
+1. Apri il carrello (clicca sull'icona del carrello nel header)
+2. Verifica il contenuto del carrello
+3. Se il carrello contiene prodotti da test precedenti:
+   - Rimuovi tutti i prodotti personalizzati e non (clicca su "Rimuovi" per ogni prodotto)
+   - **NON rimuovere le "Figurine Omaggio"** - sono prodotti omaggio che non si possono cancellare e devono rimanere nel carrello
+   - Continua a rimuovere prodotti finché non rimangono solo le figurine omaggio o il carrello è vuoto
+4. Se il carrello è vuoto (o contiene solo figurine omaggio), procedi con il test
+
+**Nota:** Questo passo è fondamentale per evitare che prodotti da sessioni precedenti contaminino il test corrente.
 
 ### Preparazione browser
 

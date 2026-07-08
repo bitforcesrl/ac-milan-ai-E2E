@@ -12,7 +12,7 @@
 
 tests:
   - name: pdp-flow.test.md
-    viewport: desktop
+    viewport: mobile
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: only
 
