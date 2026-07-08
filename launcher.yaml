@@ -1,0 +1,27 @@
+# launcher.yaml - Test Launcher Configuration
+# Esecutore test E2E per Shopify Jersey Personalizer
+#
+# Campi per ogni test:
+# - name: nome del file .md del test (nella cartella tests/)
+# - viewport: dimensione viewport (desktop, tablet-portrait, tablet-landscape, mobile)
+# - url: URL completo della pagina da testare
+# - action: azione da eseguire
+#   - run: esegue il test normalmente
+#   - skip: salta questo test
+#   - only: esegue SOLO questo test, ignorando tutti gli altri
+
+tests:
+  - name: pdp-flow.test.md
+    viewport: desktop
+    url: https://example-shopify.com/products/jersey
+    action: run
+
+  - name: quickbuy-qa-testing.md
+    viewport: mobile
+    url: https://example-shopify.com/products/jersey?quickbuy=true
+    action: skip
+
+  - name: pdp-break-testing.md
+    viewport: tablet-portrait
+    url: https://example-shopify.com/products/jersey
+    action: run

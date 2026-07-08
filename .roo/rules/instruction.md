@@ -31,10 +31,53 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 ---
 
-## Step preliminari prima di inziare il test
+## Step preliminari prima di iniziare il test
 
-- come prima cosa devi chiedermi che viewport devi usare per il test (desktop, tablet, mobile)
-- una volta che ti ho risposto il browser MCP ed attendere che io navighi alla pagina dove iniziare il test
+### Lettura del file launcher
+
+Prima di eseguire qualsiasi test, devi leggere il file `launcher.yaml` nella root del progetto. Questo file contiene la configurazione di tutti i test disponibili.
+
+**Struttura del launcher.yaml:**
+
+```yaml
+tests:
+  - name: pdp-flow.test.md # Nome del file .md del test (in tests/)
+    viewport: desktop # desktop | tablet-portrait | tablet-landscape | mobile
+    url: https://... # URL della pagina da testare
+    action: run # run | skip | only
+```
+
+**Logica delle azioni:**
+
+- **`run`**: Esegue il test normalmente
+- **`skip`**: Salta questo test (non lo esegue)
+- **`only`**: Esegue **SOLO** questo test, ignorando tutti gli altri (utile per debug rapido)
+
+### Dimensioni Viewport
+
+Quando imposti il viewport del browser, usa queste dimensioni di default:
+
+| Viewport             | Larghezza | Altezza | Utilizzo                                                    |
+| -------------------- | --------- | ------- | ----------------------------------------------------------- |
+| **desktop**          | 1920px    | 1080px  | Test su schermo desktop standard                            |
+| **tablet-portrait**  | 768px     | 1024px  | Test su tablet in orientamento verticale (iPad portrait)    |
+| **tablet-landscape** | 1024px    | 768px   | Test su tablet in orientamento orizzontale (iPad landscape) |
+| **mobile**           | 375px     | 667px   | Test su mobile (iPhone standard)                            |
+
+### Flusso di esecuzione
+
+1. Leggi `launcher.yaml`
+2. Se esiste un test con `action: only`, esegui **solo** quel test
+3. Altrimenti, esegui tutti i test con `action: run` (ignora quelli con `action: skip`)
+4. Per ogni test da eseguire:
+   - Imposta il viewport del browser secondo le dimensioni sopra
+   - Naviga all'`url` specificato nel launcher
+   - Esegui il test definito nel file `.md` corrispondente
+
+### Preparazione browser
+
+- Imposta il viewport del browser secondo quanto specificato nel launcher per il test corrente
+- Attendi che l'utente abbia navigato alla pagina specificata nell'`url` prima di iniziare il test
 
 ---
 
@@ -87,6 +130,7 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 ## Fine del test
 
 - Chiudi la finestra di chrome MCP
+- Cancella il contenuto della cartella `.playwright-mcp` (se esiste)
 
 ---
 
@@ -109,7 +153,7 @@ reports/
 - Il nome del file test è il nome del file `.md` senza estensione
 - La data è nel formato `YYYY-MM-DD`
 - L'ora è nel formato `HH-MM` (24h) per evitare clash tra test eseguiti nella stessa giornata
-- Tutti gli screenshot catturati durante il test devono essere salvati all'interno di questa cartella
+- Gli screenshot devono essere salvati all'interno di questa cartella **solo se viene trovato un bug o un'anomalia** durante il test. Non salvare screenshot di pagine che funzionano correttamente senza problemi.
 - Il file del report deve chiamarsi `QA_REPORT.md`
 
 ### Contenuto del Report
@@ -164,3 +208,4 @@ Generare un file `QA_REPORT.md` contenente:
 - Verificare che l'anteprima si aggiorni in tempo reale
 - Prestare attenzione a problemi specifici di React (state management, re-rendering, lifecycle)
 - **Tracciare sempre il tempo di esecuzione** del test e includerlo nel report finale
+- **Massima attenzione ai caratteri testuali**: durante i controlli visivi, prestare estrema attenzione a tutti i caratteri presenti nel testo e nelle immagini (errori di battitura, caratteri speciali errati, formattazione inconsistente, testo troncato o illeggibile)
