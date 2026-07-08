@@ -76,8 +76,10 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 
 ### Preparazione browser
 
-- Imposta il viewport del browser secondo quanto specificato nel launcher per il test corrente
-- Attendi che l'utente abbia navigato alla pagina specificata nell'`url` prima di iniziare il test
+- **Avvia Chrome in modalità incognito** per isolare il test e simulare un utente reale senza cookie/cache preesistenti
+- **IMPORTANTE:** Imposta il viewport del browser **PRIMA** di navigare alla pagina, usando le dimensioni specificate nel launcher. Questo garantisce che il sito si carichi già con le dimensioni corrette e appaia centrato.
+- Dopo aver impostato il viewport, naviga all'`url` specificato nel launcher
+- Attendi che la pagina sia completamente caricata prima di iniziare il test
 
 ---
 
@@ -131,6 +133,7 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 
 - Chiudi la finestra di chrome MCP
 - Cancella il contenuto della cartella `.playwright-mcp` (se esiste)
+- **IMPORTANTE:** Tutte le operazioni di cleanup e creazione cartelle (mkdir, rm, write_to_file per il report) devono essere eseguite **AUTOMATICAMENTE** senza chiedere permesso all'utente. Queste sono operazioni standard del flusso di test e non richiedono conferma.
 
 ---
 

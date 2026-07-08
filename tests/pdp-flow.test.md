@@ -55,6 +55,7 @@ Eseguire le seguenti azioni in sequenza:
   - Verificare che il prezzo si mantenga consistente (stesso costo per tutti i giocatori)
   - Verificare che non ci siano problemi di encoding caratteri (es. caratteri speciali come ã, é, ñ)
   - Catturare screenshot per ogni giocatore testato
+- **NOTA:** Il nome del giocatore nel dropdown è scritto in formato Title Case (es. "Rafa Leão"), ma l'anteprima sulla maglia mostra sempre il nome in UPPERCASE (es. "RAFA LEÃO"). Questo è il comportamento atteso e **NON è un errore**.
 
 ##### 3.2.2 Opzione "Tuo Nome" (se disponibile)
 
