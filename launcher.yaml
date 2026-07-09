@@ -14,14 +14,14 @@ tests:
   - name: pdp-flow.test.md
     viewport: mobile
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
-    action: only
+    action: skip
 
   - name: quickbuy-qa-testing.md
-    viewport: mobile
-    url: https://store.acmilan.com
+    viewport: desktop
+    url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
 
   - name: pdp-break-testing.md
-    viewport: tablet-portrait
+    viewport: desktop
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: run

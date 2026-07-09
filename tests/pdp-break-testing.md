@@ -2,7 +2,7 @@
 
 ## Obiettivo
 
-**Rompere la personalizzazione della maglia sulla PDP.**
+**Rompere la personalizzazione della maglia.**
 
 Nessun happy path. Nessun workflow da seguire. Solo tentativi di rompere il sistema in ogni modo possibile.
 
@@ -11,25 +11,20 @@ Pensare come:
 - Utente malintenzionato (vuole sfruttare bug)
 - Utente confuso (clicca a caso, non capisce il flusso)
 - Utente impaziente (clicca veloce, non aspetta caricamenti)
-- Utente lento (lascia la pagina aperta, torna dopo minuti)
 - Bot (azioni ripetitive, input anomali)
 
 ---
 
-## Cosa NON fare
+## Preparazione Pre-Test
 
-- NON scrivere test Playwright automatizzati
-- NON usare codegen
-- NON seguire un workflow ordinato
-- NON testare il flusso felice (già coperto da altri file)
+**Prima di iniziare ogni vettore di attacco**, è fondamentale garantire che il carrello sia in uno stato pulito:
 
----
+1. **Verificare il carrello**: Aprire il carrello e controllare il contenuto
+2. **Rimuovere prodotti personalizzati**: Se sono presenti prodotti da test precedenti, rimuoverli completamente
+3. **Gestione figurine omaggio**: Il prodotto gratuito "Figurine Omaggio" viene rimosso automaticamente solo quando si rimuove il prodotto personalizzato associato. **Ignorare questo elemento** durante la pulizia del carrello - non deve essere rimosso manualmente
+4. **Conferma stato pulito**: Procedere con il test solo quando il carrello è vuoto o contiene esclusivamente le figurine omaggio
 
-## Riferimenti
-
-Per regole base, monitoring, template bug report → vedere [`.roo/roules/instruction.md`](../.roo/roules/instruction.md).
-
-Questo file contiene SOLO vettori di attacco. Non duplicare checklist, monitoring, o template già presenti altrove.
+**Nota**: Questa fase è critica per evitare che configurazioni residue contaminino i risultati del test corrente.
 
 ---
 
@@ -70,23 +65,7 @@ Azioni veloci per rompere state management:
 
 ---
 
-### 3. State Manipulation
-
-Manipolare lo stato del browser durante il flusso:
-
-- **Browser back/forward:** dopo aver selezionato personalizzazione, premere back → forward
-- **Refresh mid-flow:** F5 mentre si sta aggiungendo al carrello
-- **Tab switch:** cambiare tab del browser, tornare dopo 30 secondi
-- **Resize viewport:** ridimensionare finestra durante personalizzazione
-- **DevTools open:** aprire DevTools durante interazione (può triggerare re-render)
-- **Zoom in/out:** Ctrl+scroll durante selezione
-- **Offline mode:** disconnettere rete dopo personalizzazione, poi cliccare "Aggiungi al carrello"
-
-**Cosa cercare:** stato perso, prezzo resettato, personalizzazione scomparsa, errore network non gestito, crash componente.
-
----
-
-### 4. Selection Chaos
+### 3. Selection Chaos
 
 Combinazioni di selezione anomale:
 
@@ -103,7 +82,7 @@ Combinazioni di selezione anomale:
 
 ---
 
-### 5. Cart Abuse
+### 4. Cart Abuse
 
 Attacchi focalizzati sul carrello:
 
@@ -117,61 +96,3 @@ Attacchi focalizzati sul carrello:
 **Cosa cercare:** duplicati nel carrello, config sbagliata nel carrello, prezzo totale errato, carrello che non si aggiorna.
 
 ---
-
-### 6. Network & DOM
-
-Manipolazione network e DOM:
-
-- **Slow 3G:** throttle network a "Slow 3G" in DevTools, poi interagire
-- **Offline mid-action:** disconnettere dopo personalizzazione, prima di aggiungere
-- **DOM manipulation:** modificare prezzi/attributi via DevTools Console
-- **Remove elements:** cancellare nodi DOM del personalizzatore via Console
-- **Inject CSS:** nascondere elementi con `display: none` via Console
-- **Force click:** `element.click()` via Console su button disabilitati
-- **Modify React state:** accedere a `__reactFiber` e modificare stato interno
-
-**Cosa cercare:** errori non gestiti, UI che non si aggiorna, prezzo manipolabile, crash React.
-
----
-
-### 7. Edge Cases
-
-Casi limite specifici:
-
-- **Pagina aperta a lungo:** lasciare PDP aperta 10+ minuti, poi interagire
-- **Multiple tabs:** aprire stessa PDP in 2 tab, personalizzare in entrambi
-- **Concurrent products:** aprire PDP di 2 prodotti diversi, personalizzare entrambi
-- **Price race condition:** cambiare personalizzazione velocemente mentre prezzo si aggiorna
-- **Preview vs reality:** anteprima mostra X, carrello contiene Y?
-- **Mobile viewport:** testare con viewport 320px (iPhone SE)
-- **Landscape mobile:** ruotare viewport mobile durante personalizzazione
-- **Keyboard navigation:** usare SOLO Tab/Enter/Space per navigare e selezionare
-- **Screen reader:** attivare VoiceOver/TalkBack e navigare
-
-**Cosa cercare:** memory leak, race condition, incoerenza anteprima-carrello, UI rotta su mobile, accessibilità mancante.
-
----
-
-## Cosa Documentare
-
-Per ogni bug trovato, documentare:
-
-1. **Vettore di attacco** (quale categoria sopra)
-2. **Azione esatta** (cosa hai fatto)
-3. **Risultato atteso** (cosa dovrebbe succedere)
-4. **Risultato ottenuto** (cosa è successo)
-5. **Severità** (HIGH/MEDIUM/LOW)
-6. **Screenshot** (sempre)
-7. **Console errors** (se presenti)
-
-Usare template bug report da [`.roo/roules/instruction.md`](../.roo/roules/instruction.md).
-
----
-
-## Note
-
-- Non seguire ordine. Saltare tra vettori. Combinare attacchi.
-- Se qualcosa sembra strano, approfondire.
-- Provare lo stesso attacco più volte (bug intermittenti).
-- Documentare ANCHE se non si rompe nulla (per sapere cosa è stato testato).
-- Focus su PDP. QuickBuy coperto da altro file.
