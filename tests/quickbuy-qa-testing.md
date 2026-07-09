@@ -294,6 +294,78 @@ Eseguire le seguenti azioni in sequenza:
   - Non ci siano residui di personalizzazione nel carrello
 - Questo step è fondamentale per garantire che lo stato del carrello sia pulito per il test successivo
 
+#### 2.15 Test Combinazioni Prodotti
+
+**IMPORTANTE:** Per ogni combinazione di prodotto, devi testare TUTTE e tre le personalizzazioni:
+
+1. **Giocatore** (almeno 3 giocatori diversi scelti a random)
+2. **Tuo Nome** + Numero (inserire nome e numero personalizzati)
+3. **Patch** (selezionare SERIE A o altra patch disponibile)
+
+##### 2.15.1 Piano Test Combinazioni
+
+Prima di iniziare il test, identifica tutte le combinazioni possibili basandoti sulle opzioni disponibili nel componente. Le combinazioni tipiche sono:
+
+**Genere Uomo:**
+
+- Uomo - Autentica - Corta (se disponibile)
+- Uomo - Autentica - Lunga (se disponibile)
+- Uomo - Replica - Corta (se disponibile)
+- Uomo - Replica - Lunga (se disponibile)
+
+**Genere Donna:**
+
+- Donna - Replica - Corta (se disponibile)
+- Donna - Replica - Lunga (se disponibile)
+
+**Genere Bambino:**
+
+- Bambino - Replica - Corta (Autentica non disponibile per bambino)
+
+**NOTA:** Alcune combinazioni potrebbero non essere disponibili (es. Donna Autentica, Bambino Autentica/Lunga). Verifica di volta in volta quali opzioni sono effettivamente selezionabili.
+
+##### 2.15.2 Esecuzione Test per Ogni Combinazione
+
+Per **OGNI** combinazione identificata, eseguire i seguenti step:
+
+1. **Selezionare la combinazione** (Genere + Modello + Manica)
+2. **Selezionare una taglia** disponibile (es. M per adulto, 10 anni per bambino)
+3. **Testare Giocatore:**
+   - Cliccare "Giocatore"
+   - Selezionare 3 giocatori diversi a random dal dropdown
+   - Per ogni giocatore:
+     - Verificare che nome e numero appaiano nell'anteprima
+     - Verificare che il nome sia centrato sull'asse Y
+     - Verificare che il prezzo si aggiorni correttamente
+     - Catturare screenshot
+   - Deselezionare il giocatore prima di passare al test successivo
+4. **Testare Tuo Nome:**
+   - Cliccare "Tuo Nome"
+   - Inserire un nome personalizzato (max 10 char per adulto, max 7 char per bambino)
+   - Inserire un numero (es. "99")
+   - Verificare che nome e numero appaiano nell'anteprima
+   - Verificare che il nome sia centrato sull'asse Y
+   - Verificare che il prezzo si aggiorni correttamente
+   - Catturare screenshot
+   - Deselezionare prima di passare al test successivo
+5. **Testare Patch:**
+   - Cliccare "SERIE A" (o altra patch disponibile)
+   - Verificare che la patch appaia nell'anteprima
+   - Verificare che il prezzo si aggiorni correttamente
+   - Catturare screenshot
+   - Deselezionare la patch
+6. **Rimuovere il prodotto dal carrello** (se aggiunto) prima di passare alla combinazione successiva
+
+##### 2.15.3 Verifica Trasversale
+
+Durante il test delle combinazioni, verificare che:
+
+- I prezzi si aggiornino correttamente per ogni combinazione
+- Le personalizzazioni (giocatore, nome, patch) funzionino per TUTTE le combinazioni
+- La centratura del nome sull'asse Y sia mantenuta per tutte le combinazioni
+- Non ci siano errori console o problemi di rendering
+- Il pulsante "Aggiungi al carrello" sia sempre abilitato quando la taglia è selezionata
+
 ### 3. Verifica Centratura Scritta sull'Asse Y
 
 **Questo test deve essere eseguito per ogni tipo di personalizzazione del nome.**

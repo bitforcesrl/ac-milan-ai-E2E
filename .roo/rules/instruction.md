@@ -163,7 +163,7 @@ Il report e tutti gli screenshot devono essere salvati nella cartella `/reports`
 ```
 reports/
 └── {nome-file-test}_{YYYY-MM-DD}_{HH-MM}/
-    ├── QA_REPORT.md          (il report del test)
+    ├── {nome-file-test}_{YYYY-MM-DD}_{HH-MM}.md  (il report del test)
     ├── screenshot-001.png    (screenshot catturati durante il test)
     ├── screenshot-002.png
     └── ...
@@ -174,11 +174,11 @@ reports/
 - La data è nel formato `YYYY-MM-DD`
 - L'ora è nel formato `HH-MM` (24h) per evitare clash tra test eseguiti nella stessa giornata
 - Gli screenshot devono essere salvati all'interno di questa cartella **solo se viene trovato un bug o un'anomalia** durante il test. Non salvare screenshot di pagine che funzionano correttamente senza problemi.
-- Il file del report deve chiamarsi `QA_REPORT.md`
+- **Il file del report deve avere lo stesso nome della cartella che lo contiene** (es. `pdp-flow_2026-07-07_16-30.md`)
 
 ### Contenuto del Report
 
-Generare un file `QA_REPORT.md` contenente:
+Generare un file con lo stesso nome della cartella contenente:
 
 1. **Executive Summary** - Stato generale del test
 2. **Test Scenario** - Configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
@@ -229,3 +229,4 @@ Generare un file `QA_REPORT.md` contenente:
 - Prestare attenzione a problemi specifici di React (state management, re-rendering, lifecycle)
 - **Tracciare sempre il tempo di esecuzione** del test e includerlo nel report finale
 - **Massima attenzione ai caratteri testuali**: durante i controlli visivi, prestare estrema attenzione a tutti i caratteri presenti nel testo e nelle immagini (errori di battitura, caratteri speciali errati, formattazione inconsistente, testo troncato o illeggibile)
+- **Il nome del giocatore inserito sulla maglia sarà sempre visualizzato in MAIUSCOLO**: questo è il comportamento corretto e desiderato, NON deve essere segnalato come bug.
