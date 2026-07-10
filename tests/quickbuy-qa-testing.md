@@ -383,6 +383,29 @@ Durante il test delle combinazioni, verificare che:
 
 ---
 
+## Output del Report
+
+**IMPORTANTE:** Il report finale deve contenere **SOLO** bug, problemi e anomalie trovate durante il test.
+
+### Cosa INCLUDERE nel report:
+
+- Bug trovati (con severity, descrizione, steps to reproduce, expected vs actual)
+- Problemi UX/UI identificati
+- Errori tecnici (console errors, network issues)
+- Screenshot che mostrano i problemi
+- Raccomandazioni per fix
+
+### Cosa NON INCLUDERE nel report:
+
+- Test risultati positivi (es. "✅ Prezzo corretto", "✅ Funzionalità OK")
+- Liste di verifiche superate
+- Riepiloghi di funzionalità che funzionano correttamente
+- Tabelle con status "PASS"
+
+Il report deve essere focalizzato esclusivamente su ciò che **non funziona** o che necessita di miglioramenti. Se un test non rivela bug, il report sarà minimale o vuoto.
+
+---
+
 ## Note Specifiche Quick-Buy
 
 - **Verificare che la personalizzazione funzioni anche quando si cambia maglia**

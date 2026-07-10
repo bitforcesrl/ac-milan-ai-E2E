@@ -59,7 +59,7 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 
 | Viewport             | Larghezza | Altezza | Utilizzo                                                    |
 | -------------------- | --------- | ------- | ----------------------------------------------------------- |
-| **desktop**          | 1920px    | 1080px  | Test su schermo desktop standard                            |
+| **desktop**          | 1512px    | 982px   | Test su schermo desktop standard                            |
 | **tablet-portrait**  | 768px     | 1024px  | Test su tablet in orientamento verticale (iPad portrait)    |
 | **tablet-landscape** | 1024px    | 768px   | Test su tablet in orientamento orizzontale (iPad landscape) |
 | **mobile**           | 375px     | 667px   | Test su mobile (iPhone standard)                            |
@@ -97,6 +97,7 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 - **IMPORTANTE:** Imposta il viewport del browser **PRIMA** di navigare alla pagina, usando le dimensioni specificate nel launcher. Questo garantisce che il sito si carichi già con le dimensioni corrette e appaia centrato.
 - Dopo aver impostato il viewport, naviga all'`url` specificato nel launcher
 - Attendi che la pagina sia completamente caricata prima di iniziare il test
+- **Chiudi banner e popup**: una volta caricata la pagina, cerca e chiudi eventuali finestre di consenso cookie, banner pubblicitari, popup di newsletter o altri overlay che potrebbero ostruire la vista della pagina. Clicca su pulsanti come "Accetta", "Rifiuta", "Chiudi", "X", o simili per rimuovere questi elementi prima di iniziare il test.
 
 ---
 
