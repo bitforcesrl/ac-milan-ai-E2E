@@ -17,7 +17,7 @@ tests:
   - name: fake.test.md
     viewport: desktop
     url: https://store.acmilan.com
-    action: only
+    action: skip
 
   - name: pdp-flow.test.md
     viewport: mobile
@@ -27,7 +27,7 @@ tests:
   - name: quickbuy-qa-testing.md
     viewport: desktop
     url: https://store.acmilan.com/
-    action: run
+    action: only
 
   - name: pdp-break-testing.md
     viewport: desktop

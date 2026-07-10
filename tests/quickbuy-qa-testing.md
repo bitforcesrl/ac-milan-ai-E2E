@@ -6,163 +6,102 @@ Testare il flusso di personalizzazione e acquisto rapido (quick-buy) tramite il 
 
 ## Workflow di Testing
 
-### 1. Analisi Componente Quick-Buy
+### 1. Test Combinazioni Prodotti
 
-- Verificare presenza elementi:
-  - Titolo sezione "PERSONALIZZA LA TUA MAGLIA DEL MILAN"
-  - Selettore tipo maglia (Home/Away/Third) - **NOTA: in alcuni periodi potrebbe essere disponibile solo "Home"**
-  - Selettore genere (Uomo/Donna/Bambino)
-  - Selettore modello (Autentica/Replica) - non sempre presente
-  - Selettore manica (Corta/Lunga) - non sempre presente
-  - Selettore taglia
-  - Sezione personalizzazione (Nome e Numero, Patch)
-  - Pulsante "Aggiungi al carrello" con prezzo dinamico
-  - Anteprima maglia (Front/Back)
+**Obiettivo:** Verificare che tutte le combinazioni di prodotto si carichino correttamente.
 
-### 2. Test del Flusso Quick-Buy
+#### 1.1 Scoperta Dinamica delle Combinazioni
 
-Eseguire le seguenti azioni in sequenza:
+**IMPORTANTE:** La matrice delle combinazioni NON è fissa ma varia in base alla stagione e alla disponibilità. Devi scoprire dinamicamente quali opzioni sono disponibili durante il test.
 
-#### 2.1 Selezione Tipo Maglia (Home/Away/Third)
+**Procedura di scoperta:**
 
-- Identificare le opzioni disponibili per il tipo di maglia
-- **NOTA: in alcuni periodi potrebbe essere disponibile solo "Home"**
-- Selezionare "Home" (default)
-- Verificare che:
-  - L'anteprima mostri la maglia Home corretta
-  - Il prezzo base sia visualizzato correttamente
-  - Il titolo dell'immagine nell'anteprima corrisponda alla maglia selezionata
-- Selezionare "Away" (se disponibile)
-- Verificare che:
-  - L'anteprima si aggiorni mostrando la maglia Away
-  - Il prezzo base si aggiorni correttamente
-  - Il titolo dell'immagine nell'anteprima cambi
-- Selezionare "Third" (se disponibile)
-- Verificare che:
-  - L'anteprima si aggiorni mostrando la maglia Third
-  - Il prezzo base si aggiorni correttamente
-  - Il titolo dell'immagine nell'anteprima cambi
-- Tornare a "Home" per verificare la persistenza
+1. **Identifica le opzioni disponibili per ogni selettore:**
+   - **Tipo Maglia:** Clicca sul selettore e annota quali opzioni sono presenti (es. Home, Away, Third - o solo Home se le altre non sono disponibili)
+   - **Genere:** Clicca sul selettore e annota quali opzioni sono presenti (es. Uomo, Donna, Bambino)
+   - **Modello:** Clicca sul selettore e annota quali opzioni sono presenti (es. Autentica, Replica - o solo Replica se Autentica non è disponibile)
+   - **Manica:** Clicca sul selettore e annota quali opzioni sono presenti (es. Corta, Lunga - o solo Corta se Lunga non è disponibile)
 
-#### 2.2 Selezione Genere (Uomo/Donna/Bambino)
+2. **Costruisci la matrice delle combinazioni disponibili:**
+   - Combina tutte le opzioni disponibili per creare la lista completa delle combinazioni testabili
+   - Esempio: Se Tipo Maglia ha [Home, Away], Genere ha [Uomo, Donna], Modello ha [Autentica, Replica], Manica ha [Corta], la matrice sarà: Home×Uomo×Autentica×Corta, Home×Uomo×Replica×Corta, Home×Donna×Autentica×Corta, Home×Donna×Replica×Corta, Away×Uomo×Autentica×Corta, Away×Uomo×Replica×Corta, Away×Donna×Autentica×Corta, Away×Donna×Replica×Corta
 
-##### 2.2.1 Test Genere Uomo
+3. **Documenta la matrice scoperta:**
+   - Annota la matrice completa nel report finale (sezione "Matrice Combinazioni Disponibili")
+   - Questa documentazione è fondamentale per tracciare quali combinazioni erano disponibili al momento del test
 
-- Selezionare "Uomo"
-- Verificare che:
-  - Le opzioni modello (Autentica/Replica) siano disponibili
-  - Le opzioni manica (Corta/Lunga) siano disponibili
-  - Le taglie disponibili siano XS/S/M/L/XL/XXL
-  - Il prezzo base sia quello della maglia uomo
-  - I costi di personalizzazione siano visualizzati correttamente
+#### 1.2 Procedura per Ogni Combinazione
 
-##### 2.2.2 Test Genere Donna
+Per ogni combinazione della matrice:
 
-- Selezionare "Donna"
-- Verificare che:
-  - Le opzioni modello (Autentica/Replica) siano disponibili (se applicabile)
-  - Le opzioni manica (Corta/Lunga) siano disponibili (se applicabile)
-  - Le taglie disponibili siano appropriate per donna
-  - Il prezzo base si aggiorni correttamente
-  - I costi di personalizzazione si aggiornino correttamente
+1. **Selezionare la combinazione** (Tipo Maglia + Genere + Modello + Manica)
+2. **Verificare che il prodotto si carichi correttamente:**
+   - L'anteprima mostri la maglia corretta
+   - Il prezzo base sia visualizzato
+   - Non ci siano errori visibili
+   - Le taglie disponibili siano appropriate per il genere selezionato
+3. **Passare alla combinazione successiva** (NON aggiungere al carrello, NON testare personalizzazioni in questa fase)
 
-##### 2.2.3 Test Genere Bambino
+#### 1.3 Verifica Trasversale
 
-- Selezionare "Bambino"
-- Verificare che:
-  - Il modello cambi automaticamente a "Replica" (Autentica non disponibile per bambino)
-  - La manica rimanga "Corta" (o vericare se Lunga è disponibile)
-  - Le taglie disponibili cambino a "6 anni, 8 anni, 10 anni, 12 anni, 14 anni, 16 anni"
-  - Il prezzo base si aggiorni correttamente (prezzo bambino)
-  - I costi di personalizzazione si aggiornino correttamente (prezzi diversi da adulto)
-  - **IMPORTANTE:** Verificare che il limite caratteri per "Tuo Nome" sia 7 caratteri (non 10 come per adulto)
+Durante il test delle combinazioni, verificare che:
 
-#### 2.3 Selezione Modello (Autentica/Replica)
+- I prezzi si aggiornino correttamente per ogni combinazione
+- Non ci siano errori console o problemi di rendering
+- Le taglie disponibili cambino correttamente in base al genere
 
-- Tornare a genere "Uomo" per testare le opzioni complete
-- Selezionare "Autentica"
-- Verificare che:
-  - Il prezzo base si aggiorni correttamente
-  - L'anteprima mostri la maglia autentica
-  - Il titolo dell'immagine nell'anteprima contenga "AUTHENTIC"
-- Selezionare "Replica"
-- Verificare che:
-  - Il prezzo base si aggiorni correttamente (diminuisca)
-  - L'anteprima si aggiorni
-  - Il titolo dell'immagine nell'anteprima cambi
+---
 
-#### 2.4 Selezione Manica (Corta/Lunga)
+### 2. Test Personalizzazione sulla Maglia Principale
 
-- Con genere "Uomo" e modello "Autentica" selezionati
-- Selezionare "Corta"
-- Verificare che:
-  - Il prezzo base sia visualizzato correttamente
-  - L'anteprima mostri la maglia a manica corta
-- Selezionare "Lunga"
-- Verificare che:
-  - Il prezzo base si aggiorni correttamente (aumenti)
-  - L'anteprima si aggiorni mostrando la maglia a manica lunga
-  - Il titolo dell'immagine nell'anteprima contenga "MANICHE LUNGHE" o simile
+**Obiettivo:** Testare in dettaglio tutte le opzioni di personalizzazione sulla maglia Home/Uomo/Autentica.
 
-#### 2.5 Selezione Taglia
+#### 2.1 Setup Iniziale
 
-- Identificare le taglie disponibili
+- Selezionare: Tipo Maglia = **Home**, Genere = **Uomo**, Modello = **Autentica**, Manica = **Corta**
 - Selezionare una taglia (es. M)
+
+#### 2.2 Test Personalizzazione Libera (Tuo Nome)
+
+**IMPORTANTE:** Questo test va eseguito PRIMA di testare la personalizzazione con giocatore.
+
+- Cliccare sul pulsante "Tuo Nome"
+- Leggere il costo indicato sul pulsante (es. "+ €X") e verificare che il prezzo si aggiorni dinamicamente di quell'importo
+- Inserire un nome personalizzato (nome random)
+- Inserire un numero (numero random di due cifre)
 - Verificare che:
-  - La selezione sia evidenziata visivamente
-  - Le taglie non disponibili siano disabilitate
-  - Il click sulla taglia abbia feedback visivo immediato
-- Cambiare taglia (es. L)
-- Verificare che la selezione si aggiorni correttamente
+  - Il nome e numero appaiano nell'anteprima in tempo reale
+  - **Il nome sia centrato sull'asse Y della maglia**
+  - Il counter caratteri si aggiorni dinamicamente (es. 0/10)
+  - Il prezzo si aggiorni correttamente
+  - I caratteri speciali vengano accettati/bloccati correttamente
+- Deselezionare "Tuo Nome" prima di passare al test successivo
 
-#### 2.6 Personalizzazione - Nome e Numero
+#### 2.3 Test Personalizzazione Giocatore
 
-##### 2.6.1 Opzione "Giocatore"
+##### 2.3.1 Selezione Giocatore
 
 - Cliccare sul pulsante "Giocatore"
 - Leggere il costo indicato sul pulsante (es. "+ €X") e verificare che il prezzo si aggiorni dinamicamente di quell'importo
 - Selezionare un giocatore dal dropdown
-- Verificare che il nome e numero appaiano nell'anteprima
-- **Verificare che il nome sia centrato sull'asse Y della maglia**
-- Verificare che il dropdown contenga la lista completa dei giocatori
+- Verificare che:
+  - Il nome e numero appaiano nell'anteprima
+  - **Il nome sia centrato sull'asse Y della maglia**
+  - Il dropdown contenga la lista completa dei giocatori
+  - Il prezzo si aggiorni correttamente
+
+##### 2.3.2 Test Multipli Giocatori
+
 - **Testare almeno 3 giocatori diversi scelti a random** dal dropdown:
   - Per ogni giocatore, verificare che nome e numero appaiano correttamente nell'anteprima
   - **Verificare che il nome sia centrato orizzontalmente sull'asse Y**
   - Verificare che il prezzo si mantenga consistente (stesso costo per tutti i giocatori)
   - Verificare che non ci siano problemi di encoding caratteri (es. caratteri speciali come ã, é, ñ)
   - Catturare screenshot per ogni giocatore testato
-- **NOTA:** Il nome del giocatore nel dropdown è scritto in formato Title Case (es. "Rafa Leão"), ma l'anteprima sulla maglia mostra sempre il nome in UPPERCASE (es. "RAFA LEÃO"). Questo è il comportamento atteso e **NON è un errore**.
 
-##### 2.6.2 Opzione "Tuo Nome"
+**NOTA:** Il nome del giocatore nel dropdown è scritto in formato Title Case (es. "Rafa Leão"), ma l'anteprima sulla maglia mostra sempre il nome in UPPERCASE (es. "RAFA LEÃO"). Questo è il comportamento atteso e **NON è un errore**.
 
-- Cliccare sul pulsante "Tuo Nome"
-- Leggere il costo indicato sul pulsante (es. "+ €X") e verificare che il prezzo si aggiorni dinamicamente di quell'importo
-- Verificare che i campi input appaiano
-
-##### 2.6.3 Validazione Campi Input - Genere Adulto (Uomo/Donna)
-
-- Con genere "Uomo" o "Donna" selezionato
-- Testare il limite caratteri nome (verificare counter, es. 0/10)
-- Testare il limite caratteri numero (verificare counter, es. 0/2)
-- Testare input vuoti (verificare comportamento)
-- Testare caratteri speciali (verificare se accettati o bloccati)
-- Verificare che il counter si aggiorni dinamicamente durante la digitazione
-- Verificare che il nome e numero appaiano nell'anteprima in tempo reale
-- **Verificare che il nome personalizzato sia centrato sull'asse Y della maglia**
-
-##### 2.6.4 Validazione Campi Input - Genere Bambino
-
-- Selezionare genere "Bambino"
-- Testare il limite caratteri nome (verificare counter, es. 0/7)
-- **IMPORTANTE:** Verificare che il limite massimo sia 7 caratteri (non 10 come per adulto)
-- Testare il limite caratteri numero (verificare counter, es. 0/2)
-- Testare input vuoti (verificare comportamento)
-- Testare caratteri speciali (verificare se accettati o bloccati)
-- Verificare che il counter si aggiorni dinamicamente durante la digitazione
-- Verificare che il nome e numero appaiano nell'anteprima in tempo reale
-- **Verificare che il nome personalizzato sia centrato sull'asse Y della maglia**
-
-#### 2.7 Personalizzazione - Patch
+#### 2.4 Test Personalizzazione Patch
 
 - Selezionare una patch disponibile (es. SERIE A)
 - Verificare che:
@@ -170,7 +109,7 @@ Eseguire le seguenti azioni in sequenza:
   - La patch appaia nell'anteprima
   - Il pulsante mostri che la patch è attiva (stato active)
 
-#### 2.8 Verifica Prezzo
+#### 2.5 Verifica Prezzo Finale
 
 - Leggere il prezzo base mostrato al caricamento
 - Leggere i costi di personalizzazione e patch direttamente dai pulsanti/etichette
@@ -178,12 +117,13 @@ Eseguire le seguenti azioni in sequenza:
   - Prezzo base letto + costo personalizzazione letto + costo patch letto
 - Verificare che il prezzo visualizzato corrisponda al calcolo
 - Verificare che il totale sia mostrato correttamente nel pulsante "Aggiungi al carrello"
-- NOTA: i prezzi possono variare, non usare valori hardcoded ma sempre quelli letti dalla pagina
 
-#### 2.9 Verifica Anteprima
+**NOTA:** i prezzi possono variare, non usare valori hardcoded ma sempre quelli letti dalla pagina
+
+#### 2.6 Verifica Anteprima
 
 - Controllare che l'anteprima mostri:
-  - Nome giocatore o nome personalizzato
+  - Nome giocatore
   - Numero
   - Patch selezionata
 - **Verificare che la scritta (nome) sia centrata sull'asse Y della maglia**
@@ -192,217 +132,43 @@ Eseguire le seguenti azioni in sequenza:
 - Verificare che non ci siano elementi sovrapposti o tagliati nell'anteprima
 - Testare i pulsanti "Front" e "Back" per vedere entrambi i lati della maglia
 
-#### 2.10 Test Persistenza Personalizzazione al Cambio Maglia
+---
 
-**Questo test è fondamentale per verificare che le personalizzazioni rimangano applicate quando si cambia maglia.**
+### 3. Test Personalizzazione su Tutte le Combinazioni
 
-##### 2.10.1 Setup Iniziale
+**Obiettivo:** Verificare che la personalizzazione (player e patch) funzioni correttamente su tutte le 6 combinazioni di prodotto scoperte nella Sezione 1.
 
-- Selezionare genere "Uomo", modello "Autentica", manica "Corta", taglia "M"
-- Selezionare "Tuo Nome" e inserire un nome personalizzato (es. "ROSSONERI")
-- Inserire un numero (es. "99")
-- Selezionare patch "SERIE A"
-- Verificare che tutte le personalizzazioni siano visibili nell'anteprima
-- Annotare il prezzo totale
+**IMPORTANTE:** Questo test va eseguito DOPO aver completato la Sezione 2 (test sulla maglia principale).
 
-##### 2.10.2 Cambio Tipo Maglia (Home → Away)
+#### 3.1 Procedura per Ogni Combinazione
 
-- Cambiare il tipo di maglia da "Home" a "Away"
-- Verificare che:
-  - L'anteprima si aggiorni mostrando la maglia Away
-  - **Le personalizzazioni (nome, numero, patch) rimangano applicate**
-  - Il prezzo si aggiorni correttamente (potrebbe cambiare il prezzo base)
-  - Il nome sia ancora centrato sull'asse Y
-
-##### 2.10.3 Cambio Tipo Maglia (Away → Third)
-
-- Cambiare il tipo di maglia da "Away" a "Third" (se disponibile)
-- Verificare che:
-  - L'anteprima si aggiorni mostrando la maglia Third
-  - **Le personalizzazioni (nome, numero, patch) rimangano applicate**
-  - Il prezzo si aggiorni correttamente
-  - Il nome sia ancora centrato sull'asse Y
-
-##### 2.10.4 Cambio Genere (Uomo → Donna)
-
-- Cambiare genere da "Uomo" a "Donna"
-- Verificare che:
-  - L'anteprima si aggiorni mostrando la maglia donna
-  - **Le personalizzazioni (nome, numero, patch) rimangano applicate**
-  - Il prezzo si aggiorni correttamente
-  - Le taglie disponibili cambino
-  - Il nome sia ancora centrato sull'asse Y
-
-##### 2.10.5 Cambio Genere (Donna → Bambino)
-
-- Cambiare genere da "Donna" a "Bambino"
-- Verificare che:
-  - L'anteprima si aggiorni mostrando la maglia bambino
-  - **Le personalizzazioni (nome, numero, patch) rimangano applicate**
-  - Il prezzo si aggiorni correttamente (prezzo bambino)
-  - Le taglie disponibili cambino a "6-16 anni"
-  - **IMPORTANTE:** Se il nome inserito supera 7 caratteri, verificare che venga troncato o che ci sia un messaggio di errore
-  - Il nome sia ancora centrato sull'asse Y
-
-##### 2.10.6 Ritorno a Maglia Iniziale
-
-- Tornare a genere "Uomo", tipo maglia "Home"
-- Verificare che:
-  - Le personalizzazioni siano ancora applicate
-  - Il prezzo sia corretto
-  - Il nome sia centrato sull'asse Y
-
-#### 2.11 Aggiunta al Carrello
-
-- Cliccare "Aggiungi al carrello"
-- Verificare che il carrello si apra/confermi l'aggiunta
-- Controllare il contenuto del carrello:
-  - Prodotto corretto (tipo maglia, genere, modello, manica, taglia)
-  - Personalizzazione corretta (nome, numero, patch)
-  - Prezzo totale corretto
-- Verificare che NON ci siano prodotti non selezionati dall'utente
-- Verificare coerenza tra ciò che l'utente ha selezionato e ciò che finisce nel carrello
-- **NOTA:** È comportamento atteso che venga aggiunto automaticamente un prodotto omaggio (es. "Figurine Omaggio") al carrello. Questo NON è un bug ma una funzionalità promozionale del sito.
-
-#### 2.12 Test Deselezione
-
-- Deselezionare personalizzazioni già attivate (usare il pulsante di deselezione)
-- Verificare che:
-  - Il prezzo si aggiorni correttamente (diminuisca)
-  - L'anteprima si aggiorni rimuovendo gli elementi deselezionati
-  - I campi input si resettino se necessario
-  - Il pulsante torni allo stato non attivo
-
-#### 2.13 Test Edge Cases
-
-- Testare cambio taglia dopo aver completato la personalizzazione
-- Testare combinazioni multiple (Giocatore + Patch, Tuo Nome + Patch)
-- Verificare che lo stato del personalizzatore persista durante la navigazione
-- Testare deselezione e riselezione rapida per verificare stabilità
-- Testare cambio rapido tra Home/Away/Third con personalizzazioni applicate
-- Testare cambio rapido tra Uomo/Donna/Bambino con personalizzazioni applicate
-
-#### 2.14 Rimozione dal Carrello
-
-- Aprire il carrello (se non già aperto)
-- Identificare il prodotto aggiunto in precedenza
-- Cliccare su "Rimuovi" per il prodotto personalizzato
-- Verificare che:
-  - Il prodotto venga rimosso correttamente dal carrello
-  - Il totale del carrello si aggiorni (diminuisca dell'importo corretto)
-  - Il carrello risulti vuoto (o mostri solo gli altri eventuali prodotti)
-  - Non ci siano residui di personalizzazione nel carrello
-- Questo step è fondamentale per garantire che lo stato del carrello sia pulito per il test successivo
-
-#### 2.15 Test Combinazioni Prodotti
-
-**IMPORTANTE:** Per ogni combinazione di prodotto, devi testare TUTTE e tre le personalizzazioni:
-
-1. **Giocatore** (almeno 3 giocatori diversi scelti a random)
-2. **Tuo Nome** + Numero (inserire nome e numero personalizzati)
-3. **Patch** (selezionare SERIE A o altra patch disponibile)
-
-##### 2.15.1 Piano Test Combinazioni
-
-Prima di iniziare il test, identifica tutte le combinazioni possibili basandoti sulle opzioni disponibili nel componente. Le combinazioni tipiche sono:
-
-**Genere Uomo:**
-
-- Uomo - Autentica - Corta (se disponibile)
-- Uomo - Autentica - Lunga (se disponibile)
-- Uomo - Replica - Corta (se disponibile)
-- Uomo - Replica - Lunga (se disponibile)
-
-**Genere Donna:**
-
-- Donna - Replica - Corta (se disponibile)
-- Donna - Replica - Lunga (se disponibile)
-
-**Genere Bambino:**
-
-- Bambino - Replica - Corta (Autentica non disponibile per bambino)
-
-**NOTA:** Alcune combinazioni potrebbero non essere disponibili (es. Donna Autentica, Bambino Autentica/Lunga). Verifica di volta in volta quali opzioni sono effettivamente selezionabili.
-
-##### 2.15.2 Esecuzione Test per Ogni Combinazione
-
-Per **OGNI** combinazione identificata, eseguire i seguenti step:
+Per ogni combinazione della matrice scoperta nella Sezione 1:
 
 1. **Selezionare la combinazione** (Genere + Modello + Manica)
-2. **Selezionare una taglia** disponibile (es. M per adulto, 10 anni per bambino)
-3. **Testare Giocatore:**
+2. **Selezionare una taglia** disponibile
+3. **Testare Personalizzazione Giocatore:**
    - Cliccare "Giocatore"
-   - Selezionare 3 giocatori diversi a random dal dropdown
-   - Per ogni giocatore:
-     - Verificare che nome e numero appaiano nell'anteprima
-     - Verificare che il nome sia centrato sull'asse Y
-     - Verificare che il prezzo si aggiorni correttamente
-     - Catturare screenshot
-   - Deselezionare il giocatore prima di passare al test successivo
-4. **Testare Tuo Nome:**
-   - Cliccare "Tuo Nome"
-   - Inserire un nome personalizzato (max 10 char per adulto, max 7 char per bambino)
-   - Inserire un numero (es. "99")
+   - Selezionare un giocatore dal dropdown
    - Verificare che nome e numero appaiano nell'anteprima
-   - Verificare che il nome sia centrato sull'asse Y
    - Verificare che il prezzo si aggiorni correttamente
-   - Catturare screenshot
-   - Deselezionare prima di passare al test successivo
-5. **Testare Patch:**
+4. **Testare Personalizzazione Patch:**
    - Cliccare "SERIE A" (o altra patch disponibile)
    - Verificare che la patch appaia nell'anteprima
    - Verificare che il prezzo si aggiorni correttamente
-   - Catturare screenshot
-   - Deselezionare la patch
-6. **Rimuovere il prodotto dal carrello** (se aggiunto) prima di passare alla combinazione successiva
+5. **Passare alla combinazione successiva**
 
-##### 2.15.3 Verifica Trasversale
+#### 3.2 Combinazioni da Testare
+
+Testare tutte le 6 combinazioni scoperte nella Sezione 1:
+
+#### 3.3 Verifica Trasversale
 
 Durante il test delle combinazioni, verificare che:
 
 - I prezzi si aggiornino correttamente per ogni combinazione
-- Le personalizzazioni (giocatore, nome, patch) funzionino per TUTTE le combinazioni
-- La centratura del nome sull'asse Y sia mantenuta per tutte le combinazioni
+- La personalizzazione (player e patch) rimanga applicata per TUTTE le combinazioni
+- La centratura del nome sull'asse Y sia mantenuta per tutte le combinazioni. USA VISION e salva uno screenshot per ogni combinazione testata
 - Non ci siano errori console o problemi di rendering
-- Il pulsante "Aggiungi al carrello" sia sempre abilitato quando la taglia è selezionata
-
-### 3. Verifica Centratura Scritta sull'Asse Y
-
-**Questo test deve essere eseguito per ogni tipo di personalizzazione del nome.**
-
-- Dopo aver selezionato un giocatore o inserito un nome personalizzato
-- Verificare visivamente che il nome sia centrato orizzontalmente sull'asse Y della maglia
-- Controllare che il nome non sia troppo alto o troppo basso rispetto alla posizione centrale
-- Verificare che la centratura sia mantenuta anche dopo:
-  - Cambio tipo maglia (Home/Away/Third)
-  - Cambio genere (Uomo/Donna/Bambino)
-  - Cambio modello (Autentica/Replica)
-  - Cambio manica (Corta/Lunga)
-  - Cambio taglia
-- Se la centratura non è corretta, documentare con screenshot e descrivere il problema
-
----
-
-## Output del Report
-
-**IMPORTANTE:** Il report finale deve contenere **SOLO** bug, problemi e anomalie trovate durante il test.
-
-### Cosa INCLUDERE nel report:
-
-- Bug trovati (con severity, descrizione, steps to reproduce, expected vs actual)
-- Problemi UX/UI identificati
-- Errori tecnici (console errors, network issues)
-- Screenshot che mostrano i problemi
-- Raccomandazioni per fix
-
-### Cosa NON INCLUDERE nel report:
-
-- Test risultati positivi (es. "✅ Prezzo corretto", "✅ Funzionalità OK")
-- Liste di verifiche superate
-- Riepiloghi di funzionalità che funzionano correttamente
-- Tabelle con status "PASS"
-
-Il report deve essere focalizzato esclusivamente su ciò che **non funziona** o che necessita di miglioramenti. Se un test non rivela bug, il report sarà minimale o vuoto.
 
 ---
 
@@ -410,6 +176,6 @@ Il report deve essere focalizzato esclusivamente su ciò che **non funziona** o 
 
 - **Verificare che la personalizzazione funzioni anche quando si cambia maglia**
 - **Le parti della personalizzazione devono rimanere applicate quando si cambia maglia**
-- **Nota:** quando si passa a bambino il nome libero inserito dall'utente ha una validazione di max 7char mentre per gli altri casi 10char
 - **Controllare che la scritta sulla maglia sia centrata sull'asse y**
 - **Il tipo di maglia potrebbe essere solo Home** (non sempre sono disponibili Away/Third)
+- **Il nome del giocatore inserito sulla maglia sarà sempre visualizzato in MAIUSCOLO**: questo è il comportamento corretto e desiderato, NON deve essere segnalato come bug.
