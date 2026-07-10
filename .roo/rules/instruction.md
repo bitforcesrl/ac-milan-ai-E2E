@@ -147,6 +147,55 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 
 ---
 
+## Scelta tra Vision (Screenshot) e DOM (Snapshot)
+
+Durante l'esecuzione dei test con Playwright MCP, devi valutare attentamente se utilizzare la **vision** (screenshot) o il **contenuto DOM** (accessibility snapshot) per le verifiche.
+
+### Quando usare la Vision (Screenshot)
+
+Usa `browser_take_screenshot` quando il task richiede verifiche di:
+
+- **Coerenza visiva**: layout, allineamenti, spacing, positioning
+- **Consistenza grafica**: colori, font, dimensioni elementi, hover states
+- **Validità visiva**: rendering corretto di immagini, anteprime, overlay
+- **Problemi di sovrapposizione**: elementi che si coprono o si tagliano
+- **Qualità delle immagini**: anteprime sfocate, pixelate, o distorte
+- **Feedback visivo**: animazioni, transizioni, stati attivi/inattivi dei pulsanti
+- **Errori di rendering**: testi troncati, caratteri speciali errati, formattazione inconsistente
+
+**Esempi pratici:**
+
+- Verificare che l'anteprima della maglia personalizzata si aggiorni correttamente
+- Controllare che il nome del giocatore sia visualizzato correttamente sull'anteprima
+- Verificare che i colori selezionati corrispondano a quelli visualizzati
+- Controllare che non ci siano elementi UI sovrapposti o tagliati
+
+### Quando usare il DOM (Snapshot)
+
+Usa `browser_snapshot` quando devi:
+
+- **Leggere testi e valori**: prezzi, quantità, nomi prodotti
+- **Verificare la presenza di elementi**: pulsanti, campi form, messaggi
+- **Interagire con elementi**: cliccare pulsanti, compilare form, selezionare opzioni
+- **Controllare stati logici**: elementi abilitati/disabilitati, campi obbligatori
+- **Navigare tra elementi**: trovare link, menu, sezioni della pagina
+
+**Esempi pratici:**
+
+- Leggere il prezzo totale dal carrello
+- Verificare che un pulsante "Aggiungi al carrello" sia presente e cliccabile
+- Controllare che un messaggio di errore sia visualizzato dopo un'azione
+- Selezionare una taglia o un colore dal personalizzatore
+
+### Regola generale
+
+- **Vision** → per verificare **come appare** qualcosa (aspetto visivo)
+- **DOM** → per verificare **cosa c'è** o **cosa fa** qualcosa (contenuto e funzionalità)
+
+Quando hai dubbi, preferisci la **vision** per aspetti UI/UX e il **DOM** per aspetti funzionali/di contenuto.
+
+---
+
 ## Fine del test
 
 - Chiudi la finestra di chrome MCP

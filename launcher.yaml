@@ -4,6 +4,9 @@
 # Campi per ogni test:
 # - name: nome del file .md del test (nella cartella tests/)
 # - viewport: dimensione viewport (desktop, tablet-portrait, tablet-landscape, mobile)
+# - browser: browser da usare (chromium, firefox, webkit) - default: chromium
+#   Installazione browser: npx playwright install webkit (o firefox, chromium)
+#   Path browser installati: ~/Library/Caches/ms-playwright/
 # - url: URL completo della pagina da testare
 # - action: azione da eseguire
 #   - run: esegue il test normalmente
@@ -11,6 +14,11 @@
 #   - only: esegue SOLO questo test, ignorando tutti gli altri
 
 tests:
+  - name: fake.test.md
+    viewport: desktop
+    url: https://store.acmilan.com
+    action: only
+
   - name: pdp-flow.test.md
     viewport: mobile
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
