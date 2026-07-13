@@ -1,12 +1,12 @@
 # launcher.yaml - Test Launcher Configuration
 # Esecutore test E2E per Shopify Jersey Personalizer
 #
+# Server MCP playwright: https://www.npmjs.com/package/@playwright/mcp
+#  https://github.com/hdorgeval/playwright-fluent/blob/master/src/devices/device-names.ts
+#  Path browser installati: ~/Library/Caches/ms-playwright/
+#
 # Campi per ogni test:
 # - name: nome del file .md del test (nella cartella tests/)
-# - viewport: dimensione viewport (desktop, tablet-portrait, tablet-landscape, mobile)
-# - browser: browser da usare (chromium, firefox, webkit) - default: chromium
-#   Installazione browser: npx playwright install webkit (o firefox, chromium)
-#   Path browser installati: ~/Library/Caches/ms-playwright/
 # - url: URL completo della pagina da testare
 # - action: azione da eseguire
 #   - run: esegue il test normalmente
@@ -15,26 +15,21 @@
 
 tests:
   - name: fake.test.md
-    viewport: desktop
     url: https://store.acmilan.com
-    action: skip
+    action: only
 
   - name: pdp-flow.test.md
-    viewport: mobile
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
 
   - name: quickbuy-combinations.md
-    viewport: desktop
     url: https://store.acmilan.com/
-    action: run
+    action: skip
 
   - name: quickbuy-personalization.md
-    viewport: desktop
     url: https://store.acmilan.com/
     action: skip
 
   - name: pdp-break-testing.md
-    viewport: desktop
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip

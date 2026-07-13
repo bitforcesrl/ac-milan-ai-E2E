@@ -43,7 +43,6 @@ Prima di eseguire qualsiasi test, devi leggere il file `launcher.yaml` nella roo
 ```yaml
 tests:
   - name: pdp-flow.test.md # Nome del file .md del test (in tests/)
-    viewport: desktop # desktop | tablet-portrait | tablet-landscape | mobile
     url: https://... # URL della pagina da testare
     action: run # run | skip | only
 ```
@@ -54,16 +53,12 @@ tests:
 - **`skip`**: Salta questo test (non lo esegue)
 - **`only`**: Esegue **SOLO** questo test, ignorando tutti gli altri (utile per debug rapido)
 
-### Dimensioni Viewport
+### Gestione Viewport durante il test
 
-Quando imposti il viewport del browser, usa queste dimensioni di default:
-
-| Viewport             | Larghezza | Altezza | Utilizzo                                                    |
-| -------------------- | --------- | ------- | ----------------------------------------------------------- |
-| **desktop**          | 1512px    | 982px   | Test su schermo desktop standard                            |
-| **tablet-portrait**  | 768px     | 1024px  | Test su tablet in orientamento verticale (iPad portrait)    |
-| **tablet-landscape** | 1024px    | 768px   | Test su tablet in orientamento orizzontale (iPad landscape) |
-| **mobile**           | 375px     | 667px   | Test su mobile (iPhone standard)                            |
+- **IMPORTANTE:** Prima di ogni interazione o verifica visiva, assicurarsi che l'elemento/sezioni da testare sia **completamente visibile nel viewport**
+- Usare lo scroll per portare la sezione target in vista prima di catturare screenshot o eseguire azioni
+- Questo è fondamentale per permettere all'operatore umano di monitorare visivamente l'esecuzione del test in tempo reale
+- Se un elemento è parzialmente visibile o fuori dal viewport, scrollare fino a renderlo completamente visibile prima di procedere
 
 ### Flusso di esecuzione
 
@@ -71,24 +66,15 @@ Quando imposti il viewport del browser, usa queste dimensioni di default:
 2. Se esiste un test con `action: only`, esegui **solo** quel test
 3. Altrimenti, esegui tutti i test con `action: run` (ignora quelli con `action: skip`)
 4. Per ogni test da eseguire:
-   - Imposta il viewport del browser secondo le dimensioni sopra
    - Naviga all'`url` specificato nel launcher
    - Esegui il test definito nel file `.md` corrispondente
 
 ### Preparazione browser
 
 - **Avvia il browser in modalità incognito** per isolare il test e simulare un utente reale senza cookie/cache preesistenti
-- **IMPORTANTE:** Imposta il viewport del browser **PRIMA** di navigare alla pagina, usando le dimensioni specificate nel launcher. Questo garantisce che il sito si carichi già con le dimensioni corrette e appaia centrato.
-- Dopo aver impostato il viewport, naviga all'`url` specificato nel launcher
+- Naviga all'`url` specificato nel launcher
 - Attendi che la pagina sia completamente caricata prima di iniziare il test
 - **Chiudi banner e popup**: una volta caricata la pagina, cerca e chiudi eventuali finestre di consenso cookie, banner pubblicitari, popup di newsletter o altri overlay che potrebbero ostruire la vista della pagina. Clicca su pulsanti come "Accetta", "Rifiuta", "Chiudi", "X", o simili per rimuovere questi elementi prima di iniziare il test.
-
-### Gestione Viewport durante il test
-
-- **IMPORTANTE:** Prima di ogni interazione o verifica visiva, assicurarsi che l'elemento/sezioni da testare sia **completamente visibile nel viewport**
-- Usare lo scroll per portare la sezione target in vista prima di catturare screenshot o eseguire azioni
-- Questo è fondamentale per permettere all'operatore umano di monitorare visivamente l'esecuzione del test in tempo reale
-- Se un elemento è parzialmente visibile o fuori dal viewport, scrollare fino a renderlo completamente visibile prima di procedere
 
 ---
 
@@ -234,6 +220,7 @@ Generare un file con lo stesso nome della cartella contenente:
 5. **UX Issues** - Problemi di usabilità con suggerimenti
 6. **Recommendations** - Suggerimenti per fix prioritizzati
 7. **Execution Time** - Tempo totale impiegato per eseguire il test (dall'inizio alla fine)
+8. **Viewport** - Dimensioni della finestra del browser utilizzate durante il test (larghezza x altezza in pixel)
 
 ---
 
