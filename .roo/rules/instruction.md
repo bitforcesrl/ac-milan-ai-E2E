@@ -207,6 +207,7 @@ reports/
 - L'ora è nel formato `HH-MM` (24h) per evitare clash tra test eseguiti nella stessa giornata
 - Gli screenshot devono essere salvati all'interno di questa cartella **solo se viene trovato un bug o un'anomalia** durante il test. Non salvare screenshot di pagine che funzionano correttamente senza problemi.
 - **Il file del report deve avere lo stesso nome della cartella che lo contiene** (es. `pdp-flow_2026-07-07_16-30.md`)
+- **Gli screenshot devono essere sempre linkati nel report** usando la sintassi markdown per le immagini: `![descrizione](nome-file.png)`. Inserire gli screenshot inline nel report in corrispondenza della fase o del bug a cui si riferiscono, in modo che siano immediatamente visibili durante la lettura.
 
 ### Contenuto del Report
 

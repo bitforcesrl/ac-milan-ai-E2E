@@ -12,7 +12,7 @@
 #   Se specificato, sovrascrive il viewport. Lasciare vuoto per usare viewport personalizzato.
 #
 # Campi per ogni test:
-# - name: nome del file .md del test (nella cartella tests/)
+# - name: nome del file .md del test (percorso relativo alla cartella tests/)
 # - url: URL completo della pagina da testare
 # - action: azione da eseguire
 #   - run: esegue il test normalmente
@@ -31,18 +31,22 @@ tests:
     url: https://store.acmilan.com
     action: skip
 
-  - name: pdp.test.md
+  - name: pdp/pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
 
-  - name: quickbuy-combinations.test.md
+  - name: quickbuy/quickbuy-combinations.test.md
     url: https://store.acmilan.com/
     action: skip
 
-  - name: quickbuy-personalization.test.md
+  - name: quickbuy/quickbuy-personalization.test.md
     url: https://store.acmilan.com/
-    action: only
+    action: skip
 
-  - name: pdp-fuzzy.test.md
+  - name: quickbuy/quickbuy-cart-validation.test.md
+    url: https://store.acmilan.com/
+    action: run
+
+  - name: pdp/pdp-fuzzy.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
