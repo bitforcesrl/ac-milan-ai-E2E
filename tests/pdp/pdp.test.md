@@ -113,6 +113,50 @@ Eseguire le seguenti azioni in sequenza:
 - Verificare coerenza tra ciò che l'utente ha selezionato e ciò che finisce nel carrello
 - **NOTA:** È comportamento atteso che venga aggiunto automaticamente un prodotto omaggio (es. "Figurine Omaggio") al carrello. Questo NON è un bug ma una funzionalità promozionale del sito.
 
+##### 3.6.1 Lettura Attributi Nascosti dei Line Items
+
+**IMPORTANTE:** Oltre agli attributi visibili nell'UI del carrello, esistono attributi nascosti che vengono inviati al backend e sono fondamentali per la lavorazione dell'ordine. Questi attributi **NON sono visibili all'utente** nell'interfaccia del carrello, ma possono essere letti tramite l'API `cart.js` di Shopify.
+
+**Come leggere gli attributi nascosti:**
+
+1. Dalla pagina del carrello, eseguire il seguente codice JavaScript:
+   ```javascript
+   const response = await fetch('/cart.js');
+   const cart = await response.json();
+   console.log(JSON.stringify(cart.items, null, 2));
+   ```
+2. Per ogni line item, esaminare il campo `properties` che contiene tutti gli attributi (visibili e nascosti)
+3. Gli attributi nascosti sono quelli che iniziano con `_` (underscore)
+
+**Attributi nascosti da cercare e documentare nel report:**
+
+Per il **line item della maglia**:
+
+- `_customization`: indica se la maglia è personalizzata ("true")
+- `_customizationId`: ID della personalizzazione
+- `_newCE`: flag nuova personalizzazione
+- `_customizationProducts`: lista di tutti i variant IDs correlati alla personalizzazione
+- `_id`: ID univoco della sessione di personalizzazione
+
+Per il **line item della personalizzazione (Giocatore/Tuo Nome)**:
+
+- `_customizationProduct`: tipo di personalizzazione ("player" o "custom")
+- `_customizationFontStyle`: stile del font (es. "Serie A")
+- `_customizationFont`: font specifico usato
+- `_customizationLetters`: nome del giocatore inserito
+- `_customizationNumbers`: numero del giocatore
+- `_customizationLettersStyle`: stile delle lettere
+- `_customizationNumbersStyle`: stile dei numeri
+- `_gender`: genere selezionato (es. "Uomo")
+- `_customizationProducts`: lista di tutti i variant IDs correlati
+
+Per i **line item degli add-on (Patch e Sponsor)**:
+
+- `_customizationAddOnType`: tipo di add-on (es. "patch", "back_sponsor", "sleeve_sponsor", "front_sponsor")
+- `_customizationProducts`: lista di tutti i variant IDs correlati
+
+**Documentare nel report** tutti gli attributi nascosti trovati per ogni line item, organizzati in tabelle.
+
 #### 3.7 Test Deselezione
 
 - Deselezionare personalizzazioni già attivate (usare il pulsante di deselezione)

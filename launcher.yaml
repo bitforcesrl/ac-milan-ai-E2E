@@ -33,6 +33,10 @@ tests:
 
   - name: pdp/pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
+    action: run
+
+  - name: pdp/pdp-fuzzy.test.md
+    url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
 
   - name: quickbuy/quickbuy-combinations.test.md
@@ -45,8 +49,4 @@ tests:
 
   - name: quickbuy/quickbuy-cart-validation.test.md
     url: https://store.acmilan.com/
-    action: run
-
-  - name: pdp/pdp-fuzzy.test.md
-    url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
