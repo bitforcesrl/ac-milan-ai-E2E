@@ -157,6 +157,51 @@ Per i **line item degli add-on (Patch e Sponsor)**:
 
 **Documentare nel report** tutti gli attributi nascosti trovati per ogni line item, organizzati in tabelle.
 
+##### 3.6.2 Verifica Stili Caratteri da Immagini
+
+**CONTESTO:** Gli attributi `_customizationLettersStyle` e `_customizationNumbersStyle` sono sottostringhe estratte dai nomi dei file delle immagini PNG utilizzate per renderizzare i caratteri (lettere e numeri) sulla maglia. Questi attributi identificano lo stile visivo dei caratteri applicati alla personalizzazione.
+
+**Come funzionano:**
+- Ogni carattere (lettera o numero) visualizzato sulla maglia è renderizzato utilizzando un'immagine PNG specifica
+- Il nome del file PNG contiene un identificatore di stile (es. `seriea_letters_01.png`, `seriea_numbers_01.png`)
+- Gli attributi `_customizationLettersStyle` e `_customizationNumbersStyle` contengono la sottostringa che identifica lo stile utilizzato
+- Questi valori permettono al backend di sapere quale set di immagini è stato utilizzato per la personalizzazione
+
+**Step di verifica:**
+
+1. Dopo aver aggiunto il prodotto al carrello e letto il contenuto tramite `cart.js` (come descritto nella sezione 3.6.1):
+   - Individuare il **line item della personalizzazione** (quello con `_customizationProduct` = "player" o "custom")
+   - Estrarre il valore dell'attributo `_customizationLettersStyle` dalle `properties` del line item
+   - Estrarre il valore dell'attributo `_customizationNumbersStyle` dalle `properties` del line item
+
+2. **Validare i valori estratti:**
+   - Verificare che `_customizationLettersStyle` sia una stringa **non vuota**
+   - Verificare che `_customizationNumbersStyle` sia una stringa **non vuota**
+   - Entrambi i valori dovrebbero essere presenti quando la personalizzazione è applicata (nome e/o numero inseriti)
+
+3. **Correlazione con le immagini PNG:**
+   - Documentare che il valore di `_customizationLettersStyle` corrisponde a una sottostringa presente nei nomi dei file PNG utilizzati per renderizzare le lettere del nome
+   - Documentare che il valore di `_customizationNumbersStyle` corrisponde a una sottostringa presente nei nomi dei file PNG utilizzati per renderizzare i numeri
+   - **Nota:** Non è necessario verificare i file PNG effettivi durante il test, ma è importante documentare che questi attributi esistono e sono popolati
+
+**Comportamento Atteso:**
+
+- `_customizationLettersStyle` deve contenere un identificatore di stile (es. "seriea", "official", ecc.) che corrisponde alla porzione di nome file delle immagini PNG usate per i caratteri lettera
+- `_customizationNumbersStyle` deve contenere un identificatore di stile che corrisponde alla porzione di nome file delle immagini PNG usate per i caratteri numero
+- Entrambi gli attributi devono essere **presenti e popolati** quando la personalizzazione è applicata (cioè quando è stato inserito un nome e/o un numero)
+- Se la personalizzazione non è applicata (nessun nome/numero), questi attributi potrebbero essere assenti o vuoti
+
+**Documentazione nel Report:**
+
+- Includere `_customizationLettersStyle` e `_customizationNumbersStyle` nella tabella degli attributi nascosti del line item di personalizzazione
+- Riportare i valori effettivi trovati durante il test
+- Esempio di tabella:
+
+| Attributo | Valore Trovato | Note |
+|-----------|----------------|------|
+| `_customizationLettersStyle` | `seriea` | Stile caratteri per lettere |
+| `_customizationNumbersStyle` | `seriea` | Stile caratteri per numeri |
+
 #### 3.7 Test Deselezione
 
 - Deselezionare personalizzazioni già attivate (usare il pulsante di deselezione)
