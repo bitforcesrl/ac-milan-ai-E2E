@@ -63,15 +63,20 @@ tests:
 ### Flusso di esecuzione
 
 1. Leggi `launcher.yaml`
-2. Se esiste un test con `action: only`, esegui **solo** quel test
-3. Altrimenti, esegui tutti i test con `action: run` (ignora quelli con `action: skip`)
-4. Per ogni test da eseguire:
+2. **Ridimensiona il browser** secondo `config.viewport` specificato nel launcher (es. "1280x650") usando `browser_resize`
+3. Se esiste un test con `action: only`, esegui **solo** quel test
+4. Altrimenti, esegui tutti i test con `action: run` (ignora quelli con `action: skip`)
+5. Per ogni test da eseguire:
    - Naviga all'`url` specificato nel launcher
    - Esegui il test definito nel file `.md` corrispondente
 
 ### Preparazione browser
 
 - **Avvia il browser in modalità incognito** per isolare il test e simulare un utente reale senza cookie/cache preesistenti
+- **Ridimensiona il browser** PRIMA di navigare all'URL del test:
+  - Leggi `config.viewport` dal `launcher.yaml` (es. "1280x650")
+  - Usa `browser_resize` per impostare le dimensioni esatte
+  - Esempio: `browser_resize({ width: 1280, height: 650 })`
 - Naviga all'`url` specificato nel launcher
 - Attendi che la pagina sia completamente caricata prima di iniziare il test
 - **Chiudi banner e popup**: una volta caricata la pagina, cerca e chiudi eventuali finestre di consenso cookie, banner pubblicitari, popup di newsletter o altri overlay che potrebbero ostruire la vista della pagina. Clicca su pulsanti come "Accetta", "Rifiuta", "Chiudi", "X", o simili per rimuovere questi elementi prima di iniziare il test.

@@ -5,6 +5,12 @@
 #  https://github.com/hdorgeval/playwright-fluent/blob/master/src/devices/device-names.ts
 #  Path browser installati: ~/Library/Caches/ms-playwright/
 #
+# Configurazione viewport/device:
+# - viewport: dimensioni del viewport (larghezzaxaltezza)
+#   Esempi: "1280x650" (desktop), "390x844" (iPhone 12/13/14/15)
+# - device: nome del dispositivo da emulare (opzionale, vedi .roo/mpc.env.md per lista)
+#   Se specificato, sovrascrive il viewport. Lasciare vuoto per usare viewport personalizzato.
+#
 # Campi per ogni test:
 # - name: nome del file .md del test (nella cartella tests/)
 # - url: URL completo della pagina da testare
@@ -12,24 +18,31 @@
 #   - run: esegue il test normalmente
 #   - skip: salta questo test
 #   - only: esegue SOLO questo test, ignorando tutti gli altri
+# config:
+# - desktop: 1280x650
+# - mobile : 390x844
+
+config:
+  viewport: '1280x650'
+  device: ''
 
 tests:
   - name: fake.test.md
     url: https://store.acmilan.com
-    action: only
+    action: skip
 
-  - name: pdp-flow.test.md
+  - name: pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
 
-  - name: quickbuy-combinations.md
+  - name: quickbuy-combinations.test.md
     url: https://store.acmilan.com/
     action: skip
 
-  - name: quickbuy-personalization.md
+  - name: quickbuy-personalization.test.md
     url: https://store.acmilan.com/
-    action: skip
+    action: only
 
-  - name: pdp-break-testing.md
+  - name: pdp-fuzzy.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
