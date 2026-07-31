@@ -29,11 +29,11 @@ config:
 tests:
   - name: fake.test.md
     url: https://store.acmilan.com
-    action: skip
+    action: run
 
   - name: pdp/pdp.test.md
-    url: https://tt0iw05uhjjsxc16-61184966894.shopifypreview.com/products/acm-home-authentic-jersey
-    action: run
+    url: https://store.acmilan.com/products/acm-home-authentic-jersey
+    action: skip
 
   - name: pdp/pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
