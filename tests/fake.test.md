@@ -1,1 +1,1 @@
-verifica che nel menu del sito sia presente la voce "match kit"
+verifica che nel menu del sito sia presente esattamente la voce "match kit" indipendentemente dalla lingua
