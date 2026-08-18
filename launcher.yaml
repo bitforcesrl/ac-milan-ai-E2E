@@ -27,13 +27,13 @@ config:
   device: ''
 
 tests:
-  - name: fake.test.md
+  - name: fail.test.md
     url: https://store.acmilan.com
-    action: run
+    action: skip
 
   - name: pdp/pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
-    action: skip
+    action: run
 
   - name: pdp/pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
