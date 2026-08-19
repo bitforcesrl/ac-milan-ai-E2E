@@ -35,7 +35,8 @@ Selezionare la seguente combinazione come base per tutti i test:
    - **Il nome sia centrato sull'asse Y della maglia** (verifica visiva con screenshot)
    - Il counter caratteri si aggiorni dinamicamente (es. 0/10, 5/10)
    - Il prezzo si aggiorni correttamente (prezzo base + costo personalizzazione)
-   - I caratteri speciali vengano accettati/bloccati correttamente (testare con caratteri come à, è, ò)
+   - **I caratteri accentati NON vengano accettati nel campo nome:** provare a inserire caratteri come à, è, é, ì, ò, ù e verificare che vengano bloccati o ignorati dall'input. Il campo nome deve accettare solo caratteri ASCII non accentati (A-Z, a-z).
+   - Altri caratteri speciali vengano accettati/bloccati correttamente
 
 ### 1.3 Verifica Visiva
 

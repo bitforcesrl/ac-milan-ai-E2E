@@ -68,7 +68,8 @@ Eseguire le seguenti azioni in sequenza:
 - Testare il limite caratteri nome (verificare counter, es. 0/10)
 - Testare il limite caratteri numero (verificare counter, es. 0/2)
 - Testare input vuoti (verificare comportamento)
-- Testare caratteri speciali (verificare se accettati o bloccati)
+- **Testare caratteri accentati nel campo nome:** provare a inserire caratteri come à, è, é, ì, ò, ù e verificare che **NON vengano accettati** (devono essere bloccati o ignorati dall'input). Il campo nome deve accettare solo caratteri ASCII non accentati (A-Z, a-z).
+- Testare altri caratteri speciali (verificare se accettati o bloccati)
 - Verificare che il counter si aggiorni dinamicamente durante la digitazione
 - Verificare che il nome e numero appaiano nell'anteprima in tempo reale
 
@@ -162,6 +163,7 @@ Per i **line item degli add-on (Patch e Sponsor)**:
 **CONTESTO:** Gli attributi `_customizationLettersStyle` e `_customizationNumbersStyle` sono sottostringhe estratte dai nomi dei file delle immagini PNG utilizzate per renderizzare i caratteri (lettere e numeri) sulla maglia. Questi attributi identificano lo stile visivo dei caratteri applicati alla personalizzazione.
 
 **Come funzionano:**
+
 - Ogni carattere (lettera o numero) visualizzato sulla maglia è renderizzato utilizzando un'immagine PNG specifica
 - Il nome del file PNG contiene un identificatore di stile (es. `seriea_letters_01.png`, `seriea_numbers_01.png`)
 - Gli attributi `_customizationLettersStyle` e `_customizationNumbersStyle` contengono la sottostringa che identifica lo stile utilizzato
@@ -197,10 +199,10 @@ Per i **line item degli add-on (Patch e Sponsor)**:
 - Riportare i valori effettivi trovati durante il test
 - Esempio di tabella:
 
-| Attributo | Valore Trovato | Note |
-|-----------|----------------|------|
-| `_customizationLettersStyle` | `seriea` | Stile caratteri per lettere |
-| `_customizationNumbersStyle` | `seriea` | Stile caratteri per numeri |
+| Attributo                    | Valore Trovato | Note                        |
+| ---------------------------- | -------------- | --------------------------- |
+| `_customizationLettersStyle` | `seriea`       | Stile caratteri per lettere |
+| `_customizationNumbersStyle` | `seriea`       | Stile caratteri per numeri  |
 
 #### 3.7 Test Deselezione
 
