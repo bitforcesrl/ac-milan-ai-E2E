@@ -248,6 +248,70 @@ Totale nel Carrello:          €XXX
 
 ---
 
+## Fase 6: Proseguire al Checkout Shopify e Verifica Prodotti
+
+### 6.1 Navigazione al Checkout
+
+1. Dalla pagina del carrello, cliccare sul pulsante **"Checkout"** (o equivalente, es. "Vai al checkout" / "Procedi all'ordine")
+2. Attendere che la pagina del checkout Shopify sia completamente caricata
+3. Verificare che:
+   - La pagina del checkout si renderizzi correttamente (senza errori visibili)
+   - Non ci siano errori console JavaScript né richieste HTTP fallite (4xx, 5xx)
+
+### 6.2 Verifica Prodotti nel Checkout
+
+**IMPORTANTE:** Nel checkout devono essere presenti **esattamente** gli stessi prodotti che sono nel carrello dell'ecommerce. Questo include:
+
+- Il **prodotto principale** (la maglia personalizzata)
+- **Tutti i prodotti che fanno parte della personalizzazione** (giocatore, add-on/patch/sponsor, etc.)
+
+#### 6.2.1 Verifica Prodotto Principale
+
+- [ ] **Nome prodotto principale:** corretto (es. "AC Milan Home Authentic Jersey")
+- [ ] **Taglia:** corretta (quella selezionata)
+- [ ] **Prezzo:** corrisponde al prezzo totale calcolato (base + giocatore + add-on)
+- [ ] **Quantità:** 1
+
+#### 6.2.2 Verifica Prodotti di Personalizzazione
+
+Verificare che **tutti** i prodotti che fanno parte della personalizzazione siano presenti nel checkout:
+
+- [ ] **Prodotto Giocatore:** presente (se applicabile)
+- [ ] **Prodotti Add-On (Patch, Sponsor, etc.):** presenti
+- [ ] **Quantità di ogni prodotto:** corretta
+- [ ] **Prezzo di ogni prodotto:** corretto
+
+#### 6.2.3 Verifica Coerenza Completa
+
+- [ ] **Il numero di prodotti nel checkout** coincide esattamente con il numero di prodotti nel carrello dell'ecommerce
+- [ ] **Non ci sono prodotti extra** nel checkout che non sono nel carrello
+- [ ] **Non manca nessun prodotto** che è nel carrello
+- [ ] **Il subtotale del checkout** corrisponde al totale del carrello
+
+### 6.3 Documentazione Prodotti nel Checkout
+
+Documentare nel report tutti i prodotti presenti nel checkout:
+
+| #   | Tipo Prodotto | Nome   | Quantità | Prezzo |
+| --- | ------------- | ------ | -------- | ------ |
+| 1   | Maglia        | [nome] | 1        | €X     |
+| 2   | Giocatore     | [nome] | 1        | €X     |
+| 3   | Add-On        | [nome] | 1        | €X     |
+| ... | ...           | ...    | ...      | ...    |
+
+**Totale prodotti nel checkout:** [numero]
+**Totale prodotti nel carrello ecommerce:** [numero]
+**Verifica:** [✓] Coincidono esattamente / [✗] Discrepanza rilevata
+
+### 6.4 Screenshot Checkout
+
+- Catturare screenshot del checkout che mostri:
+  - Il prodotto principale con tutti gli attributi
+  - Tutti i prodotti di personalizzazione
+  - Il prezzo totale corretto
+
+---
+
 ## Note Importanti
 
 - **Il nome del giocatore sulla maglia sarà sempre in MAIUSCOLO**: comportamento atteso, NON segnalare come bug

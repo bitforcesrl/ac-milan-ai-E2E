@@ -36,7 +36,7 @@ tests:
     action: skip
 
   - name: pdp/pdp.test.md
-    url: https://store.acmilan.com/products/acm-home-authentic-jersey
+    url: https://w5ze3mb14dfq8nx1-61184966894.shopifypreview.com/products/acm-home-authentic-jersey
     action: skip
 
   - name: pdp/pdp-fuzzy.test.md

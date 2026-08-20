@@ -80,6 +80,7 @@ tests:
 - Naviga all'`url` specificato nel launcher
 - Attendi che la pagina sia completamente caricata prima di iniziare il test
 - **Chiudi banner e popup**: una volta caricata la pagina, cerca e chiudi eventuali finestre di consenso cookie, banner pubblicitari, popup di newsletter o altri overlay che potrebbero ostruire la vista della pagina. Clicca su pulsanti come "Accetta", "Rifiuta", "Chiudi", "X", o simili per rimuovere questi elementi prima di iniziare il test.
+- **Overlay di upsell nel carrello**: quando un prodotto viene aggiunto al carrello e si naviga al carrello, si apre **automaticamente** un overlay per l'upsell di altri prodotti. Questo overlay **NON deve essere considerato un errore**: è un comportamento atteso. Deve essere semplicemente **chiudo con il tasto "X" situato in alto a destra** dell'overlay prima di procedere con il test. Non documentarlo come bug.
 
 ---
 
@@ -212,6 +213,7 @@ reports/
 ### Contenuto del Report
 
 Generare un file con lo stesso nome della cartella contenente:
+Tutti i report devono essere scritti in lingua italiana
 
 1. **Executive Summary** - Stato generale del test
 2. **Test Scenario** - Configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
