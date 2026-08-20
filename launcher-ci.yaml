@@ -18,10 +18,6 @@
 #   - run: esegue il test normalmente
 #   - skip: salta questo test
 #   - only: esegue SOLO questo test, ignorando tutti gli altri
-# - notes: istruzioni/note aggiuntive specifiche per questo test (opzionale)
-#   L'esecutore DEVE leggere questo campo come prima cosa prima di eseguire il test.
-#   Può contenere indicazioni su cosa testare, configurazioni particolari,
-#   o qualsiasi altra informazione rilevante per l'esecuzione del test.
 # config:
 # - desktop: 1280x650
 # - mobile : 390x844
@@ -34,34 +30,27 @@ tests:
   - name: fail.test.md
     url: https://store.acmilan.com
     action: skip
-    notes: ''
 
   - name: pdp/pdp.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
-    notes: ''
 
   - name: pdp/pdp.test.md
-    url: https://w5ze3mb14dfq8nx1-61184966894.shopifypreview.com/products/acm-home-authentic-jersey
+    url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
-    notes: ''
 
   - name: pdp/pdp-fuzzy.test.md
     url: https://store.acmilan.com/products/acm-home-authentic-jersey
     action: skip
-    notes: ''
 
   - name: quickbuy/quickbuy-combinations.test.md
-    url: https://w5ze3mb14dfq8nx1-61184966894.shopifypreview.com/
+    url: https://store.acmilan.com/
     action: skip
-    notes: ''
 
   - name: quickbuy/quickbuy-personalization.test.md
-    url: https://w5ze3mb14dfq8nx1-61184966894.shopifypreview.com/
+    url: https://store.acmilan.com/
     action: skip
-    notes: ''
 
   - name: quickbuy/quickbuy-cart-validation.test.md
     url: https://store.acmilan.com/
     action: run
-    notes: 'passa alla lingua inglese trovi il selettore nel footer del sito'

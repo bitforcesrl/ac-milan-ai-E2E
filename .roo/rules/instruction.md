@@ -45,6 +45,7 @@ tests:
   - name: pdp-flow.test.md # Nome del file .md del test (in tests/)
     url: https://... # URL della pagina da testare
     action: run # run | skip | only
+    notes: '' # (opzionale) Istruzioni/note aggiuntive per questo test
 ```
 
 **Logica delle azioni:**
@@ -52,6 +53,13 @@ tests:
 - **`run`**: Esegue il test normalmente
 - **`skip`**: Salta questo test (non lo esegue)
 - **`only`**: Esegue **SOLO** questo test, ignorando tutti gli altri (utile per debug rapido)
+
+**Campo `notes` (opzionale):**
+
+- Il campo `notes` contiene istruzioni o note aggiuntive specifiche per quel singolo test
+- **DEVE essere letto come prima cosa prima di eseguire il test** a cui si riferisce
+- Può contenere: indicazioni su cosa testare con priorità, configurazioni particolari da applicare, contesto aggiuntivo, o qualsiasi altra informazione rilevante per l'esecuzione
+- Se il campo è vuoto (`notes: ''`), non ci sono note aggiuntive per quel test
 
 ### Gestione Viewport durante il test
 
@@ -67,6 +75,7 @@ tests:
 3. Se esiste un test con `action: only`, esegui **solo** quel test
 4. Altrimenti, esegui tutti i test con `action: run` (ignora quelli con `action: skip`)
 5. Per ogni test da eseguire:
+   - **Leggi il campo `notes`** del test: se presente e non vuoto, leggi e applica le istruzioni contenute PRIMA di iniziare il test
    - Naviga all'`url` specificato nel launcher
    - Esegui il test definito nel file `.md` corrispondente
 
