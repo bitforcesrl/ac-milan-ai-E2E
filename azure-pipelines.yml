@@ -1,13 +1,7 @@
-trigger: none
-pr: none
-
-schedules:
- #  - cron: '0 6 * * 1-5'
-    displayName: E2E AI pipdline
-    branches:
-      include:
-        - main
-    always: true
+trigger:
+  branches:
+    include:
+      - pipeline-test
 
 pool:
   name: 'Internal Linux with Docker' 
