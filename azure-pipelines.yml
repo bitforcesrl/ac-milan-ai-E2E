@@ -33,6 +33,10 @@ jobs:
         env:
           CURSOR_API_KEY: $(CURSOR_API_KEY)
 
+      - script: node scripts/render-reports.mjs
+        displayName: Convert reports to HTML
+        condition: always()
+
       - task: PublishPipelineArtifact@1
         displayName: Publish reports artifact
         condition: always()
@@ -40,10 +44,10 @@ jobs:
           targetPath: reports
           artifact: e2e-reports
 
-#      - script: node scripts/email-report.mjs
-#        displayName: Email report via SendGrid
-#        condition: always()
-#        env:
-#          SENDGRID_API_KEY: $(SENDGRID_API_KEY)
-#          MAIL_FROM: $(MAIL_FROM)
-#          MAIL_TO: $(MAIL_TO)
+      - script: node scripts/email-report.mjs
+        displayName: Email report via SendGrid
+        condition: always()
+        env:
+          SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+          MAIL_FROM: $(MAIL_FROM)
+          MAIL_TO: $(MAIL_TO)
