@@ -24,73 +24,85 @@ CI_STATUS=FAIL
 
 Usa FAIL se almeno un bug HIGH e' stato trovato, oppure se un test non e' completabile.`;
 
-try {
-  await using agent = await Agent.create({
-    apiKey,
-    model: { id: 'composer-2.5' },
-    local: { cwd: process.cwd() },
-    mcpServers: {
-      playwright: {
-        type: 'stdio',
-        command: 'npx',
-        args: [
-          '-y',
-          '@playwright/mcp@latest',
-          '--headless',
-          '--isolated',
-          '--browser',
-          'chromium',
-        ],
-        cwd: process.cwd(),
-        env: {
-          PLAYWRIGHT_MCP_BROWSER: 'chromium',
-          PLAYWRIGHT_MCP_ISOLATED: 'true',
+await main();
+
+async function main() {
+  let agent;
+  try {
+    agent = await Agent.create({
+      apiKey,
+      model: { id: 'composer-2.5' },
+      local: { cwd: process.cwd() },
+      mcpServers: {
+        playwright: {
+          type: 'stdio',
+          command: 'npx',
+          args: [
+            '-y',
+            '@playwright/mcp@latest',
+            '--headless',
+            '--isolated',
+            '--browser',
+            'chromium',
+          ],
+          cwd: process.cwd(),
+          env: {
+            PLAYWRIGHT_MCP_BROWSER: 'chromium',
+            PLAYWRIGHT_MCP_ISOLATED: 'true',
+          },
         },
       },
-    },
-  });
+    });
 
-  const run = await agent.send(prompt);
-  console.log(`agentId=${agent.agentId} runId=${run.id} requestId=${run.requestId ?? ''}`);
+    const run = await agent.send(prompt);
+    console.log(`agentId=${agent.agentId} runId=${run.id} requestId=${run.requestId ?? ''}`);
 
-  for await (const event of run.stream()) {
-    if (event.type === 'assistant') {
-      for (const block of event.message.content) {
-        if (block.type === 'text') process.stdout.write(block.text);
+    for await (const event of run.stream()) {
+      if (event.type === 'assistant') {
+        for (const block of event.message.content) {
+          if (block.type === 'text') process.stdout.write(block.text);
+        }
+      } else if (event.type === 'tool_call') {
+        console.log(`[tool] ${event.name}: ${event.status}`);
+      } else if (event.type === 'status') {
+        console.log(`[status] ${event.status}${event.message ? ` ${event.message}` : ''}`);
       }
-    } else if (event.type === 'tool_call') {
-      console.log(`[tool] ${event.name}: ${event.status}`);
-    } else if (event.type === 'status') {
-      console.log(`[status] ${event.status}${event.message ? ` ${event.message}` : ''}`);
+    }
+
+    const result = await run.wait();
+    const text = result.result ?? '';
+    console.log('\n--- run finished ---');
+    console.log(`status=${result.status} durationMs=${result.durationMs ?? 'n/a'}`);
+    if (result.usage) {
+      console.log(`tokens total=${result.usage.totalTokens} in=${result.usage.inputTokens} out=${result.usage.outputTokens}`);
+    }
+
+    if (result.status === 'error') {
+      console.error('run failed:', result.error?.message ?? result.id);
+      process.exitCode = 2;
+      return;
+    }
+
+    if (result.status === 'cancelled') {
+      console.error('run cancelled:', result.id);
+      process.exitCode = 2;
+      return;
+    }
+
+    if (!text.includes('CI_STATUS=PASS')) {
+      console.error('CI_STATUS is not PASS.');
+      process.exitCode = 2;
+    }
+  } catch (err) {
+    if (err instanceof CursorAgentError) {
+      console.error(`startup failed: ${err.message} retryable=${err.isRetryable}`);
+      process.exitCode = 1;
+      return;
+    }
+    throw err;
+  } finally {
+    if (agent?.[Symbol.asyncDispose]) {
+      await agent[Symbol.asyncDispose]();
     }
   }
-
-  const result = await run.wait();
-  const text = result.result ?? '';
-  console.log('\n--- run finished ---');
-  console.log(`status=${result.status} durationMs=${result.durationMs ?? 'n/a'}`);
-  if (result.usage) {
-    console.log(`tokens total=${result.usage.totalTokens} in=${result.usage.inputTokens} out=${result.usage.outputTokens}`);
-  }
-
-  if (result.status === 'error') {
-    console.error('run failed:', result.error?.message ?? result.id);
-    process.exit(2);
-  }
-
-  if (result.status === 'cancelled') {
-    console.error('run cancelled:', result.id);
-    process.exit(2);
-  }
-
-  if (!text.includes('CI_STATUS=PASS')) {
-    console.error('CI_STATUS is not PASS.');
-    process.exit(2);
-  }
-} catch (err) {
-  if (err instanceof CursorAgentError) {
-    console.error(`startup failed: ${err.message} retryable=${err.isRetryable}`);
-    process.exit(1);
-  }
-  throw err;
 }
