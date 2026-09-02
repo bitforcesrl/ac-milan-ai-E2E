@@ -1,0 +1,55 @@
+trigger: none
+pr: none
+
+schedules:
+ #  - cron: '0 6 * * 1-5'
+    displayName: E2E AI pipdline
+    branches:
+      include:
+        - main
+    always: true
+
+pool:
+  name: 'Internal Linux with Docker' 
+  demands:
+    - jdk -equals 21
+
+variables:
+  - group: acmilan-e2e-secrets
+
+jobs:
+  - job: e2e
+    displayName: AI E2E tests
+    timeoutInMinutes: 20
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 22
+        inputs:
+          versionSpec: '22.x'
+
+      - script: |
+          npm install
+          npx playwright install --with-deps chromium
+        displayName: Install dependencies and Chromium
+
+      - script: node scripts/run-e2e-ci.mjs
+        displayName: Run AI E2E (launcher-ci.yaml)
+        env:
+          CURSOR_API_KEY: $(CURSOR_API_KEY)
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish reports artifact
+        condition: always()
+        inputs:
+          targetPath: reports
+          artifact: e2e-reports
+
+#      - script: node scripts/email-report.mjs
+#        displayName: Email report via SendGrid
+#        condition: always()
+#        env:
+#          SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+#          MAIL_FROM: $(MAIL_FROM)
+#          MAIL_TO: $(MAIL_TO)

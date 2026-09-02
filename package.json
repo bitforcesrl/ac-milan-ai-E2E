@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "e2e:ci": "node scripts/run-e2e-ci.mjs",
+    "e2e:email": "node scripts/email-report.mjs"
+  },
   "keywords": [
     "playwright",
     "testing",
@@ -12,5 +15,7 @@
   ],
   "author": "",
   "license": "ISC",
-  "devDependencies": {}
+  "dependencies": {
+    "@cursor/sdk": "^1.0.30"
+  }
 }
