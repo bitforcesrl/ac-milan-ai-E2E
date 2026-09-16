@@ -1,3 +1,17 @@
+parameters:
+  - name: browsers
+    displayName: Browser
+    type: string
+    default: chromium
+    values:
+      - chromium
+      - firefox
+      - webkit
+      - chromium,firefox
+      - chromium,webkit
+      - firefox,webkit
+      - chromium,firefox,webkit
+
 trigger:
   branches:
     include:
@@ -25,7 +39,7 @@ variables:
 jobs:
   - job: e2e
     displayName: AI E2E tests
-    timeoutInMinutes: 90
+    timeoutInMinutes: 20
     steps:
       - checkout: self
 
@@ -43,6 +57,7 @@ jobs:
         displayName: Run AI E2E (launcher-ci.yaml)
         env:
           CURSOR_API_KEY: $(CURSOR_API_KEY)
+          BROWSERS: ${{ parameters.browsers }}
 
       - script: node scripts/render-reports.mjs
         displayName: Convert reports to HTML
@@ -62,3 +77,11 @@ jobs:
           SENDGRID_API_KEY: $(SENDGRID_API_KEY)
           MAIL_FROM: $(MAIL_FROM)
           MAIL_TO: $(MAIL_TO)
+
+
+      - task: PublishHtmlReport@1
+        displayName: Show HTML report
+        condition: always()
+        inputs:
+          reportDir: reports/index.html
+          tabName: E2E Report
