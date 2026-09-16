@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "mcp__chrome-devtools__new_page",
-      "mcp__chrome-devtools__resize_page"
+      "mcp__chrome-devtools__resize_page",
+      "mcp__chrome-devtools__take_snapshot",
+      "Read(//var/folders/zt/r4ck7z1d4dv9p9ltrkf_36kr0000gn/T/chrome-devtools-mcp-3JJ8dN/**)",
+      "Read(//private/var/folders/zt/r4ck7z1d4dv9p9ltrkf_36kr0000gn/T/chrome-devtools-mcp-3JJ8dN/**)"
     ]
   }
 }
