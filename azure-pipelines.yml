@@ -90,9 +90,3 @@ jobs:
           REPORT_HTML_URL: $(REPORT_HTML_URL)
 
 
-      - task: JakubRumpca.azure-pipelines-html-report.PublishHtmlReport.PublishHtmlReport@1
-        displayName: Show HTML report
-        condition: always()
-        inputs:
-          reportDir: $(REPORT_HTML_URL)
-          tabName: E2E Report

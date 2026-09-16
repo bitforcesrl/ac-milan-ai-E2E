@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, posix, relative } from 'node:path';
 import {
   BlobServiceClient,
@@ -76,6 +76,13 @@ const reportUrl = `${blobBase}/index.html?${sas}`;
 console.log(`REPORT_HTML_URL=${reportUrl}`);
 if (process.env.TF_BUILD) {
   console.log(`##vso[task.setvariable variable=REPORT_HTML_URL;issecret=false]${reportUrl}`);
+  const summaryPath = join(process.cwd(), 'html-report-link.md');
+  writeFileSync(
+    summaryPath,
+    `## Report HTML\n\n[Apri il report E2E](${reportUrl})\n`,
+    'utf8',
+  );
+  console.log(`##vso[task.uploadsummary]${summaryPath}`);
 }
 
 function parseConnectionString(value) {
