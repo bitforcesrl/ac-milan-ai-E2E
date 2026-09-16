@@ -19,6 +19,8 @@
   "license": "ISC",
   "dependencies": {
     "@azure/storage-blob": "^12.28.0",
-    "@cursor/sdk": "^1.0.30"
+    "@cursor/sdk": "^1.0.30",
+    "dotenv": "^17.4.2",
+    "marked": "^18.0.13"
   }
 }
