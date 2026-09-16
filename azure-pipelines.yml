@@ -79,7 +79,7 @@ jobs:
           MAIL_TO: $(MAIL_TO)
 
 
-      - task: PublishHtmlReport@1
+      - task: JakubRumpca.azure-pipelines-html-report.PublishHtmlReport.PublishHtmlReport@1
         displayName: Show HTML report
         condition: always()
         inputs:
