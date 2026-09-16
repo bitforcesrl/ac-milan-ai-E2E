@@ -63,6 +63,14 @@ jobs:
         displayName: Convert reports to HTML
         condition: always()
 
+      - script: node scripts/upload-reports.mjs
+        displayName: Upload reports to blob storage
+        condition: always()
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
+          AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
+          REPORT_BLOB_PREFIX: e2e/$(Build.BuildId)
+
       - task: PublishPipelineArtifact@1
         displayName: Publish reports artifact
         condition: always()
@@ -77,6 +85,7 @@ jobs:
           SENDGRID_API_KEY: $(SENDGRID_API_KEY)
           MAIL_FROM: $(MAIL_FROM)
           MAIL_TO: $(MAIL_TO)
+          REPORT_HTML_URL: $(REPORT_HTML_URL)
 
 
       - task: JakubRumpca.azure-pipelines-html-report.PublishHtmlReport.PublishHtmlReport@1

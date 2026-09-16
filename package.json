@@ -6,7 +6,8 @@
   "scripts": {
     "e2e:ci": "node scripts/run-e2e-ci.mjs",
     "e2e:email": "node scripts/email-report.mjs",
-    "e2e:html": "node scripts/render-reports.mjs"
+    "e2e:html": "node scripts/render-reports.mjs",
+    "e2e:upload": "node scripts/upload-reports.mjs"
   },
   "keywords": [
     "playwright",
@@ -17,6 +18,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@azure/storage-blob": "^12.28.0",
     "@cursor/sdk": "^1.0.30"
   }
 }
