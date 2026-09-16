@@ -25,7 +25,7 @@ variables:
 jobs:
   - job: e2e
     displayName: AI E2E tests
-    timeoutInMinutes: 20
+    timeoutInMinutes: 90
     steps:
       - checkout: self
 
@@ -36,8 +36,8 @@ jobs:
 
       - script: |
           npm install
-          npx playwright install --with-deps chromium
-        displayName: Install dependencies and Chromium
+          npx playwright install --with-deps chromium firefox webkit
+        displayName: Install dependencies and browsers
 
       - script: node scripts/run-e2e-ci.mjs
         displayName: Run AI E2E (launcher-ci.yaml)
