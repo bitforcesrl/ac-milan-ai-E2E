@@ -92,5 +92,5 @@ jobs:
         displayName: Show HTML report
         condition: always()
         inputs:
-          reportDir: reports/index.html
+          reportDir: $(REPORT_HTML_URL)
           tabName: E2E Report
