@@ -276,3 +276,4 @@ Tutti i report devono essere scritti in lingua italiana
 - **Massima attenzione ai caratteri testuali**: durante i controlli visivi, prestare estrema attenzione a tutti i caratteri presenti nel testo e nelle immagini (errori di battitura, caratteri speciali errati, formattazione inconsistente, testo troncato o illeggibile)
 - **Il nome del giocatore inserito sulla maglia sarà sempre visualizzato in MAIUSCOLO**: questo è il comportamento corretto e desiderato, NON deve essere segnalato come bug.
 - **Selezione taglie**: le taglie disponibili dipendono da come sono configurate sul prodotto. Non c'è requisito che appaiano sempre tutte abilitate o disabilitate — alcune taglie possono anche non comparire affatto. Comportamento atteso, NON va segnalato come bug.
+
