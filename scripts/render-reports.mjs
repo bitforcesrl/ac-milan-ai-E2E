@@ -11,9 +11,10 @@ const pageSize = 30;
 // Azure leaves "$(VAR)" unexpanded when the pipeline variable is not defined.
 const clientName = !process.env.CLIENT_NAME?.trim() || process.env.CLIENT_NAME.startsWith('$(') ? '' : process.env.CLIENT_NAME.trim();
 
-// Per-file heading state, reset before each parse.
+// Per-file state, reset before each parse.
 let usedIds = new Set();
 let toc = [];
+let currentDir = ''; // directory of the HTML being rendered, to rewrite asset paths
 
 marked.use({
   breaks: true,
@@ -22,6 +23,25 @@ marked.use({
       const id = uniqueId(slugify(text));
       if (depth === 2) toc.push({ id, text: this.parser.parseInline(tokens) });
       return `<h${depth} id="${id}">${this.parser.parseInline(tokens)}</h${depth}>\n`;
+    },
+    code({ text }) {
+      return imageFromAsset(text) || `<code>${escapeHtml(text)}</code>`;
+    },
+    codespan({ text }) {
+      return imageFromAsset(text) || `<code>${escapeHtml(text)}</code>`;
+    },
+    link({ href, title, tokens }) {
+      const img = imageFromAsset(href);
+      if (img) return img;
+      const label = this.parser.parseInline(tokens);
+      const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+      return `<a href="${escapeAttr(href)}"${titleAttr}>${label}</a>`;
+    },
+    image({ href, title, text }) {
+      const img = imageFromAsset(href);
+      if (img) return img;
+      const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
+      return `<img src="${escapeAttr(href)}" alt="${escapeAttr(text)}"${titleAttr} loading="lazy">`;
     },
   },
 });
@@ -39,16 +59,35 @@ if (!markdownFiles.length) {
 
 const rendered = markdownFiles.map((mdPath) => {
   const htmlPath = mdPath.replace(/\.md$/i, '.html');
-  const meta = parseReportName(basename(mdPath, '.md'));
-  const indexHref = relative(join(htmlPath, '..'), join(reportsDir, 'index.html')).replace(/\\/g, '/') || 'index.html';
+  const fileName = basename(mdPath, '.md');
+  const meta = parseReportName(fileName);
+  const htmlDir = join(htmlPath, '..');
+  const indexHref = relative(htmlDir, join(reportsDir, 'index.html')).replace(/\\/g, '/') || 'index.html';
 
   usedIds = new Set();
   toc = [];
-  const body = wrapTables(marked.parse(readFileSync(mdPath, 'utf8')));
+  const raw = readFileSync(mdPath, 'utf8');
+  const isSummary = /^ci-summary-/.test(fileName);
+  // Dati strutturati scritti dalla pipeline (ci-data-<browser>.json); fallback: parsing del markdown.
+  const ciData = isSummary ? loadCiData(fileName) : null;
+  const info = {
+    ...meta,
+    href: relative(reportsDir, htmlPath).replace(/\\/g, '/'),
+    isSummary,
+    status: ciData?.status || detectStatus(raw),
+    browser: ciData?.browser || detectBrowser(raw, fileName),
+    model: ciData?.model || detectModel(raw),
+    testLinks: ciData ? ciTestLinks(ciData) : collectTestLinks(raw),
+    stats: ciData ? ciStats(ciData) : isSummary ? parseStats(raw) : null,
+    screenshots: isSummary ? [] : listScreenshots(htmlDir),
+  };
 
-  writeFileSync(htmlPath, reportPage(meta, body, toc, indexHref), 'utf8');
+  currentDir = htmlDir;
+  const body = wrapTables(marked.parse(raw));
+
+  writeFileSync(htmlPath, reportPage(info, body, toc, indexHref), 'utf8');
   console.log(`Wrote ${htmlPath}`);
-  return { ...meta, href: relative(reportsDir, htmlPath).replace(/\\/g, '/') };
+  return info;
 });
 
 writeFileSync(join(reportsDir, 'index.html'), indexPage(rendered), 'utf8');
@@ -67,7 +106,6 @@ function listMarkdown(dir) {
   return files.sort();
 }
 
-// "quickbuy-cart-validation_2026-08-20_09-33" -> readable name + date
 function parseReportName(name) {
   const match = /^(.+)_(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})$/.exec(name);
   if (!match) return { name, label: name, date: '', time: '', sortKey: '' };
@@ -83,6 +121,147 @@ function parseReportName(name) {
     time: `${hh}:${mm}`,
     sortKey: `${y}${m}${d}${hh}${mm}`,
   };
+}
+
+function detectStatus(raw) {
+  if (/❌|\bFAIL\b/.test(raw)) return 'FAIL';
+  if (/✅|\bPASS\b/.test(raw)) return 'PASS';
+  return '';
+}
+
+function parseStats(raw) {
+  const sev = (name) => {
+    const m = new RegExp(`\\|\\s*(?:[\u{1F534}\u{1F7E1}\u{1F7E2}]\\s*)?${name}\\s*\\|\\s*(\\d+)`, 'u').exec(raw);
+    return m ? Number(m[1]) : 0;
+  };
+  const rows = raw.split('\n').filter((l) => /^\|.*\|\s*$/.test(l));
+  const countRows = (re) => rows.filter((l) => re.test(l)).length;
+  const time = /\*\*(?:Orario|Durata):\*\*\s*([^\n*]+)/.exec(raw);
+
+  const pass = countRows(/(?:✅\s*)?PASS\s*\|?\s*$/);
+  const fail = countRows(/(?:❌\s*)?FAIL\s*\|?\s*$/);
+  const total = pass + fail;
+  const passRate = total > 0 ? Math.round((pass / total) * 100) : 0;
+
+  return {
+    pass,
+    fail,
+    total,
+    passRate,
+    high: sev('HIGH'),
+    medium: sev('MEDIUM'),
+    low: sev('LOW'),
+    duration: time ? time[1].trim() : '',
+  };
+}
+
+function loadCiData(fileName) {
+  const browser = /^ci-summary-(.+)\.md$/i.exec(fileName)?.[1];
+  if (!browser) return null;
+  const jsonPath = join(reportsDir, `ci-data-${browser}.json`);
+  if (!existsSync(jsonPath)) return null;
+  try {
+    const data = JSON.parse(readFileSync(jsonPath, 'utf8'));
+    if (!Array.isArray(data.tests)) return null;
+    return data;
+  } catch (err) {
+    console.error(`Invalid ${jsonPath}: ${err.message} — fallback a parsing markdown.`);
+    return null;
+  }
+}
+
+function ciStats(data) {
+  const pass = data.tests.filter((t) => t.status === 'PASS').length;
+  const fail = data.tests.filter((t) => t.status === 'FAIL').length;
+  const total = pass + fail;
+  const bugs = data.bugs ?? {};
+  return {
+    pass,
+    fail,
+    total,
+    passRate: total > 0 ? Math.round((pass / total) * 100) : 0,
+    high: Number(bugs.high) || 0,
+    medium: Number(bugs.medium) || 0,
+    low: Number(bugs.low) || 0,
+    duration: data.duration ?? '',
+  };
+}
+
+function ciTestLinks(data) {
+  return data.tests.map((t) => {
+    const mdPath = typeof t.report === 'string' && t.report ? t.report.replace(/^reports\//, '') : '';
+    const htmlPath = mdPath ? mdPath.replace(/\.md$/i, '.html') : '';
+    const exists = htmlPath && existsSync(join(reportsDir, htmlPath));
+    const parsed = parseReportName(basename(mdPath || t.name || '', '.md'));
+    return {
+      label: parsed.label || t.name || 'Test',
+      href: exists ? htmlPath : '',
+      status: t.status === 'FAIL' ? 'FAIL' : t.status === 'PASS' ? 'PASS' : '',
+    };
+  });
+}
+
+function listScreenshots(htmlDir) {
+  try {
+    const folder = relative(reportsDir, htmlDir).replaceAll('\\', '/');
+    return readdirSync(htmlDir)
+      .filter((f) => /\.(png|jpe?g|webp|gif)$/i.test(f))
+      .sort()
+      .slice(0, 4)
+      .map((f) => (folder ? `${folder}/${f}` : f));
+  } catch {
+    return [];
+  }
+}
+
+function detectBrowser(raw, fileName) {
+  const fromName = /^ci-summary-([a-z0-9_-]+)\.md$/i.exec(fileName);
+  if (fromName) return fromName[1];
+  const fromBody = /\*\*Browser:\*\*\s*([A-Za-z0-9]+)/.exec(raw);
+  return fromBody ? fromBody[1] : '';
+}
+
+function detectModel(raw) {
+  const match = /\*\*Modello AI:\*\*\s*([^\n*]+)/.exec(raw);
+  return match ? match[1].trim() : '';
+}
+
+function collectTestLinks(raw) {
+  const links = new Map();
+  const re = /reports\/([\w\-.]+(?:\/[\w\-.]+)*?)\/([\w\-.]+)\.md/g;
+  let match;
+  while ((match = re.exec(raw))) {
+    const folder = match[1];
+    if (/^ci-summary/i.test(folder)) continue;
+    const name = `${folder}/${match[2]}`;
+    if (links.has(name)) continue;
+
+    const mdFile = join(reportsDir, folder, `${match[2]}.md`);
+    const htmlFile = join(reportsDir, folder, `${match[2]}.html`);
+    if (!existsSync(htmlFile)) continue;
+
+    let status = '';
+    if (existsSync(mdFile)) {
+      status = detectStatus(readFileSync(mdFile, 'utf8'));
+    }
+
+    const parsed = parseReportName(match[2]);
+    links.set(name, {
+      label: parsed.label,
+      href: relative(reportsDir, htmlFile).replace(/\\/g, '/'),
+      status,
+    });
+  }
+  return [...links.values()];
+}
+
+function imageFromAsset(value) {
+  const m = /^(?:\.\/)?(?:reports\/)?([\w\-.]+(?:\/[\w\-.]+)*?\.(?:png|jpe?g|webp|gif))$/i.exec(String(value).trim());
+  if (!m) return '';
+  const file = m[1];
+  if (!existsSync(join(reportsDir, file))) return '';
+  const href = relative(currentDir, join(reportsDir, file)).replaceAll('\\', '/');
+  return `<img src="${escapeAttr(href)}" alt="${escapeAttr(file)}" loading="lazy">`;
 }
 
 function slugify(value) {
@@ -114,6 +293,30 @@ function reportPage(meta, body, sections, indexHref) {
         .join('')}</ol></nav>`
     : '';
 
+  const status = meta.status
+    ? `<p class="status-badge ${meta.status === 'PASS' ? 'pass' : 'fail'}">${meta.status === 'PASS' ? '✅ PASS' : '❌ FAIL'}</p>`
+    : '';
+  const banner = meta.status
+    ? `<p class="status-banner ${meta.status === 'PASS' ? 'pass' : 'fail'}">${
+        meta.status === 'PASS' ? '✅ Run superato con successo' : '❌ Run fallito - Verificare gli errori'
+      }</p>`
+    : '';
+  const metaBits = [
+    meta.browser ? `<p class="meta-bit"><span>Browser</span><b>${escapeHtml(meta.browser)}</b></p>` : '',
+    meta.model ? `<p class="meta-bit"><span>Modello AI</span><b>${escapeHtml(meta.model)}</b></p>` : '',
+  ]
+    .filter(Boolean)
+    .join('');
+
+  const runTests = meta.isSummary && meta.testLinks.length
+    ? `<div class="run-tests">
+        <p class="run-tests-title">Test Eseguiti (${meta.testLinks.length})</p>
+        <ol>${meta.testLinks
+          .map((t) => `<li>${testLinkHtml(t, 'rail-test-link')}</li>`)
+          .join('')}</ol>
+       </div>`
+    : '';
+
   return layout(
     meta.label,
     `<div class="shell">
@@ -122,10 +325,14 @@ function reportPage(meta, body, sections, indexHref) {
     <div class="run">
       <p class="run-name">${escapeHtml(meta.label)}</p>
       ${meta.date ? `<p class="run-date">${escapeHtml(meta.date)}, ore ${escapeHtml(meta.time)}</p>` : ''}
+      ${status}
+      ${metaBits}
     </div>
     ${nav}
+    ${runTests}
   </aside>
   <main class="doc">
+${banner}
 ${body}
   </main>
 </div>
@@ -150,36 +357,135 @@ ${body}
 function indexPage(items) {
   const sorted = [...items].sort((a, b) => b.sortKey.localeCompare(a.sortKey));
   const paged = sorted.length > pageSize;
+  const groups = groupByBrowser(sorted);
   return layout(
     'Report E2E',
     `<main class="index-page">
   ${clientName ? `<p class="brand">${escapeHtml(clientName)}</p>` : ''}
   <h1>Report E2E</h1>
-  <p class="lede">Ogni run della pipeline lascia qui il suo report, con bug trovati e screenshot. I più recenti sono in cima.</p>
-  <ol class="runs" id="runs">
-${sorted
-  .map(
-    (item) => `    <li><a href="${escapeAttr(item.href)}">
-      <span class="runs-name">${escapeHtml(item.label)}</span>
-      <span class="runs-date">${item.date ? `${escapeHtml(item.date)}, ${escapeHtml(item.time)}` : escapeHtml(item.name)}</span>
-    </a></li>`,
-  )
-  .join('\n')}
-  </ol>
+  <p class="lede">Resoconto esecuzioni della pipeline, dettaglio test eseguiti, bug riscontrati e screenshot</p>
+${groups.map((group) => browserGroupHtml(group)).join('\n')}
   ${paged ? '<nav class="pager" aria-label="Pagine dei report" hidden></nav>' : ''}
 </main>
 ${paged ? pagerScript() : ''}`,
   );
 }
 
-// Client-side pagination: all rows are in the HTML, the script shows one page at a time.
-// Current page lives in the hash (#pagina-2) so back/forward and shared links keep it.
+function browserGroupHtml(group) {
+  const summary = group.items.find((i) => i.isSummary);
+  const tests = group.items.filter((i) => !i.isSummary);
+  return `  <section class="browser-group">
+    <h2 class="group-title" data-browser="${escapeAttr(group.name)}">${escapeHtml(group.label)}</h2>
+    ${summary ? summaryCardHtml(summary) : ''}
+${tests.length ? `    <div class="standalone-tests">
+      <h3 class="subgroup-title">Report Singoli</h3>
+      <ol class="runs">
+${tests.map(testRowHtml).join('\n')}
+      </ol>
+    </div>` : ''}
+  </section>`;
+}
+
+function summaryCardHtml(item) {
+  const s = item.stats ?? {};
+  const statusClass = item.status === 'FAIL' ? 'fail' : item.status === 'PASS' ? 'pass' : '';
+  const testList = item.testLinks || [];
+
+  return `    <article class="run-summary ${statusClass}">
+      <header class="run-summary-head">
+        <div>
+          <h3 class="run-summary-name">
+            <a href="${escapeAttr(item.href)}">${escapeHtml(item.label)}</a>
+            ${statusChip(item.status)}
+          </h3>
+          <p class="run-summary-date">${item.date ? `${escapeHtml(item.date)}${item.time ? `, ore ${escapeHtml(item.time)}` : ''}` : escapeHtml(item.name)}</p>
+        </div>
+        ${s.duration ? `<div class="duration-badge">⏱️ ${escapeHtml(s.duration)}</div>` : ''}
+      </header>
+
+      ${s.total ? `
+      <div class="progress-container">
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${s.passRate}%;"></div>
+        </div>
+        <span class="progress-label">${s.passRate}% Superato (${s.pass}/${s.total})</span>
+      </div>
+      ` : ''}
+
+      <dl class="run-stats">
+        <div class="stat"><dt>Test Superati</dt><dd class="ok">${s.pass ?? 0}</dd></div>
+        <div class="stat"><dt>Test Falliti</dt><dd class="${s.fail ? 'ko' : ''}">${s.fail ?? 0}</dd></div>
+        <div class="stat"><dt>Bug HIGH</dt><dd class="${s.high ? 'ko' : ''}">${s.high ?? 0}</dd></div>
+        <div class="stat"><dt>Bug MEDIUM</dt><dd class="${s.medium ? 'warn' : ''}">${s.medium ?? 0}</dd></div>
+        <div class="stat"><dt>Bug LOW</dt><dd>${s.low ?? 0}</dd></div>
+      </dl>
+
+      ${testList.length ? `
+  <div class="summary-tests-preview">
+    <p class="summary-tests-title">Dettaglio Test inclusi (${testList.length}):</p>
+    <ul class="summary-tests-list">
+      ${testList.map((t) => `<li>${testLinkHtml(t, '')}</li>`).join('')}
+    </ul>
+  </div>
+  ` : ''}
+
+      <p class="run-summary-link"><a href="${escapeAttr(item.href)}">Apri il report di summary completo →</a></p>
+    </article>`;
+}
+
+function testRowHtml(item) {
+  return `    <li><a href="${escapeAttr(item.href)}">
+      <span class="runs-name">${escapeHtml(item.label)}${statusChip(item.status)}</span>
+      <span class="runs-date">${item.date ? `${escapeHtml(item.date)}, ${escapeHtml(item.time)}` : escapeHtml(item.name)}</span>
+    </a></li>`;
+}
+
+function testLinkHtml(test, className) {
+  const chip = statusChip(test.status);
+  const label = `<span>${escapeHtml(test.label)}</span>${chip}`;
+  if (!test.href) return `<div class="${className}">${label}</div>`;
+  return `<a href="${escapeAttr(test.href)}" class="${className}">${label}</a>`;
+}
+
+function statusChip(status) {
+  if (!status) return '';
+  return status === 'PASS'
+    ? ' <span class="chip pass" aria-label="Superato">PASS</span>'
+    : ' <span class="chip fail" aria-label="Fallito">FAIL</span>';
+}
+
+function groupByBrowser(items) {
+  const order = ['chromium', 'firefox', 'webkit'];
+  const map = new Map();
+  for (const item of items) {
+    const key = item.browser ? item.browser.toLowerCase() : 'altro';
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(item);
+  }
+  const keys = [...map.keys()].sort((a, b) => {
+    const ia = order.indexOf(a);
+    const ib = order.indexOf(b);
+    if (ia !== -1 || ib !== -1) return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    return a.localeCompare(b);
+  });
+  return keys.map((key) => {
+    const groupItems = map.get(key);
+    groupItems.sort((a, b) => (Number(b.isSummary) - Number(a.isSummary)) || b.sortKey.localeCompare(a.sortKey));
+    return {
+      name: key,
+      label: key === 'altro' ? 'Altro' : key.charAt(0).toUpperCase() + key.slice(1),
+      items: groupItems,
+    };
+  });
+}
+
 function pagerScript() {
   return `<script>
   (() => {
     const pageSize = ${pageSize};
-    const rows = [...document.querySelectorAll('#runs > li')];
+    const rows = [...document.querySelectorAll('.runs > li')];
     const pager = document.querySelector('.pager');
+    if (!pager || !rows.length) return;
     const pages = Math.ceil(rows.length / pageSize);
 
     const pageFromHash = () => {
@@ -187,7 +493,6 @@ function pagerScript() {
       return Math.min(Math.max(n, 1), pages);
     };
 
-    // First, last, and a window around the current page; gaps become ellipses.
     const visiblePages = (current) => {
       const set = new Set([1, pages, current - 1, current, current + 1]);
       return [...set].filter((n) => n >= 1 && n <= pages).sort((a, b) => a - b);
@@ -220,7 +525,7 @@ function pagerScript() {
       pager.hidden = false;
 
       if (focusPager) {
-        document.getElementById('runs').scrollIntoView({ block: 'start' });
+        document.querySelector('.browser-group')?.scrollIntoView({ block: 'start' });
         pager.querySelector('[aria-current]')?.focus({ preventScroll: true });
       }
     };
@@ -243,51 +548,48 @@ function layout(title, content) {
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap">
   <style>
     :root {
-      --canvas: #f4f4f3;
+      --canvas: #f6f7f9;
       --paper: #ffffff;
-      --ink: #171717;
-      --graphite: #606060;
-      --rule: #deddda;
-      --wash: #ebebea;
-      --shadow: 0 1px 2px rgb(0 0 0 / 5%), 0 18px 40px -20px rgb(0 0 0 / 22%);
-      --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
-      --text: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
-      --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+      --ink: #0f172a;
+      --graphite: #64748b;
+      --rule: #e2e8f0;
+      --wash: #f1f5f9;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --display: "Bricolage Grotesque", sans-serif;
+      --text: "Instrument Sans", sans-serif;
+      --mono: "JetBrains Mono", monospace;
       color-scheme: light dark;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --canvas: #141414;
-        --paper: #1c1c1c;
-        --ink: #ececea;
-        --graphite: #9d9d9a;
-        --rule: #2f2f2e;
-        --wash: #242423;
-        --shadow: 0 1px 2px rgb(0 0 0 / 40%), 0 18px 40px -20px rgb(0 0 0 / 70%);
+        --canvas: #0b0f17;
+        --paper: #151d2a;
+        --ink: #f8fafc;
+        --graphite: #94a3b8;
+        --rule: #1e293b;
+        --wash: #1e293b;
+        --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
       }
     }
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; scroll-padding-top: 24px; }
-    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
     body {
       margin: 0;
       background: var(--canvas);
       color: var(--ink);
-      font: 400 1.03rem/1.65 var(--text);
+      font: 400 1rem/1.6 var(--text);
       -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
     }
-    a { color: inherit; text-decoration-color: var(--rule); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+    a { color: inherit; text-decoration-color: var(--rule); text-underline-offset: 3px; }
     a:hover { text-decoration-color: currentColor; }
-    :focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 3px; }
 
-    /* Report layout: sticky rail + document */
+    /* Shell Layout */
     .shell {
       display: grid;
-      grid-template-columns: 250px minmax(0, 1fr);
-      gap: clamp(32px, 5vw, 80px);
-      max-width: 1200px;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 48px;
+      max-width: 1280px;
       margin: 0 auto;
       padding-inline: 24px;
     }
@@ -297,155 +599,123 @@ function layout(title, content) {
       align-self: start;
       max-height: 100vh;
       overflow-y: auto;
-      padding-block: 48px;
+      padding-block: 40px;
       font-size: 0.9rem;
     }
-    .back { display: inline-flex; align-items: center; gap: 8px; color: var(--graphite); text-decoration: none; }
-    .back::before { content: ""; width: 7px; height: 7px; border-left: 1.5px solid; border-bottom: 1.5px solid; transform: rotate(45deg); }
+    .back { display: inline-flex; align-items: center; gap: 8px; color: var(--graphite); text-decoration: none; font-weight: 500; }
     .back:hover { color: var(--ink); }
-    .run { margin: 40px 0 28px; padding-bottom: 24px; border-bottom: 1px solid var(--rule); }
-    .run-name { margin: 0; font: 600 1.3rem/1.15 var(--display); letter-spacing: -0.02em; }
-    .run-date { margin: 6px 0 0; color: var(--graphite); font-variant-numeric: tabular-nums; }
-    .toc { margin-left: -16px; }
+
+    .run { margin: 24px 0 20px; padding-bottom: 20px; border-bottom: 1px solid var(--rule); }
+    .run-name { margin: 0; font: 600 1.25rem/1.2 var(--display); }
+    .run-date { margin: 4px 0 0; color: var(--graphite); font-size: 0.85rem; }
+
     .toc ol { list-style: none; margin: 0; padding: 0; }
-    .toc a {
-      display: block;
-      padding: 6px 0 6px 14px;
-      border-left: 2px solid transparent;
-      color: var(--graphite);
-      text-decoration: none;
-      line-height: 1.35;
-      transition: color 0.15s, border-color 0.15s;
-    }
+    .toc a { display: block; padding: 5px 0 5px 12px; border-left: 2px solid transparent; color: var(--graphite); text-decoration: none; }
     .toc a:hover { color: var(--ink); }
     .toc a[aria-current] { color: var(--ink); border-left-color: var(--ink); font-weight: 600; }
 
-    .doc {
-      min-width: 0;
-      max-width: 820px;
-      padding-block: 56px 120px;
-    }
-    .doc > p, .doc > ul, .doc > ol, .doc > blockquote { max-width: 68ch; }
+    .doc { min-width: 0; max-width: 840px; padding-block: 40px 100px; }
 
-    /* Type scale */
-    h1, h2, h3, h4 { font-family: var(--display); color: var(--ink); text-wrap: balance; }
-    h1 {
-      margin: 0 0 40px;
-      font-size: clamp(2.3rem, 3.2vw + 1.2rem, 3.9rem);
-      font-weight: 650;
-      line-height: 1.02;
-      letter-spacing: -0.035em;
-      font-variation-settings: "opsz" 96;
-    }
-    h2 {
-      margin: 72px 0 20px;
-      font-size: 1.85rem;
-      font-weight: 600;
-      line-height: 1.15;
-      letter-spacing: -0.025em;
-    }
-    h3 {
-      margin: 48px 0 14px;
-      padding-top: 24px;
-      border-top: 1px solid var(--rule);
-      font-size: 1.22rem;
-      font-weight: 600;
-      line-height: 1.3;
-      letter-spacing: -0.01em;
-    }
-    h2 + h3, hr + h3 { margin-top: 28px; padding-top: 0; border-top: 0; }
-    h4 { margin: 32px 0 10px; font-size: 1.02rem; font-weight: 600; }
-    hr { border: 0; border-top: 1px solid var(--rule); margin: 56px 0; }
-    hr + h2 { margin-top: 0; }
-    p { margin: 0 0 16px; }
-    strong { font-weight: 600; }
-    ul, ol { padding-left: 1.3em; margin: 0 0 20px; }
-    li { margin: 6px 0; }
-    li::marker { color: var(--graphite); }
-    li:has(> input[type=checkbox]) { list-style: none; margin-left: -1.3em; }
-    input[type=checkbox] { accent-color: var(--ink); margin: 0 8px 0 0; vertical-align: -1px; }
-    blockquote { margin: 24px 0; padding: 2px 0 2px 20px; border-left: 2px solid var(--ink); color: var(--graphite); }
+    /* Type Scale & Elements */
+    h1 { margin: 0 0 24px; font-size: clamp(2.2rem, 3vw + 1rem, 3.5rem); font-weight: 700; letter-spacing: -0.02em; }
+    h2 { margin: 48px 0 16px; font-size: 1.6rem; font-weight: 600; }
+    h3 { margin: 32px 0 12px; font-size: 1.2rem; font-weight: 600; }
 
-    /* Code and price breakdowns */
-    code { font: 500 0.86em var(--mono); background: var(--wash); padding: 2px 6px; border-radius: 5px; overflow-wrap: anywhere; }
-    pre {
-      margin: 24px 0;
-      padding: 20px 22px;
+    .table-wrap { margin: 20px 0; overflow-x: auto; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--rule); }
+    th { font-weight: 600; color: var(--graphite); background: var(--wash); }
+
+    /* Status Badges & Chips */
+    .status-badge { display: inline-block; margin-top: 12px; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }
+    .status-badge.pass { background: #dcfce7; color: #15803d; }
+    .status-badge.fail { background: #fee2e2; color: #b91c1c; }
+
+    .status-banner { padding: 14px 18px; border-radius: 8px; font-weight: 600; margin-bottom: 28px; }
+    .status-banner.pass { background: #dcfce7; color: #15803d; border-left: 4px solid #22c55e; }
+    .status-banner.fail { background: #fee2e2; color: #b91c1c; border-left: 4px solid #ef4444; }
+
+    @media (prefers-color-scheme: dark) {
+      .status-badge.pass { background: #064e3b; color: #6ee7b7; }
+      .status-badge.fail { background: #7f1d1d; color: #fca5a5; }
+      .status-banner.pass { background: #064e3b; color: #6ee7b7; border-left-color: #10b981; }
+      .status-banner.fail { background: #7f1d1d; color: #fca5a5; border-left-color: #f43f5e; }
+    }
+
+    .chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font: 700 0.65rem var(--text); letter-spacing: 0.05em; }
+    .chip.pass { background: #dcfce7; color: #15803d; }
+    .chip.fail { background: #fee2e2; color: #b91c1c; }
+    @media (prefers-color-scheme: dark) {
+      .chip.pass { background: #064e3b; color: #6ee7b7; }
+      .chip.fail { background: #7f1d1d; color: #fca5a5; }
+    }
+
+    /* Side Rail Test Links */
+    .run-tests { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--rule); }
+    .run-tests-title { margin: 0 0 10px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--graphite); }
+    .run-tests ol { list-style: none; padding: 0; margin: 0; }
+    .rail-test-link { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; text-decoration: none; font-size: 0.85rem; }
+    .rail-test-link:hover { color: var(--ink); }
+
+    /* Summary Cards in Index */
+    .index-page { max-width: 880px; margin: 0 auto; padding: 60px 24px; }
+    .brand { color: var(--graphite); font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; }
+    .lede { color: var(--graphite); font-size: 1.1rem; margin-bottom: 40px; }
+
+    .run-summary {
       background: var(--paper);
       border: 1px solid var(--rule);
-      border-radius: 10px;
-      overflow-x: auto;
-      line-height: 1.6;
-    }
-    pre code { background: none; padding: 0; font-size: 0.84rem; font-weight: 400; overflow-wrap: normal; }
-
-    /* Tables */
-    .table-wrap {
-      margin: 24px 0 28px;
-      overflow-x: auto;
-      background: var(--paper);
-      border: 1px solid var(--rule);
-      border-radius: 10px;
-    }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-    th, td { padding: 11px 16px; text-align: left; vertical-align: top; }
-    th { font-weight: 600; color: var(--graphite); border-bottom: 1px solid var(--rule); white-space: nowrap; }
-    td { border-bottom: 1px solid var(--rule); }
-    tbody tr:last-child td { border-bottom: 0; }
-    tbody tr:hover td { background: var(--wash); }
-
-    /* Screenshots */
-    img {
-      display: block;
-      max-width: 100%;
-      height: auto;
-      margin: 20px 0 28px;
-      border-radius: 10px;
-      border: 1px solid var(--rule);
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 20px;
       box-shadow: var(--shadow);
     }
+    .run-summary.pass { border-top: 4px solid #22c55e; }
+    .run-summary.fail { border-top: 4px solid #ef4444; }
 
-    /* Index page */
-    .index-page { max-width: 820px; margin: 0 auto; padding: 88px 24px 120px; }
-    .brand { margin: 0 0 18px; color: var(--graphite); font-size: 0.95rem; }
-    .index-page h1 { margin-bottom: 20px; font-size: clamp(3rem, 7vw + 1rem, 6rem); }
-    .lede { max-width: 52ch; margin: 0 0 56px; color: var(--graphite); font-size: 1.12rem; }
-    .runs { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--ink); }
-    .runs li { margin: 0; border-bottom: 1px solid var(--rule); }
-    .runs a {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 4px 24px;
-      padding: 22px 4px;
-      text-decoration: none;
-      transition: padding 0.2s ease;
-    }
-    .runs a:hover { padding-left: 14px; }
-    .runs-name { font: 600 1.45rem/1.2 var(--display); letter-spacing: -0.02em; }
-    .runs-date { color: var(--graphite); font-variant-numeric: tabular-nums; }
-    .pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 24px; margin-top: 32px; }
-    .pager-count { margin: 0; color: var(--graphite); font-variant-numeric: tabular-nums; }
-    .pager-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
-    .pager a, .pager span { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; height: 40px; padding: 0 12px; border-radius: 999px; font-variant-numeric: tabular-nums; text-decoration: none; }
-    .pager a { color: var(--ink); }
-    .pager a:hover { background: var(--wash); }
-    .pager a[aria-current] { background: var(--ink); color: var(--canvas); font-weight: 600; }
-    .pager-gap { color: var(--graphite); padding: 0 4px; min-width: 0; }
-    .pager-step[aria-disabled] { color: var(--rule); }
-    @media (prefers-reduced-motion: reduce) { .runs a, .toc a { transition: none; } }
+    .run-summary-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+    .run-summary-name { margin: 0; font: 600 1.25rem var(--display); }
+    .run-summary-name a { text-decoration: none; }
+    .run-summary-date { margin: 4px 0 0; color: var(--graphite); font-size: 0.85rem; }
+    .duration-badge { font-size: 0.8rem; background: var(--wash); padding: 4px 8px; border-radius: 6px; font-weight: 500; }
+
+    /* Progress bar */
+    .progress-container { margin-top: 18px; display: flex; align-items: center; gap: 12px; }
+    .progress-bar { flex: 1; height: 8px; background: var(--wash); border-radius: 999px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #22c55e; border-radius: 999px; }
+    .run-summary.fail .progress-fill { background: #ef4444; }
+    .progress-label { font-size: 0.8rem; font-weight: 600; color: var(--graphite); white-space: nowrap; }
+
+    /* Stats Grid */
+    .run-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--rule); }
+    .stat dt { font-size: 0.7rem; text-transform: uppercase; color: var(--graphite); font-weight: 600; letter-spacing: 0.05em; }
+    .stat dd { margin: 2px 0 0; font: 700 1.2rem var(--display); }
+    .stat dd.ok { color: #16a34a; }
+    .stat dd.ko { color: #dc2626; }
+    .stat dd.warn { color: #d97706; }
+
+    /* Test List inside Summary Card */
+    .summary-tests-preview { margin-top: 20px; padding: 12px 16px; background: var(--wash); border-radius: 8px; }
+    .summary-tests-title { margin: 0 0 8px; font-size: 0.8rem; font-weight: 600; color: var(--graphite); }
+    .summary-tests-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    .summary-tests-list a { display: flex; justify-content: space-between; align-items: center; text-decoration: none; font-size: 0.88rem; font-weight: 500; }
+    .summary-tests-list a:hover { text-decoration: underline; }
+
+    .run-summary-link { margin: 18px 0 0; text-align: right; font-size: 0.9rem; font-weight: 600; }
+    .group-title { margin: 40px 0 12px; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--graphite); border-bottom: 1px solid var(--rule); padding-bottom: 8px; }
+    .subgroup-title { margin: 24px 0 12px; font-size: 0.9rem; text-transform: uppercase; color: var(--graphite); }
+
+    .runs { list-style: none; padding: 0; margin: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+    .runs li { border-bottom: 1px solid var(--rule); }
+    .runs li:last-child { border-bottom: 0; }
+    .runs a { display: flex; justify-content: space-between; padding: 12px 16px; text-decoration: none; }
+    .runs-name { font-weight: 500; }
+    .runs-date { color: var(--graphite); font-size: 0.85rem; }
 
     @media (max-width: 860px) {
       .shell { display: block; }
-      .rail { position: static; max-height: none; padding-block: 28px 0; }
-      .run { margin: 24px 0 16px; }
-      .toc { margin-left: 0; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
-      .toc ol { display: flex; flex-wrap: wrap; gap: 4px 16px; }
-      .toc a { padding: 4px 0; border-left: 0; }
-      .doc { padding-top: 40px; }
-      h2 { margin-top: 56px; font-size: 1.55rem; }
-      .index-page { padding-top: 56px; }
+      .rail { position: static; max-height: none; padding-block: 20px 0; }
+      .doc { padding-top: 20px; }
     }
   </style>
 </head>
