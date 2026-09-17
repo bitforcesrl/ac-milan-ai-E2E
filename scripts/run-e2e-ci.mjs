@@ -17,6 +17,9 @@ if (!model) {
 
 const maxTurns = Number(process.env.OPENROUTER_MAX_TURNS || 300);
 
+// MCP SDK default request timeout is 60s: too short for slow CI machines / heavy pages.
+const mcpToolTimeout = Number(process.env.MCP_TOOL_TIMEOUT || 180000);
+
 const browsers = (process.env.BROWSERS || 'chromium,firefox,webkit')
   .split(',')
   .map((name) => name.trim().toLowerCase())
@@ -87,7 +90,9 @@ async function runForBrowser(browser) {
   try {
     for (const server of servers) {
       const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
+      console.log(`[mcp] connecting to ${server.name}...`);
       await client.connect(server.transport);
+      console.log(`[mcp] ${server.name} connected`);
       const { tools: mcpTools } = await client.listTools();
       for (const t of mcpTools) {
         const exposedName = `${server.name}__${t.name}`;
@@ -137,20 +142,29 @@ async function runForBrowser(browser) {
         } catch {
           args = {};
         }
-        console.log(`[tool] ${name}`);
+        console.log(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
+        const startedAt = Date.now();
         let result;
         try {
           const entry = toolMap.get(name);
           if (!entry) throw new Error(`Unknown tool: ${name}`);
-          const res = await entry.client.callTool({ name: entry.mcpName, arguments: args });
+          const res = await entry.client.callTool(
+            { name: entry.mcpName, arguments: args },
+            undefined,
+            { timeout: mcpToolTimeout },
+          );
           const parts = Array.isArray(res.content) ? res.content : [];
           result =
             parts
               .map((p) => (p.type === 'text' ? p.text : p.type === 'image' ? '[image content omitted]' : `[${p.type}]`))
               .join('\n') || JSON.stringify(res);
         } catch (err) {
+          const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
+          console.error(`[tool] ${name} FAILED after ${duration}s: ${err.message}`);
           result = `TOOL ERROR: ${err.message}`;
         }
+        const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
+        console.log(`[tool] ${name} done in ${duration}s (result ${String(result).length} chars)`);
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
