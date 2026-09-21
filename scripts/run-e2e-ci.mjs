@@ -1,5 +1,9 @@
 import 'dotenv/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { E2E_TESTS } = require('../test.config.js');
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -44,6 +48,8 @@ function loadConfig() {
     throw new Error('Nessun viewport selezionato (RUN_DESKTOP / RUN_TABLET / RUN_MOBILE).');
   }
 
+  const tests = selectTests(process.env.TESTS_ENABLED);
+
   return {
     apiKey,
     model,
@@ -53,7 +59,42 @@ function loadConfig() {
     mcpToolTimeout: Number(process.env.MCP_TOOL_TIMEOUT || 180000),
     browsers,
     viewports,
+    tests,
   };
+}
+
+// Selezione test:
+// - Se TESTS_ENABLED e' definita (lista di id separati da virgole), vengono eseguiti
+//   SOLO i test con quegli id (override del campo enabled di test.config.js)
+// - Altrimenti vengono eseguiti i test con enabled: true
+function selectTests(raw) {
+  if (raw === undefined || raw.trim() === '') {
+    const byEnabled = E2E_TESTS.filter((t) => t.enabled === true);
+    if (!byEnabled.length) {
+      throw new Error('Nessun test selezionato: TESTS_ENABLED non definita e nessun test con enabled: true in test.config.js.');
+    }
+    return byEnabled;
+  }
+
+  const ids = raw.split(',').map((id) => id.trim()).filter(Boolean);
+  if (!ids.length) {
+    throw new Error('Nessun test selezionato in TESTS_ENABLED.');
+  }
+
+  const unknown = ids.filter((id) => !E2E_TESTS.some((t) => t.id === id));
+  if (unknown.length) {
+    const valid = E2E_TESTS.map((t) => t.id).join(', ');
+    throw new Error(`Id test sconosciuti in TESTS_ENABLED: ${unknown.join(', ')} (id validi: ${valid})`);
+  }
+
+  const seen = new Set();
+  return ids
+    .map((id) => {
+      if (seen.has(id)) return null;
+      seen.add(id);
+      return E2E_TESTS.find((t) => t.id === id);
+    })
+    .filter(Boolean);
 }
 
 // ============================================================================
@@ -72,6 +113,7 @@ async function main() {
   const stamp = buildRunStamp();
   console.log(`Browsers: ${config.browsers.join(', ')}`);
   console.log(`Viewports: ${config.viewports.join(', ')}`);
+  console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);
   console.log(`Run Totali: ${config.browsers.length * config.viewports.length} (browser x viewport)`);
   console.log(`Cartella run: reports/${stamp}\n`);
 
@@ -107,7 +149,7 @@ async function runSession(browser, viewport, config, stamp) {
   let mcp;
   try {
     mcp = await initMcpServers(browser);
-    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, config.model, stamp) }];
+    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, config.model, stamp, config.tests) }];
     let finalText = '';
 
     for (let turn = 0; turn < config.maxTurns; turn++) {
@@ -402,7 +444,11 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildPrompt(browser, viewport, model, stamp) {
+function buildPrompt(browser, viewport, model, stamp, tests) {
+  const testsList = tests
+    .map((t) => `- id: ${t.id} | name: ${t.name} | file: ${t.file} | url: ${t.url}${t.notes ? ` | note: ${t.notes}` : ''}`)
+    .join('\n');
+
   return `Sei in CI Azure, senza operatore umano. Esegui i test E2E di questo repository.
 
 Browser obbligatorio per questa run: ${browser}
@@ -415,9 +461,12 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 
 Regole:
 1. Leggi AGENTS.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
-2. Usa SOLO launcher-ci.yaml (ignora launcher.yaml). Leggilo con un tool filesystem.
-3. Esegui i test con action: run. Salta quelli con skip. Se un test ha action: only, esegui solo quello.
-4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (sovrascrive config.viewport del launcher).
+2. La lista dei test di questa run e' fornita qui sotto (variabile d'ambiente TESTS_ENABLED della pipeline, definizioni in test.config.js). NON eseguire test fuori da questa lista.
+3. Esegui TUTTI i test della lista. Per ogni test: naviga all'url indicato, leggi le istruzioni dal file "tests/<file>" con un tool filesystem e applicale. Se il campo note e' presente, applicalo con priorita'.
+
+Lista test di questa run (formato: id | name | file | url | note):
+${testsList}
+4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
 5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
 6. Struttura obbligatoria dei report (usa i tool filesystem per creare file e cartelle):
    reports/${stamp}/${browser}/${viewport}/

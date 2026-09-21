@@ -34,27 +34,25 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 ## Step preliminari prima di iniziare il test
 
-### Lettura del file launcher
+### Lettura della configurazione dei test
 
-Prima di eseguire qualsiasi test, devi leggere il file `launcher.yaml` nella root del progetto. Questo file contiene la configurazione di tutti i test disponibili.
+La configurazione di tutti i test disponibili è nel file `test.config.js` nella root del progetto. Ogni test è definito con questi campi:
 
-**Struttura del launcher.yaml:**
+- **`id`**: identificatore univoco del test (usato in `TESTS_ENABLED` per abilitarlo)
+- **`name`**: nome univoco e descrittivo del test
+- **`file`**: percorso del file `.md` del test, relativo alla cartella `tests/`
+- **`url`**: URL completo della pagina da testare
+- **`enabled`**: se `true` il test viene eseguito di default; se `false` viene skippato (a meno che non sia abilitato esplicitamente via `TESTS_ENABLED`)
+- **`notes`**: note/istruzioni aggiuntive per l'esecuzione (stringa vuota se non presenti)
 
-```yaml
-tests:
-  - name: pdp-flow.test.md # Nome del file .md del test (in tests/)
-    url: https://... # URL della pagina da testare
-    action: run # run | skip | only
-    notes: '' # (opzionale) Istruzioni/note aggiuntive per questo test
-```
+**Selezione dei test:**
 
-**Logica delle azioni:**
+- Se la variabile d'ambiente `TESTS_ENABLED` è definita (lista di `id` separati da virgole), vengono eseguiti SOLO i test con quegli id (override del campo `enabled`)
+- Se `TESTS_ENABLED` non è definita, vengono eseguiti i test con `enabled: true`
+- In CI Azure la lista `TESTS_ENABLED` è costruita dalla pipeline (parametri booleani per ogni test)
+- In locale è definita nel file `.env` (vedi `.env.template`)
 
-- **`run`**: Esegue il test normalmente
-- **`skip`**: Salta questo test (non lo esegue)
-- **`only`**: Esegue **SOLO** questo test, ignorando tutti gli altri (utile per debug rapido)
-
-**Campo `notes` (opzionale):**
+**Campo `notes`:**
 
 - Il campo `notes` contiene istruzioni o note aggiuntive specifiche per quel singolo test
 - **DEVE essere letto come prima cosa prima di eseguire il test** a cui si riferisce
@@ -70,23 +68,21 @@ tests:
 
 ### Flusso di esecuzione
 
-1. Leggi `launcher.yaml`
-2. **Ridimensiona il browser** secondo `config.viewport` specificato nel launcher (es. "1280x650") usando `browser_resize`
-3. Se esiste un test con `action: only`, esegui **solo** quel test
-4. Altrimenti, esegui tutti i test con `action: run` (ignora quelli con `action: skip`)
-5. Per ogni test da eseguire:
+1. Determina i test da eseguire: se `TESTS_ENABLED` è definita usa quella lista di id, altrimenti leggi `test.config.js` ed esegui i test con `enabled: true`
+2. **Ridimensiona il browser** al viewport richiesto dalla run (es. "1280x650") usando `browser_resize`
+3. Per ogni test da eseguire:
    - **Leggi il campo `notes`** del test: se presente e non vuoto, leggi e applica le istruzioni contenute PRIMA di iniziare il test
-   - Naviga all'`url` specificato nel launcher
-   - Esegui il test definito nel file `.md` corrispondente
+   - Naviga all'`url` specificato nella definizione del test
+   - Esegui il test definito nel file `tests/<file>` corrispondente
 
 ### Preparazione browser
 
 - **Avvia il browser in modalità incognito** per isolare il test e simulare un utente reale senza cookie/cache preesistenti
 - **Ridimensiona il browser** PRIMA di navigare all'URL del test:
-  - Leggi `config.viewport` dal `launcher.yaml` (es. "1280x650")
+  - Usa il viewport richiesto dalla run (es. "1280x650")
   - Usa `browser_resize` per impostare le dimensioni esatte
   - Esempio: `browser_resize({ width: 1280, height: 650 })`
-- Naviga all'`url` specificato nel launcher
+- Naviga all'`url` specificato nella definizione del test
 - Attendi che la pagina sia completamente caricata prima di iniziare il test
 - **Chiudi banner e popup**: una volta caricata la pagina, cerca e chiudi eventuali finestre di consenso cookie, banner pubblicitari, popup di newsletter o altri overlay che potrebbero ostruire la vista della pagina. Clicca su pulsanti come "Accetta", "Rifiuta", "Chiudi", "X", o simili per rimuovere questi elementi prima di iniziare il test.
 - **Overlay di upsell nel carrello**: quando un prodotto viene aggiunto al carrello e si naviga al carrello, si apre **automaticamente** un overlay per l'upsell di altri prodotti. Questo overlay **NON deve essere considerato un errore**: è un comportamento atteso. Deve essere semplicemente **chiudo con il tasto "X" situato in alto a destra** dell'overlay prima di procedere con il test. Non documentarlo come bug.

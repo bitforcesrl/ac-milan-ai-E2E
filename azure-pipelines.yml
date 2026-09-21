@@ -29,6 +29,31 @@ parameters:
     default: qwen/qwen3.7-plus
     values:
       - qwen/qwen3.7-plus
+  # ---- Test E2E disponibili (definiti in test.config.ts) ----
+  - name: failTest
+    displayName: Test fail-test (fail.test.md)
+    type: boolean
+    default: false
+  - name: pdp
+    displayName: Test pdp (pdp/pdp.test.md)
+    type: boolean
+    default: false
+  - name: pdpFuzzy
+    displayName: Test pdp-fuzzy (pdp/pdp-fuzzy.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyCombinations
+    displayName: Test quickbuy-combinations (quickbuy/quickbuy-combinations.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyPersonalization
+    displayName: Test quickbuy-personalization (quickbuy/quickbuy-personalization.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyCartValidation
+    displayName: Test quickbuy-cart-validation (quickbuy/quickbuy-cart-validation.test.md)
+    type: boolean
+    default: true
 
 trigger:
   branches:
@@ -71,8 +96,32 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
         displayName: Install dependencies and browsers
 
-      - script: node scripts/run-e2e-ci.mjs
-        displayName: Run AI E2E (launcher-ci.yaml)
+      # Lista test passata allo script via variabile d'ambiente TESTS_ENABLED
+      # (id separati da virgole, definiti in test.config.ts)
+      - script: |
+          TESTS_ENABLED=""
+          if [ "${{ parameters.failTest }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}fail-test"
+          fi
+          if [ "${{ parameters.pdp }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}pdp"
+          fi
+          if [ "${{ parameters.pdpFuzzy }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}pdp-fuzzy"
+          fi
+          if [ "${{ parameters.quickbuyCombinations }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-combinations"
+          fi
+          if [ "${{ parameters.quickbuyPersonalization }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-personalization"
+          fi
+          if [ "${{ parameters.quickbuyCartValidation }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-cart-validation"
+          fi
+          export TESTS_ENABLED
+          echo "TESTS_ENABLED=$TESTS_ENABLED"
+          node scripts/run-e2e-ci.mjs
+        displayName: Run AI E2E (tests from env TESTS_ENABLED)
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
           OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
