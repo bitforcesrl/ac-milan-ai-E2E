@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // ============================================================================
@@ -97,7 +97,7 @@ async function main() {
   }
 
   const runs = collectRuns('reports');
-  const date = new Date().toISOString().slice(0, 10);
+  const date = latestRunDate(runs);
   const subject = `[${config.clientName || 'E2E'}] Report E2E ${date} — ${overallLabel(runs)}`;
   const textContent = buildText(runs, date, config);
   const htmlContent = buildHtml(runs, date, config);
@@ -152,26 +152,25 @@ function saveDryRunPreview(html, text, subject, to) {
 // 3. ESTRAZIONE E RACCOLTA DATI (RUNS)
 // ============================================================================
 
+// Nuovo layout: reports/{yyyy-MM-dd_hh:mm:ss}/{browser-viewport}/metadata.json
 function collectRuns(reportsDir) {
   if (!existsSync(reportsDir)) return [];
 
-  const files = readdirSync(reportsDir);
-  const jsonFiles = files.filter((f) => /^ci-data-(.+)\.json$/i.test(f)).sort();
+  const runs = [];
+  for (const runDir of readdirSync(reportsDir).sort()) {
+    const runPath = join(reportsDir, runDir);
+    if (!statSync(runPath).isDirectory()) continue;
+    if (!/^\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}$/.test(runDir)) continue;
 
-  if (jsonFiles.length) {
-    return collectRunsFromJson(reportsDir, jsonFiles);
-  }
+    for (const sessionDir of readdirSync(runPath).sort()) {
+      const sessionPath = join(runPath, sessionDir);
+      if (!statSync(sessionPath).isDirectory()) continue;
 
-  const markdownFiles = files.filter((f) => /^ci-summary-(.+)\.md$/i.test(f)).sort();
-  return collectRunsFromMarkdown(reportsDir, markdownFiles);
-}
+      const metaPath = join(sessionPath, 'metadata.json');
+      if (!existsSync(metaPath)) continue;
 
-function collectRunsFromJson(reportsDir, jsonFiles) {
-  return jsonFiles
-    .map((file) => {
-      const browser = /^ci-data-(.+)\.json$/i.exec(file)?.[1];
       try {
-        const data = JSON.parse(readFileSync(join(reportsDir, file), 'utf8'));
+        const data = JSON.parse(readFileSync(metaPath, 'utf8'));
         const tests = (data.tests ?? []).map((t) => ({
           label: t.name ?? 'Test',
           status: t.status === 'FAIL' ? 'FAIL' : 'PASS',
@@ -180,8 +179,9 @@ function collectRunsFromJson(reportsDir, jsonFiles) {
         const fail = tests.length - pass;
         const bugs = data.bugs ?? {};
 
-        return {
-          browser,
+        runs.push({
+          run: runDir,
+          browser: sessionDir,
           status: data.status === 'FAIL' ? 'FAIL' : data.status === 'PASS' ? 'PASS' : '',
           stats: {
             pass,
@@ -194,74 +194,20 @@ function collectRunsFromJson(reportsDir, jsonFiles) {
             duration: data.duration ?? '',
           },
           tests,
-        };
+        });
       } catch (err) {
-        console.error(`[mail] File JSON non valido ${file}: ${err.message} — ignorato.`);
-        return null;
+        console.error(`[mail] File JSON non valido ${metaPath}: ${err.message} — ignorato.`);
       }
-    })
-    .filter(Boolean);
-}
-
-function collectRunsFromMarkdown(reportsDir, markdownFiles) {
-  return markdownFiles.map((file) => {
-    const browser = /^ci-summary-(.+)\.md$/i.exec(file)?.[1];
-    const raw = readFileSync(join(reportsDir, file), 'utf8');
-    return {
-      browser,
-      status: detectMarkdownStatus(raw),
-      stats: parseMarkdownStats(raw),
-      tests: parseMarkdownTests(raw),
-    };
-  });
-}
-
-function detectMarkdownStatus(raw) {
-  if (/❌|\bFAIL\b/.test(raw)) return 'FAIL';
-  if (/✅|\bPASS\b/.test(raw)) return 'PASS';
-  return '';
-}
-
-function parseMarkdownStats(raw) {
-  const getSeverity = (name) => {
-    const match = new RegExp(`\\|\\s*(?:[\u{1F534}\u{1F7E1}\u{1F7E2}]\\s*)?${name}\\s*\\|\\s*(\\d+)`, 'u').exec(raw);
-    return match ? Number(match[1]) : 0;
-  };
-
-  const rows = raw.split('\n').filter((l) => /^\|.*\|\s*$/.test(l));
-  const pass = rows.filter((l) => /(?:✅\s*)?PASS\s*\|?\s*$/.test(l)).length;
-  const fail = rows.filter((l) => /(?:❌\s*)?FAIL\s*\|?\s*$/.test(l)).length;
-  const total = pass + fail;
-  const durationMatch = /\*\*(?:Orario|Durata):\*\*\s*([^\n*]+)/.exec(raw);
-
-  return {
-    pass,
-    fail,
-    total,
-    passRate: total > 0 ? Math.round((pass / total) * 100) : 0,
-    high: getSeverity('HIGH'),
-    medium: getSeverity('MEDIUM'),
-    low: getSeverity('LOW'),
-    duration: durationMatch ? durationMatch[1].trim() : '',
-  };
-}
-
-function parseMarkdownTests(raw) {
-  const tests = [];
-  for (const line of raw.split('\n')) {
-    if (/\|\s*skip\s*\|/i.test(line) || /saltat/i.test(line)) continue;
-    const matchName = /([\w\-/]+\.test\.md)/i.exec(line);
-    if (!matchName) continue;
-
-    const status = /(✅\s*PASS|\bPASS\b)/i.test(line) ? 'PASS' : /(❌\s*FAIL|\bFAIL\b)/i.test(line) ? 'FAIL' : '';
-    if (!status) continue;
-
-    const label = matchName[1].replace(/\.test\.md$/i, '');
-    if (!tests.some((t) => t.label === label)) {
-      tests.push({ label, status });
     }
   }
-  return tests;
+
+  return runs;
+}
+
+function latestRunDate(runs) {
+  const latest = runs.map((r) => r.run).sort().at(-1);
+  const fromRun = /^(\d{4}-\d{2}-\d{2})_/.exec(latest ?? '');
+  return fromRun ? fromRun[1] : new Date().toISOString().slice(0, 10);
 }
 
 function overallLabel(runs) {

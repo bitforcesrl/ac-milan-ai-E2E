@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -69,22 +69,28 @@ async function main() {
     process.exit(1);
   }
 
+  const stamp = buildRunStamp();
   console.log(`Browsers: ${config.browsers.join(', ')}`);
   console.log(`Viewports: ${config.viewports.join(', ')}`);
-  console.log(`Run Totali: ${config.browsers.length * config.viewports.length} (browser x viewport)\n`);
+  console.log(`Run Totali: ${config.browsers.length * config.viewports.length} (browser x viewport)`);
+  console.log(`Cartella run: reports/${stamp}\n`);
 
   let hasFailures = false;
+  const sessions = [];
 
   for (const browser of config.browsers) {
     for (const viewport of config.viewports) {
       console.log(`\n========== E2E: ${browser} @ ${viewport} - AI Model: ${config.model} ==========\n`);
-      const exitCode = await runSession(browser, viewport, config);
+      const exitCode = await runSession(browser, viewport, config, stamp);
+      sessions.push(`${browser}-${viewport}`);
       if (exitCode !== 0) {
         hasFailures = true;
         process.exitCode = Math.max(process.exitCode || 0, exitCode);
       }
     }
   }
+
+  writeRunMetadata(stamp, sessions, hasFailures);
 
   if (hasFailures) {
     console.error('\n[CI FAIL] Uno o più test/browser hanno fallito.');
@@ -97,11 +103,11 @@ async function main() {
 // 3. ESECUZIONE DELLA SINGOLA SESSIONE (BROWSER x VIEWPORT)
 // ============================================================================
 
-async function runSession(browser, viewport, config) {
+async function runSession(browser, viewport, config, stamp) {
   let mcp;
   try {
     mcp = await initMcpServers(browser);
-    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, config.model) }];
+    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, config.model, stamp) }];
     let finalText = '';
 
     for (let turn = 0; turn < config.maxTurns; turn++) {
@@ -134,7 +140,7 @@ async function runSession(browser, viewport, config) {
     }
 
     console.log(`\n--- ${browser} @ ${viewport} completato ---`);
-    archiveSummary(browser, config.model, viewport);
+    archiveSummary(browser, config.model, viewport, stamp);
 
     if (!finalText.includes('CI_STATUS=PASS')) {
       console.error(`[${browser}] CI_STATUS non e' PASS.`);
@@ -330,36 +336,62 @@ async function chatCompletion(messages, tools, config) {
 // 6. REPORTING & ARCHIVIAZIONE
 // ============================================================================
 
-function archiveSummary(browser, model, viewport) {
-  const sourceMd = 'reports/ci-summary.md';
-  const targetMd = `reports/ci-summary-${browser}-${viewport}.md`;
-  
-  if (existsSync(sourceMd)) {
-    renameSync(sourceMd, targetMd);
-    console.log(`[report] Salvato ${targetMd}`);
-  }
+function buildRunStamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 
-  const jsonSource = 'reports/ci-data.json';
-  const jsonTarget = `reports/ci-data-${browser}-${viewport}.json`;
+// L'agente scrive summary.md e metadata.json direttamente nella cartella della
+// sessione (reports/{stamp}/{browser}-{viewport}/); qui li validiamo e arricchiamo.
+function archiveSummary(browser, model, viewport, stamp) {
+  const sessionDir = `reports/${stamp}/${browser}-${viewport}`;
+  mkdirSync(sessionDir, { recursive: true });
 
-  if (existsSync(jsonSource)) {
-    renameSync(jsonSource, jsonTarget);
-    try {
-      const data = JSON.parse(readFileSync(jsonTarget, 'utf8'));
-      data.browser = browser;
-      data.viewport = viewport;
-      data.model = model;
-      data.timestamp = new Date().toISOString();
-      if (data.status !== 'PASS' && data.status !== 'FAIL') data.status = '';
-      
-      writeFileSync(jsonTarget, JSON.stringify(data, null, 2), 'utf8');
-      console.log(`[report] Salvato ${jsonTarget}`);
-    } catch (err) {
-      console.error(`[report] JSON non valido in ${jsonTarget}: ${err.message}`);
-    }
+  const summaryPath = `${sessionDir}/summary.md`;
+  if (!existsSync(summaryPath)) {
+    console.error(`[report] Mancante ${summaryPath}`);
   } else {
-    console.error(`[report] Mancante ${jsonSource} — fallback su markdown.`);
+    console.log(`[report] Trovato ${summaryPath}`);
   }
+
+  const metaPath = `${sessionDir}/metadata.json`;
+  if (!existsSync(metaPath)) {
+    console.error(`[report] Mancante ${metaPath}`);
+    return;
+  }
+
+  try {
+    const data = JSON.parse(readFileSync(metaPath, 'utf8'));
+    data.browser = browser;
+    data.viewport = viewport;
+    data.model = model;
+    data.run = stamp;
+    data.timestamp = new Date().toISOString();
+    if (data.status !== 'PASS' && data.status !== 'FAIL') data.status = '';
+
+    writeFileSync(metaPath, JSON.stringify(data, null, 2), 'utf8');
+    console.log(`[report] Validato ${metaPath}`);
+  } catch (err) {
+    console.error(`[report] JSON non valido in ${metaPath}: ${err.message}`);
+  }
+}
+
+// Metadata di run: aggrega lo stato complessivo delle sessioni della run
+function writeRunMetadata(stamp, sessions, hasFailures) {
+  const runDir = `reports/${stamp}`;
+  mkdirSync(runDir, { recursive: true });
+
+  const data = {
+    run: stamp,
+    date: stamp.slice(0, 10),
+    time: stamp.slice(11),
+    status: hasFailures ? 'FAIL' : 'PASS',
+    sessions,
+  };
+
+  writeFileSync(`${runDir}/metadata.json`, JSON.stringify(data, null, 2), 'utf8');
+  console.log(`[report] Salvato ${runDir}/metadata.json`);
 }
 
 // ============================================================================
@@ -370,7 +402,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildPrompt(browser, viewport, model) {
+function buildPrompt(browser, viewport, model, stamp) {
   return `Sei in CI Azure, senza operatore umano. Esegui i test E2E di questo repository.
 
 Browser obbligatorio per questa run: ${browser}
@@ -387,23 +419,30 @@ Regole:
 3. Esegui i test con action: run. Salta quelli con skip. Se un test ha action: only, esegui solo quello.
 4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (sovrascrive config.viewport del launcher).
 5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
-6. Scrivi i report in reports/ con la struttura richiesta dalle istruzioni (usa i tool filesystem per creare i file). Nel report indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](reports/<cartella>/screenshot-XXX.png), MAI come semplici path testuali. Indica l'esito di ogni test come PASS o FAIL.
-7. Alla fine crea DUE file:
-   a) reports/ci-summary.md con: browser (${browser}), viewport (${viewport}), modello AI (${model}), data, test eseguiti (uno per riga con esito PASS o FAIL), esito complessivo, path dei report, path degli screenshot, conteggio bug HIGH/MEDIUM/LOW.
-   b) reports/ci-data.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra):
+6. Struttura obbligatoria dei report (usa i tool filesystem per creare file e cartelle):
+   reports/${stamp}/${browser}-${viewport}/
+     summary.md          (creato solo alla fine, punto 7)
+     metadata.json       (creato solo alla fine, punto 7)
+     <nome-test>.md      (un file .md per ogni test eseguito, stesso nome del file di test, es. pdp.test.md -> pdp.test.md)
+     screenshots/        (tutti gli screenshot della sessione)
+   Nel report di ogni test indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](reports/${stamp}/${browser}-${viewport}/screenshots/screenshot-XXX.png), MAI come semplici path testuali. Indica l'esito di ogni test come PASS o FAIL.
+7. Alla fine crea DUE file dentro reports/${stamp}/${browser}-${viewport}/:
+   a) summary.md con: browser (${browser}), viewport (${viewport}), modello AI (${model}), data, test eseguiti (uno per riga con esito PASS o FAIL), esito complessivo, path dei report, path degli screenshot, conteggio bug HIGH/MEDIUM/LOW.
+   b) metadata.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra):
       {
         "browser": "${browser}",
         "viewport": "${viewport}",
         "model": "${model}",
+        "run": "${stamp}",
         "date": "YYYY-MM-DD",
         "duration": "es. 12m 30s",
         "status": "PASS" | "FAIL",
-        "tests": [{ "name": "pdp.test.md", "status": "PASS" | "FAIL", "report": "reports/<cartella>/<file>.md" }],
+        "tests": [{ "name": "pdp.test.md", "status": "PASS" | "FAIL", "report": "reports/${stamp}/${browser}-${viewport}/<nome-test>.md" }],
         "bugs": { "high": 0, "medium": 0, "low": 0 },
-        "reportPaths": ["reports/..."],
-        "screenshotPaths": ["reports/..."]
+        "reportPaths": ["reports/${stamp}/${browser}-${viewport}/..."],
+        "screenshotPaths": ["reports/${stamp}/${browser}-${viewport}/screenshots/..."]
       }
-      "tests" contiene SOLO i test eseguiti (action run/only), non quelli saltati. "report" e' il path del report .md del test (se esiste, altrimenti stringa vuota).
+      "tests" contiene SOLO i test eseguiti (action run/only), non quelli saltati. OGNI elemento di "tests" DEVE avere "name" (nome del file di test), "status" (PASS o FAIL) e "report" (path completo del report .md del test, stringa vuota solo se il report non esiste). Questi dati sono l'unica fonte per il rendering dei report: non trascurarli.
 8. Non chiedere conferma. Non committare. Non modificare i file di test.
 
 Quando hai finito, l'ultima riga della tua risposta deve essere esattamente una di queste:
