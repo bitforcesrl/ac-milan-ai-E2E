@@ -33,24 +33,23 @@ if (!browsers.length) {
 await main();
 
 async function main() {
-  console.log(`========== E2E parallel run - AI Model: ${model} - Browsers: ${browsers.join(', ')} ==========\n`);
+  let failed = false;
 
-  // Browsers run in parallel: each one gets its own MCP servers (own browser instance)
-  // and writes to browser-specific report files (ci-summary-<browser>.md, ci-data-<browser>.json).
-  const results = await Promise.all(browsers.map((browser) => runForBrowser(browser)));
+  for (const browser of browsers) {
+    console.log(`\n========== E2E on ${browser} - AI Model: ${model} ==========\n`);
+    const code = await runForBrowser(browser);
+    if (code !== 0) {
+      failed = true;
+      process.exitCode = Math.max(process.exitCode || 0, code);
+    }
+  }
 
-  const failed = results.some((code) => code !== 0);
   if (failed) {
-    process.exitCode = Math.max(...results.filter((code) => code !== 0));
     console.error('One or more browsers failed.');
   }
 }
 
 async function runForBrowser(browser) {
-  // Parallel runs interleave console output: prefix every line with the browser name.
-  const log = (...args) => console.log(`[${browser}]`, ...args);
-  const logError = (...args) => console.error(`[${browser}]`, ...args);
-
   // MCP servers: playwright (browser) + filesystem + shell (desktop-commander)
   const servers = [
     {
@@ -91,9 +90,9 @@ async function runForBrowser(browser) {
   try {
     for (const server of servers) {
       const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
-      log(`[mcp] connecting to ${server.name}...`);
+      console.log(`[mcp] connecting to ${server.name}...`);
       await client.connect(server.transport);
-      log(`[mcp] ${server.name} connected`);
+      console.log(`[mcp] ${server.name} connected`);
       const { tools: mcpTools } = await client.listTools();
       for (const t of mcpTools) {
         const exposedName = `${server.name}__${t.name}`;
@@ -110,7 +109,7 @@ async function runForBrowser(browser) {
       clients.push(client);
       console.log(`[mcp] ${server.name}: ${mcpTools.length} tools`);
     }
-    log(`[mcp] ${tools.length} total tools available`);
+    console.log(`[mcp] ${tools.length} total tools available (browser=${browser})`);
 
     const messages = [
       { role: 'user', content: buildPrompt(browser) },
@@ -121,7 +120,7 @@ async function runForBrowser(browser) {
       const response = await chatCompletion(messages, tools);
       const choice = response.choices?.[0]?.message;
       if (!choice) {
-        logError('empty response from OpenRouter.');
+        console.error(`${browser}: empty response from OpenRouter.`);
         return 2;
       }
 
@@ -143,7 +142,7 @@ async function runForBrowser(browser) {
         } catch {
           args = {};
         }
-        log(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
+        console.log(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
         const startedAt = Date.now();
         let result;
         try {
@@ -161,11 +160,11 @@ async function runForBrowser(browser) {
               .join('\n') || JSON.stringify(res);
         } catch (err) {
           const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-          logError(`[tool] ${name} FAILED after ${duration}s: ${err.message}`);
+          console.error(`[tool] ${name} FAILED after ${duration}s: ${err.message}`);
           result = `TOOL ERROR: ${err.message}`;
         }
         const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-        log(`[tool] ${name} done in ${duration}s (result ${String(result).length} chars)`);
+        console.log(`[tool] ${name} done in ${duration}s (result ${String(result).length} chars)`);
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
@@ -174,18 +173,18 @@ async function runForBrowser(browser) {
       }
     }
 
-    log('finished');
+    console.log(`\n--- ${browser} finished ---`);
 
     archiveSummary(browser, model);
 
     if (!finalText.includes('CI_STATUS=PASS')) {
-      logError('CI_STATUS is not PASS.');
+      console.error(`${browser}: CI_STATUS is not PASS.`);
       return 2;
     }
 
     return 0;
   } catch (err) {
-    logError(`run failed: ${err.message}`);
+    console.error(`${browser} run failed: ${err.message}`);
     return 1;
   } finally {
     for (const client of clients) {
