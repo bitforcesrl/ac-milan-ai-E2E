@@ -169,13 +169,13 @@ jobs:
           targetPath: reports
           artifact: e2e-reports
 
-      - script: node scripts/email-report.mjs
-        displayName: Email report via SendGrid
-        env:
-          SENDGRID_API_KEY: $(SENDGRID_API_KEY)
-          MAIL_FROM: $(MAIL_FROM)
-          MAIL_TO: $(MAIL_TO)
-          REPORT_HTML_URL: $(REPORT_HTML_URL)
-          CLIENT_NAME: $(CLIENT_NAME)
+      # - script: node scripts/email-report.mjs
+      #   displayName: Email report via SendGrid
+      #   env:
+      #     SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+      #     MAIL_FROM: $(MAIL_FROM)
+      #     MAIL_TO: $(MAIL_TO)
+      #     REPORT_HTML_URL: $(REPORT_HTML_URL)
+      #     CLIENT_NAME: $(CLIENT_NAME)
 
 
