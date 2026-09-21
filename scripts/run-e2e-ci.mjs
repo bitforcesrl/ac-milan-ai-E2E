@@ -57,6 +57,7 @@ function loadConfig() {
     retryBaseMs: Number(process.env.OPENROUTER_RETRY_BASE_MS || 2000),
     maxTurns: Number(process.env.OPENROUTER_MAX_TURNS || 300),
     mcpToolTimeout: Number(process.env.MCP_TOOL_TIMEOUT || 180000),
+    maxParallelSessions: Math.max(1, Number(process.env.MAX_PARALLEL_SESSIONS || 1)),
     browsers,
     viewports,
     tests,
@@ -111,20 +112,39 @@ async function main() {
   }
 
   const stamp = buildRunStamp();
+
+  // Unità di esecuzione: una per (browser x viewport x test).
+  // Ogni unità ha la sua conversazione LLM, i suoi server MCP e il suo browser
+  // isolato, quindi può girare in parallelo con le altre.
+  const units = config.browsers.flatMap((browser) =>
+    config.viewports.flatMap((viewport) =>
+      config.tests.map((test) => ({ browser, viewport, test }))
+    )
+  );
+
   console.log(`Browsers: ${config.browsers.join(', ')}`);
   console.log(`Viewports: ${config.viewports.join(', ')}`);
   console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);
-  console.log(`Run Totali: ${config.browsers.length * config.viewports.length} (browser x viewport)`);
+  console.log(`Unità Totali: ${units.length} (browser x viewport x test)`);
+  console.log(`Sessioni in parallelo: ${config.maxParallelSessions}`);
   console.log(`Cartella run: reports/${stamp}\n`);
 
   let hasFailures = false;
-  const sessions = [];
+  // Risultati per combinazione browser/viewport: "browser/viewport" -> [{ test, status }]
+  const resultsByCombo = new Map();
+  let cursor = 0;
 
-  for (const browser of config.browsers) {
-    for (const viewport of config.viewports) {
-      console.log(`\n========== E2E: ${browser} @ ${viewport} - AI Model: ${config.model} ==========\n`);
-      const exitCode = await runSession(browser, viewport, config, stamp);
-      sessions.push(`${browser}/${viewport}`);
+  async function worker() {
+    while (cursor < units.length) {
+      const unit = units[cursor++];
+      const comboKey = `${unit.browser}/${unit.viewport}`;
+      console.log(`\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - AI Model: ${config.model} ==========\n`);
+      const exitCode = await runSession(unit.browser, unit.viewport, unit.test, config, stamp);
+      if (!resultsByCombo.has(comboKey)) resultsByCombo.set(comboKey, []);
+      resultsByCombo.get(comboKey).push({
+        test: unit.test,
+        status: exitCode === 0 ? 'PASS' : 'FAIL',
+      });
       if (exitCode !== 0) {
         hasFailures = true;
         process.exitCode = Math.max(process.exitCode || 0, exitCode);
@@ -132,7 +152,23 @@ async function main() {
     }
   }
 
-  writeRunMetadata(stamp, sessions, hasFailures);
+  const workers = Array.from(
+    { length: Math.min(config.maxParallelSessions, units.length) },
+    () => worker()
+  );
+  await Promise.all(workers);
+
+  // Aggregazione: per ogni combinazione browser/viewport generiamo summary.md e
+  // metadata.json a partire dai risultati delle singole unità di test.
+  for (const browser of config.browsers) {
+    for (const viewport of config.viewports) {
+      const comboKey = `${browser}/${viewport}`;
+      const results = resultsByCombo.get(comboKey) ?? [];
+      aggregateSessionReports(browser, viewport, config, stamp, results);
+    }
+  }
+
+  writeRunMetadata(stamp, config, hasFailures);
 
   if (hasFailures) {
     console.error('\n[CI FAIL] Uno o più test/browser hanno fallito.');
@@ -142,14 +178,14 @@ async function main() {
 }
 
 // ============================================================================
-// 3. ESECUZIONE DELLA SINGOLA SESSIONE (BROWSER x VIEWPORT)
+// 3. ESECUZIONE DELLA SINGOLA SESSIONE (BROWSER x VIEWPORT x TEST)
 // ============================================================================
 
-async function runSession(browser, viewport, config, stamp) {
+async function runSession(browser, viewport, test, config, stamp) {
   let mcp;
   try {
     mcp = await initMcpServers(browser);
-    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, config.model, stamp, config.tests) }];
+    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp) }];
     let finalText = '';
 
     for (let turn = 0; turn < config.maxTurns; turn++) {
@@ -157,7 +193,7 @@ async function runSession(browser, viewport, config, stamp) {
       const choice = response.choices?.[0]?.message;
 
       if (!choice) {
-        console.error(`[${browser}] Nessuna risposta ricevuta da OpenRouter.`);
+        console.error(`[${browser}/${test.id}] Nessuna risposta ricevuta da OpenRouter.`);
         return 2;
       }
 
@@ -181,17 +217,16 @@ async function runSession(browser, viewport, config, stamp) {
       }
     }
 
-    console.log(`\n--- ${browser} @ ${viewport} completato ---`);
-    archiveSummary(browser, config.model, viewport, stamp);
+    console.log(`\n--- ${browser} @ ${viewport} - ${test.id} completato ---`);
 
     if (!finalText.includes('CI_STATUS=PASS')) {
-      console.error(`[${browser}] CI_STATUS non e' PASS.`);
+      console.error(`[${browser}/${test.id}] CI_STATUS non e' PASS.`);
       return 2;
     }
 
     return 0;
   } catch (err) {
-    console.error(`[${browser}] Errore durante l'esecuzione della sessione: ${err.message}`, err);
+    console.error(`[${browser}/${test.id}] Errore durante l'esecuzione della sessione: ${err.message}`, err);
     return 1;
   } finally {
     if (mcp?.clients) {
@@ -245,7 +280,7 @@ async function initMcpServers(browser) {
     const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
     console.log(`[mcp] Connessione a ${server.name}...`);
     await client.connect(server.transport);
-    
+
     const { tools: mcpTools } = await client.listTools();
     for (const t of mcpTools) {
       const exposedName = `${server.name}__${t.name}`;
@@ -384,45 +419,113 @@ function buildRunStamp() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
-// L'agente scrive summary.md e metadata.json direttamente nella cartella della
-// sessione (reports/{stamp}/{browser}-{viewport}/); qui li validiamo e arricchiamo.
-function archiveSummary(browser, model, viewport, stamp) {
+// Ogni unità di test scrive il proprio report .md, gli screenshot e un fragment
+// metadata in reports/{stamp}/{browser}/{viewport}/meta/<test-id>.json.
+// Qui, a run conclusa, aggregiamo i fragment in summary.md e metadata.json
+// per ogni combinazione browser/viewport (schema identico a quello precedente).
+function aggregateSessionReports(browser, viewport, config, stamp, results) {
   const sessionDir = `reports/${stamp}/${browser}/${viewport}`;
   mkdirSync(sessionDir, { recursive: true });
 
-  const summaryPath = `${sessionDir}/summary.md`;
-  if (!existsSync(summaryPath)) {
-    console.error(`[report] Mancante ${summaryPath}`);
-  } else {
-    console.log(`[report] Trovato ${summaryPath}`);
+  const testsMeta = [];
+  const reportPaths = [];
+  const screenshotPaths = [];
+  const bugs = { high: 0, medium: 0, low: 0 };
+
+  for (const { test, status } of results) {
+    const metaPath = `${sessionDir}/meta/${test.id}.json`;
+    let fragment = null;
+    try {
+      if (existsSync(metaPath)) {
+        fragment = JSON.parse(readFileSync(metaPath, 'utf8'));
+      }
+    } catch (err) {
+      console.error(`[report] JSON non valido in ${metaPath}: ${err.message}`);
+    }
+
+    const reportPath = fragment?.report || `${sessionDir}/${test.file.split('/').pop()}`;
+    if (existsSync(reportPath)) reportPaths.push(reportPath);
+
+    for (const shot of fragment?.screenshotPaths ?? []) {
+      if (existsSync(shot)) screenshotPaths.push(shot);
+    }
+
+    if (fragment?.bugs) {
+      bugs.high += Number(fragment.bugs.high || 0);
+      bugs.medium += Number(fragment.bugs.medium || 0);
+      bugs.low += Number(fragment.bugs.low || 0);
+    }
+
+    testsMeta.push({
+      name: test.file.split('/').pop(),
+      status,
+      report: existsSync(reportPath) ? reportPath : '',
+    });
   }
 
-  const metaPath = `${sessionDir}/metadata.json`;
-  if (!existsSync(metaPath)) {
-    console.error(`[report] Mancante ${metaPath}`);
-    return;
-  }
+  const allPass = testsMeta.length > 0 && testsMeta.every((t) => t.status === 'PASS');
+  const duration = computeDurationLabel(stamp);
 
-  try {
-    const data = JSON.parse(readFileSync(metaPath, 'utf8'));
-    data.browser = browser;
-    data.viewport = viewport;
-    data.model = model;
-    data.run = stamp;
-    data.timestamp = new Date().toISOString();
-    if (data.status !== 'PASS' && data.status !== 'FAIL') data.status = '';
+  const metadata = {
+    browser,
+    viewport,
+    model: config.model,
+    run: stamp,
+    date: stamp.slice(0, 10),
+    duration,
+    status: allPass ? 'PASS' : 'FAIL',
+    tests: testsMeta,
+    bugs,
+    reportPaths,
+    screenshotPaths,
+  };
+  writeFileSync(`${sessionDir}/metadata.json`, JSON.stringify(metadata, null, 2), 'utf8');
+  console.log(`[report] Salvato ${sessionDir}/metadata.json`);
 
-    writeFileSync(metaPath, JSON.stringify(data, null, 2), 'utf8');
-    console.log(`[report] Validato ${metaPath}`);
-  } catch (err) {
-    console.error(`[report] JSON non valido in ${metaPath}: ${err.message}`);
-  }
+  const testsLines = testsMeta
+    .map((t) => `- ${t.name}: ${t.status}${t.report ? ` (report: ${t.report})` : ' (report mancante)'}`)
+    .join('\n');
+
+  const summary = `# Summary E2E — ${browser} @ ${viewport}
+
+- **Browser:** ${browser}
+- **Viewport:** ${viewport}
+- **Modello AI:** ${config.model}
+- **Data:** ${stamp.slice(0, 10)} ${stamp.slice(11)}
+- **Esito complessivo:** ${allPass ? 'PASS' : 'FAIL'}
+- **Bug:** HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}
+
+## Test eseguiti
+${testsLines}
+
+## Report
+${reportPaths.length ? reportPaths.map((p) => `- ${p}`).join('\n') : '- (nessun report trovato)'}
+
+## Screenshot
+${screenshotPaths.length ? screenshotPaths.map((p) => `- ${p}`).join('\n') : '- (nessuno screenshot salvato)'}
+`;
+  writeFileSync(`${sessionDir}/summary.md`, summary, 'utf8');
+  console.log(`[report] Salvato ${sessionDir}/summary.md`);
+}
+
+// Stima della durata della run: dallo stamp di inizio a ora (approssimata al minuto)
+function computeDurationLabel(stamp) {
+  const [datePart, timePart] = stamp.split('_');
+  const [y, mo, d] = datePart.split('-').map(Number);
+  const [h, mi, s] = timePart.split(':').map(Number);
+  const start = new Date(y, mo - 1, d, h, mi, s);
+  const totalMin = Math.max(0, Math.round((Date.now() - start.getTime()) / 60000));
+  return `${totalMin}m 0s`;
 }
 
 // Metadata di run: aggrega lo stato complessivo delle sessioni della run
-function writeRunMetadata(stamp, sessions, hasFailures) {
+function writeRunMetadata(stamp, config, hasFailures) {
   const runDir = `reports/${stamp}`;
   mkdirSync(runDir, { recursive: true });
+
+  const sessions = config.browsers.flatMap((browser) =>
+    config.viewports.map((viewport) => `${browser}/${viewport}`)
+  );
 
   const data = {
     run: stamp,
@@ -444,12 +547,11 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function buildPrompt(browser, viewport, model, stamp, tests) {
-  const testsList = tests
-    .map((t) => `- id: ${t.id} | name: ${t.name} | file: ${t.file} | url: ${t.url}${t.notes ? ` | note: ${t.notes}` : ''}`)
-    .join('\n');
+function buildPrompt(browser, viewport, test, model, stamp) {
+  const sessionDir = `reports/${stamp}/${browser}/${viewport}`;
+  const testFileName = test.file.split('/').pop();
 
-  return `Sei in CI Azure, senza operatore umano. Esegui i test E2E di questo repository.
+  return `Sei in CI Azure, senza operatore umano. Esegui UN SOLO test E2E di questo repository.
 
 Browser obbligatorio per questa run: ${browser}
 Viewport obbligatorio per questa run: ${viewport} (usa browser_resize con width/height corrispondenti PRIMA di navigare, e rispettalo per tutto il test)
@@ -461,44 +563,38 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 
 Regole:
 1. Leggi AGENTS.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
-2. La lista dei test di questa run e' fornita qui sotto (variabile d'ambiente TESTS_ENABLED della pipeline, definizioni in test.config.js). NON eseguire test fuori da questa lista.
-3. Esegui TUTTI i test della lista. Per ogni test: naviga all'url indicato, leggi le istruzioni dal file "tests/<file>" con un tool filesystem e applicale. Se il campo note e' presente, applicalo con priorita'.
-
-Lista test di questa run (formato: id | name | file | url | note):
-${testsList}
+2. Il test di questa run e' UNO SOLO (definizioni in test.config.js). NON eseguire altri test.
+   - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
+3. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
 4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
 5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
 6. Struttura obbligatoria dei report (usa i tool filesystem per creare file e cartelle):
-   reports/${stamp}/${browser}/${viewport}/
-     summary.md          (creato solo alla fine, punto 7)
-     metadata.json       (creato solo alla fine, punto 7)
-     <nome-test>.md      (un file .md per ogni test eseguito, stesso nome del file di test, es. pdp.test.md -> pdp.test.md)
-     screenshots/        (tutti gli screenshot della sessione)
-   Nel report di ogni test indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](reports/${stamp}/${browser}/${viewport}/screenshots/screenshot-XXX.png), MAI come semplici path testuali. Indica l'esito di ogni test come PASS o FAIL.
-7. Alla fine crea DUE file dentro reports/${stamp}/${browser}/${viewport}/:
-   a) summary.md con: browser (${browser}), viewport (${viewport}), modello AI (${model}), data, test eseguiti (uno per riga con esito PASS o FAIL), esito complessivo, path dei report, path degli screenshot, conteggio bug HIGH/MEDIUM/LOW.
-   b) metadata.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra):
-      {
-        "browser": "${browser}",
-        "viewport": "${viewport}",
-        "model": "${model}",
-        "run": "${stamp}",
-        "date": "YYYY-MM-DD",
-        "duration": "es. 12m 30s",
-        "status": "PASS" | "FAIL",
-        "tests": [{ "name": "pdp.test.md", "status": "PASS" | "FAIL", "report": "reports/${stamp}/${browser}/${viewport}/<nome-test>.md" }],
-        "bugs": { "high": 0, "medium": 0, "low": 0 },
-        "reportPaths": ["reports/${stamp}/${browser}/${viewport}/..."],
-        "screenshotPaths": ["reports/${stamp}/${browser}/${viewport}/screenshots/..."]
-      }
-      "tests" contiene SOLO i test eseguiti (action run/only), non quelli saltati. OGNI elemento di "tests" DEVE avere "name" (nome del file di test), "status" (PASS o FAIL) e "report" (path completo del report .md del test, stringa vuota solo se il report non esiste). Questi dati sono l'unica fonte per il rendering dei report: non trascurarli.
+   ${sessionDir}/
+     ${testFileName}          (report del test, stesso nome del file di test)
+     screenshots/             (screenshot della sessione, prefissati con "${test.id}-", es. screenshots/${test.id}-001.png)
+     meta/${test.id}.json     (fragment metadata, creato solo alla fine, punto 7)
+   Nel report indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](${sessionDir}/screenshots/${test.id}-XXX.png), MAI come semplici path testuali. Indica l'esito del test come PASS o FAIL.
+   NON creare summary.md ne' metadata.json: li genera lo script aggregando i risultati di tutti i test.
+7. Alla fine crea il fragment metadata ${sessionDir}/meta/${test.id}.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra):
+   {
+     "test": "${test.id}",
+     "browser": "${browser}",
+     "viewport": "${viewport}",
+     "model": "${model}",
+     "run": "${stamp}",
+     "status": "PASS" | "FAIL",
+     "bugs": { "high": 0, "medium": 0, "low": 0 },
+     "report": "${sessionDir}/${testFileName}",
+     "screenshotPaths": ["${sessionDir}/screenshots/${test.id}-001.png"]
+   }
+   "report" e' il path del report .md del test (stringa vuota solo se non esiste). "screenshotPaths" elenca gli screenshot salvati (solo se hai trovato bug/anomalie). Questi dati sono l'unica fonte per il rendering dei report: non trascurarli.
 8. Non chiedere conferma. Non committare. Non modificare i file di test.
 
 Quando hai finito, l'ultima riga della tua risposta deve essere esattamente una di queste:
 CI_STATUS=PASS
 CI_STATUS=FAIL
 
-Usa FAIL se almeno un bug HIGH e' stato trovato, oppure se un test non e' completabile.`;
+Usa FAIL se almeno un bug HIGH e' stato trovato, oppure se il test non e' completabile.`;
 }
 
 // Avvio

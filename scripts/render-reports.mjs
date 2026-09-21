@@ -348,11 +348,12 @@ const CSS_STYLES = `
   th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--rule); }
   th { font-weight: 600; color: var(--graphite); background: var(--wash); }
 
-  .status-badge { display: inline-block; margin-top: 12px; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }
+  .status-badge { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 4px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; }
   .status-badge.pass { background: #dcfce7; color: #15803d; }
   .status-badge.fail { background: #fee2e2; color: #b91c1c; }
 
-  .status-banner { padding: 14px 18px; border-radius: 8px; font-weight: 600; margin-bottom: 28px; }
+  .status-banner { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-radius: 8px; font-weight: 600; margin-bottom: 28px; }
+  .status-banner .icon { flex: 0 0 auto; }
   .status-banner.pass { background: #dcfce7; color: #15803d; border-left: 4px solid #22c55e; }
   .status-banner.fail { background: #fee2e2; color: #b91c1c; border-left: 4px solid #ef4444; }
 

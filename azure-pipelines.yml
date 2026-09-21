@@ -29,6 +29,16 @@ parameters:
     default: qwen/qwen3.7-plus
     values:
       - qwen/qwen3.7-plus
+  - name: maxParallelSessions
+    displayName: Sessioni in parallelo (browser x viewport)
+    type: string
+    default: '1'
+    values:
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+      - '6'
   # ---- Test E2E disponibili (definiti in test.config.ts) ----
   - name: failTest
     displayName: Test fail-test (fail.test.md)
@@ -131,6 +141,7 @@ jobs:
           RUN_DESKTOP: ${{ parameters.runDesktop }}
           RUN_TABLET: ${{ parameters.runTablet }}
           RUN_MOBILE: ${{ parameters.runMobile }}
+          MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
 
       - script: node scripts/render-reports.mjs
         displayName: Convert reports to HTML
