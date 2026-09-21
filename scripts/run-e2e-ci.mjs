@@ -1,6 +1,11 @@
-import { appendFileSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+
+const CHAT_MAX_RETRIES = Number(process.env.OPENROUTER_MAX_RETRIES || 5);
+const CHAT_RETRY_BASE_MS = Number(process.env.OPENROUTER_RETRY_BASE_MS || 2000);
+
 
 const apiKey = process.env.OPENROUTER_API_KEY?.trim();
 if (!apiKey || apiKey.startsWith('$(')) {
@@ -184,7 +189,7 @@ async function runForBrowser(browser) {
 
     return 0;
   } catch (err) {
-    console.error(`${browser} run failed: ${err.message}`);
+    console.error(`${browser} run failed: ${err.message}`, err);
     return 1;
   } finally {
     for (const client of clients) {
@@ -197,28 +202,55 @@ async function runForBrowser(browser) {
   }
 }
 
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function chatCompletion(messages, tools) {
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      tools,
-      tool_choice: 'auto',
-      temperature: 0,
-    }),
+  const body = JSON.stringify({
+    model,
+    messages,
+    tools,
+    tool_choice: 'auto',
+    temperature: 0,
   });
 
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`OpenRouter API error ${res.status}: ${body.slice(0, 500)}`);
+  let lastErr;
+  for (let attempt = 1; attempt <= CHAT_MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body,
+      });
+
+      if (res.ok) return res.json();
+
+      const errBody = await res.text();
+      // Retry on rate limits and transient server errors.
+      if (res.status === 429 || res.status >= 500) {
+        lastErr = new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
+        console.warn(`[llm] attempt ${attempt}/${CHAT_MAX_RETRIES} failed (HTTP ${res.status}), retrying...`);
+      } else {
+        throw new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
+      }
+    } catch (err) {
+      // Network-level failures (socket closed, timeout, DNS) are transient: retry.
+      if (err.message?.startsWith('OpenRouter API error')) throw err;
+      lastErr = err;
+      console.warn(`[llm] attempt ${attempt}/${CHAT_MAX_RETRIES} failed (${err.message}), retrying...`);
+    }
+
+    if (attempt < CHAT_MAX_RETRIES) {
+      await sleep(CHAT_RETRY_BASE_MS * 2 ** (attempt - 1));
+    }
   }
 
-  return res.json();
+  throw lastErr;
 }
 
 function buildPrompt(browser) {
@@ -267,12 +299,6 @@ function archiveSummary(browser, model) {
   const target = `reports/ci-summary-${browser}.md`;
   if (existsSync(source)) {
     renameSync(source, target);
-    // Metadata deterministico (non dipende dall'agente AI) per il rendering HTML.
-    appendFileSync(
-      target,
-      `\n---\n\n## Metadata Run\n\n**Browser:** ${browser}\n**Modello AI:** ${model}\n**Timestamp:** ${new Date().toISOString()}\n`,
-      'utf8',
-    );
     console.log(`Saved ${target}`);
   }
 
