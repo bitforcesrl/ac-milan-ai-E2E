@@ -49,7 +49,7 @@ tests:
 
   - name: quickbuy/quickbuy-personalization.test.md
     url: https://store.acmilan.com/
-    action: skip
+    action: run
 
   - name: quickbuy/quickbuy-cart-validation.test.md
     url: https://store.acmilan.com/
