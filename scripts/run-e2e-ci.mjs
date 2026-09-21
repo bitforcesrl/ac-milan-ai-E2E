@@ -3,87 +3,161 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
+// ============================================================================
+// 1. CONFIGURAZIONE & AMBIENTE
+// ============================================================================
 
-const CHAT_MAX_RETRIES = Number(process.env.OPENROUTER_MAX_RETRIES || 5);
-const CHAT_RETRY_BASE_MS = Number(process.env.OPENROUTER_RETRY_BASE_MS || 2000);
-
-
-const apiKey = process.env.OPENROUTER_API_KEY?.trim();
-if (!apiKey || apiKey.startsWith('$(')) {
-  console.error('OPENROUTER_API_KEY is missing. Add it to the Azure variable group acmilan-e2e-secrets.');
-  process.exit(1);
-}
-
-const model = process.env.OPENROUTER_AI_MODEL?.trim();
-
-if (!model) {
-  console.error('OPENROUTER_AI_MODEL is missing.');
-  process.exit(1);
-}
-
-const maxTurns = Number(process.env.OPENROUTER_MAX_TURNS || 300);
-
-// MCP SDK default request timeout is 60s: too short for slow CI machines / heavy pages.
-const mcpToolTimeout = Number(process.env.MCP_TOOL_TIMEOUT || 180000);
-
-// Parametri pipeline (booleani "true"/"false"): la costruzione delle liste avviene qui in JS.
-const isEnabled = (name, fallback) => {
-  const raw = process.env[name];
+function parseBooleanEnv(key, fallback) {
+  const raw = process.env[key];
   if (raw === undefined || raw === '') return fallback;
   return String(raw).trim().toLowerCase() === 'true';
-};
-
-const browsers = [
-  isEnabled('RUN_CHROMIUM', true) ? 'chromium' : null,
-  isEnabled('RUN_FIREFOX', false) ? 'firefox' : null,
-  isEnabled('RUN_WEBKIT', false) ? 'webkit' : null,
-].filter(Boolean);
-
-if (!browsers.length) {
-  console.error('No browser selected (RUN_CHROMIUM / RUN_FIREFOX / RUN_WEBKIT).');
-  process.exit(1);
 }
 
-// Viewport da testare. Ogni run gira su browser x viewport.
-const viewports = [
-  isEnabled('RUN_DESKTOP', true) ? '1280x650' : null,
-  isEnabled('RUN_TABLET', false) ? '768x1024' : null,
-  isEnabled('RUN_MOBILE', false) ? '390x844' : null,
-].filter(Boolean);
+function loadConfig() {
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
+  if (!apiKey || apiKey.startsWith('$(')) {
+    throw new Error('OPENROUTER_API_KEY mancante o non valida (verificare Azure secrets).');
+  }
 
-if (!viewports.length) {
-  console.error('No viewport selected (RUN_DESKTOP / RUN_TABLET / RUN_MOBILE).');
-  process.exit(1);
+  const model = process.env.OPENROUTER_AI_MODEL?.trim();
+  if (!model) {
+    throw new Error('OPENROUTER_AI_MODEL mancante.');
+  }
+
+  const browsers = [
+    parseBooleanEnv('RUN_CHROMIUM', true) ? 'chromium' : null,
+    parseBooleanEnv('RUN_FIREFOX', false) ? 'firefox' : null,
+    parseBooleanEnv('RUN_WEBKIT', false) ? 'webkit' : null,
+  ].filter(Boolean);
+
+  if (!browsers.length) {
+    throw new Error('Nessun browser selezionato (RUN_CHROMIUM / RUN_FIREFOX / RUN_WEBKIT).');
+  }
+
+  const viewports = [
+    parseBooleanEnv('RUN_DESKTOP', true) ? '1280x650' : null,
+    parseBooleanEnv('RUN_TABLET', false) ? '768x1024' : null,
+    parseBooleanEnv('RUN_MOBILE', false) ? '390x844' : null,
+  ].filter(Boolean);
+
+  if (!viewports.length) {
+    throw new Error('Nessun viewport selezionato (RUN_DESKTOP / RUN_TABLET / RUN_MOBILE).');
+  }
+
+  return {
+    apiKey,
+    model,
+    maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES || 5),
+    retryBaseMs: Number(process.env.OPENROUTER_RETRY_BASE_MS || 2000),
+    maxTurns: Number(process.env.OPENROUTER_MAX_TURNS || 300),
+    mcpToolTimeout: Number(process.env.MCP_TOOL_TIMEOUT || 180000),
+    browsers,
+    viewports,
+  };
 }
 
-console.log(`Browsers: ${browsers.join(', ')}`);
-console.log(`Viewports: ${viewports.join(', ')}`);
-console.log(`Total runs: ${browsers.length * viewports.length} (browser x viewport)`);
-
-await main();
+// ============================================================================
+// 2. ENTRY POINT PRINCIPALE
+// ============================================================================
 
 async function main() {
-  let failed = false;
+  let config;
+  try {
+    config = loadConfig();
+  } catch (err) {
+    console.error(`[CONFIG ERROR] ${err.message}`);
+    process.exit(1);
+  }
 
-  for (const browser of browsers) {
-    for (const viewport of viewports) {
-      console.log(`\n========== E2E on ${browser} @ ${viewport} - AI Model: ${model} ==========\n`);
-      const code = await runForBrowser(browser, viewport);
-      if (code !== 0) {
-        failed = true;
-        process.exitCode = Math.max(process.exitCode || 0, code);
+  console.log(`Browsers: ${config.browsers.join(', ')}`);
+  console.log(`Viewports: ${config.viewports.join(', ')}`);
+  console.log(`Run Totali: ${config.browsers.length * config.viewports.length} (browser x viewport)\n`);
+
+  let hasFailures = false;
+
+  for (const browser of config.browsers) {
+    for (const viewport of config.viewports) {
+      console.log(`\n========== E2E: ${browser} @ ${viewport} - AI Model: ${config.model} ==========\n`);
+      const exitCode = await runSession(browser, viewport, config);
+      if (exitCode !== 0) {
+        hasFailures = true;
+        process.exitCode = Math.max(process.exitCode || 0, exitCode);
       }
     }
   }
 
-  if (failed) {
-    console.error('One or more browsers failed.');
+  if (hasFailures) {
+    console.error('\n[CI FAIL] Uno o più test/browser hanno fallito.');
+  } else {
+    console.log('\n[CI SUCCESS] Tutti i test sono terminati con successo.');
   }
 }
 
-async function runForBrowser(browser, viewport) {
-  // MCP servers: playwright (browser) + filesystem + shell (desktop-commander)
-  const servers = [
+// ============================================================================
+// 3. ESECUZIONE DELLA SINGOLA SESSIONE (BROWSER x VIEWPORT)
+// ============================================================================
+
+async function runSession(browser, viewport, config) {
+  let mcp;
+  try {
+    mcp = await initMcpServers(browser);
+    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, config.model) }];
+    let finalText = '';
+
+    for (let turn = 0; turn < config.maxTurns; turn++) {
+      const response = await chatCompletion(messages, mcp.tools, config);
+      const choice = response.choices?.[0]?.message;
+
+      if (!choice) {
+        console.error(`[${browser}] Nessuna risposta ricevuta da OpenRouter.`);
+        return 2;
+      }
+
+      messages.push(choice);
+
+      if (choice.content) {
+        process.stdout.write(choice.content);
+        finalText += `\n${choice.content}`;
+      }
+
+      const toolCalls = choice.tool_calls ?? [];
+      if (!toolCalls.length) break;
+
+      for (const call of toolCalls) {
+        const toolResult = await executeToolCall(call, mcp.toolMap, config.mcpToolTimeout);
+        messages.push({
+          role: 'tool',
+          tool_call_id: call.id,
+          content: toolResult,
+        });
+      }
+    }
+
+    console.log(`\n--- ${browser} @ ${viewport} completato ---`);
+    archiveSummary(browser, config.model, viewport);
+
+    if (!finalText.includes('CI_STATUS=PASS')) {
+      console.error(`[${browser}] CI_STATUS non e' PASS.`);
+      return 2;
+    }
+
+    return 0;
+  } catch (err) {
+    console.error(`[${browser}] Errore durante l'esecuzione della sessione: ${err.message}`, err);
+    return 1;
+  } finally {
+    if (mcp?.clients) {
+      await closeMcpClients(mcp.clients);
+    }
+  }
+}
+
+// ============================================================================
+// 4. GESTIONE MCP (MODEL CONTEXT PROTOCOL)
+// ============================================================================
+
+async function initMcpServers(browser) {
+  const serverConfigs = [
     {
       name: 'playwright',
       transport: new StdioClientTransport({
@@ -117,170 +191,186 @@ async function runForBrowser(browser, viewport) {
 
   const clients = [];
   const tools = [];
-  const toolMap = new Map(); // tool name -> { client, mcpName }
+  const toolMap = new Map();
+
+  for (const server of serverConfigs) {
+    const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
+    console.log(`[mcp] Connessione a ${server.name}...`);
+    await client.connect(server.transport);
+    
+    const { tools: mcpTools } = await client.listTools();
+    for (const t of mcpTools) {
+      const exposedName = `${server.name}__${t.name}`;
+      tools.push({
+        type: 'function',
+        function: {
+          name: exposedName,
+          description: `[${server.name}] ${t.description ?? ''}`,
+          parameters: t.inputSchema ?? { type: 'object', properties: {} },
+        },
+      });
+      toolMap.set(exposedName, { client, mcpName: t.name });
+    }
+    clients.push(client);
+    console.log(`[mcp] ${server.name}: ${mcpTools.length} tool caricati`);
+  }
+
+  console.log(`[mcp] Totale tool disponibili per ${browser}: ${tools.length}`);
+  return { clients, tools, toolMap };
+}
+
+async function executeToolCall(call, toolMap, timeout) {
+  const name = call.function.name;
+  let args = {};
 
   try {
-    for (const server of servers) {
-      const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
-      console.log(`[mcp] connecting to ${server.name}...`);
-      await client.connect(server.transport);
-      console.log(`[mcp] ${server.name} connected`);
-      const { tools: mcpTools } = await client.listTools();
-      for (const t of mcpTools) {
-        const exposedName = `${server.name}__${t.name}`;
-        tools.push({
-          type: 'function',
-          function: {
-            name: exposedName,
-            description: `[${server.name}] ${t.description ?? ''}`,
-            parameters: t.inputSchema ?? { type: 'object', properties: {} },
-          },
-        });
-        toolMap.set(exposedName, { client, mcpName: t.name });
-      }
-      clients.push(client);
-      console.log(`[mcp] ${server.name}: ${mcpTools.length} tools`);
-    }
-    console.log(`[mcp] ${tools.length} total tools available (browser=${browser})`);
+    args = JSON.parse(call.function.arguments || '{}');
+  } catch {
+    args = {};
+  }
 
-    const messages = [
-      { role: 'user', content: buildPrompt(browser, viewport) },
-    ];
+  console.log(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
+  const startedAt = Date.now();
+  let rawResult;
 
-    let finalText = '';
-    for (let turn = 0; turn < maxTurns; turn++) {
-      const response = await chatCompletion(messages, tools);
-      const choice = response.choices?.[0]?.message;
-      if (!choice) {
-        console.error(`${browser}: empty response from OpenRouter.`);
-        return 2;
-      }
+  try {
+    const entry = toolMap.get(name);
+    if (!entry) throw new Error(`Tool sconosciuto: ${name}`);
 
-      messages.push(choice);
+    const res = await entry.client.callTool(
+      { name: entry.mcpName, arguments: args },
+      undefined,
+      { timeout }
+    );
 
-      const toolCalls = choice.tool_calls ?? [];
-      if (choice.content) {
-        process.stdout.write(choice.content);
-        finalText += `\n${choice.content}`;
-      }
+    const parts = Array.isArray(res.content) ? res.content : [];
+    rawResult = parts
+      .map((p) => {
+        if (p.type === 'text') return p.text;
+        if (p.type === 'image') return '[image content omitted]';
+        return `[${p.type}]`;
+      })
+      .join('\n') || JSON.stringify(res);
 
-      if (!toolCalls.length) break;
-
-      for (const call of toolCalls) {
-        const name = call.function.name;
-        let args = {};
-        try {
-          args = JSON.parse(call.function.arguments || '{}');
-        } catch {
-          args = {};
-        }
-        console.log(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
-        const startedAt = Date.now();
-        let result;
-        try {
-          const entry = toolMap.get(name);
-          if (!entry) throw new Error(`Unknown tool: ${name}`);
-          const res = await entry.client.callTool(
-            { name: entry.mcpName, arguments: args },
-            undefined,
-            { timeout: mcpToolTimeout },
-          );
-          const parts = Array.isArray(res.content) ? res.content : [];
-          result =
-            parts
-              .map((p) => (p.type === 'text' ? p.text : p.type === 'image' ? '[image content omitted]' : `[${p.type}]`))
-              .join('\n') || JSON.stringify(res);
-        } catch (err) {
-          const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-          console.error(`[tool] ${name} FAILED after ${duration}s: ${err.message}`);
-          result = `TOOL ERROR: ${err.message}`;
-        }
-        const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-        console.log(`[tool] ${name} done in ${duration}s (result ${String(result).length} chars)`);
-        messages.push({
-          role: 'tool',
-          tool_call_id: call.id,
-          content: String(result).slice(0, 200000),
-        });
-      }
-    }
-
-    console.log(`\n--- ${browser} @ ${viewport} finished ---`);
-
-    archiveSummary(browser, model, viewport);
-
-    if (!finalText.includes('CI_STATUS=PASS')) {
-      console.error(`${browser}: CI_STATUS is not PASS.`);
-      return 2;
-    }
-
-    return 0;
   } catch (err) {
-    console.error(`${browser} run failed: ${err.message}`, err);
-    return 1;
-  } finally {
-    for (const client of clients) {
-      try {
-        await client.close();
-      } catch {
-        /* ignore */
-      }
+    const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
+    console.error(`[tool] ${name} FALLITO dopo ${duration}s: ${err.message}`);
+    rawResult = `TOOL ERROR: ${err.message}`;
+  }
+
+  const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
+  console.log(`[tool] ${name} completato in ${duration}s (risposta: ${String(rawResult).length} caratteri)`);
+
+  // Tronca i risultati troppo massivi per non saturare il contesto dell'LLM
+  return String(rawResult).slice(0, 200000);
+}
+
+async function closeMcpClients(clients) {
+  for (const client of clients) {
+    try {
+      await client.close();
+    } catch {
+      /* Ignora errori in chiusura */
     }
   }
 }
 
+// ============================================================================
+// 5. CLIENT OPENROUTER (LLM)
+// ============================================================================
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function chatCompletion(messages, tools) {
+async function chatCompletion(messages, tools, config) {
   const body = JSON.stringify({
-    model,
+    model: config.model,
     messages,
     tools,
     tool_choice: 'auto',
     temperature: 0,
   });
 
-  let lastErr;
-  for (let attempt = 1; attempt <= CHAT_MAX_RETRIES; attempt++) {
+  let lastError;
+  for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
           'Content-Type': 'application/json',
         },
         body,
       });
 
-      if (res.ok) return res.json();
+      if (res.ok) return await res.json();
 
       const errBody = await res.text();
-      // Retry on rate limits and transient server errors.
-      if (res.status === 429 || res.status >= 500) {
-        lastErr = new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
-        console.warn(`[llm] attempt ${attempt}/${CHAT_MAX_RETRIES} failed (HTTP ${res.status}), retrying...`);
-      } else {
-        throw new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
-      }
+      const isRetryable = res.status === 429 || res.status >= 500;
+
+      lastError = new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
+
+      if (!isRetryable) throw lastError;
+
+      console.warn(`[llm] Tentativo ${attempt}/${config.maxRetries} fallito (HTTP ${res.status}), retrying...`);
     } catch (err) {
-      // Network-level failures (socket closed, timeout, DNS) are transient: retry.
-      if (err.message?.startsWith('OpenRouter API error')) throw err;
-      lastErr = err;
-      console.warn(`[llm] attempt ${attempt}/${CHAT_MAX_RETRIES} failed (${err.message}), retrying...`);
+      if (err.message?.startsWith('OpenRouter API error') && !err.message.includes('429') && !err.message.includes('500')) {
+        throw err;
+      }
+      lastError = err;
+      console.warn(`[llm] Tentativo ${attempt}/${config.maxRetries} fallito (${err.message}), retrying...`);
     }
 
-    if (attempt < CHAT_MAX_RETRIES) {
-      await sleep(CHAT_RETRY_BASE_MS * 2 ** (attempt - 1));
+    if (attempt < config.maxRetries) {
+      await sleep(config.retryBaseMs * 2 ** (attempt - 1));
     }
   }
 
-  throw lastErr;
+  throw lastError;
 }
 
-function buildPrompt(browser, viewport) {
+// ============================================================================
+// 6. REPORTING & ARCHIVIAZIONE
+// ============================================================================
+
+function archiveSummary(browser, model, viewport) {
+  const sourceMd = 'reports/ci-summary.md';
+  const targetMd = `reports/ci-summary-${browser}-${viewport}.md`;
+  
+  if (existsSync(sourceMd)) {
+    renameSync(sourceMd, targetMd);
+    console.log(`[report] Salvato ${targetMd}`);
+  }
+
+  const jsonSource = 'reports/ci-data.json';
+  const jsonTarget = `reports/ci-data-${browser}-${viewport}.json`;
+
+  if (existsSync(jsonSource)) {
+    renameSync(jsonSource, jsonTarget);
+    try {
+      const data = JSON.parse(readFileSync(jsonTarget, 'utf8'));
+      data.browser = browser;
+      data.viewport = viewport;
+      data.model = model;
+      data.timestamp = new Date().toISOString();
+      if (data.status !== 'PASS' && data.status !== 'FAIL') data.status = '';
+      
+      writeFileSync(jsonTarget, JSON.stringify(data, null, 2), 'utf8');
+      console.log(`[report] Salvato ${jsonTarget}`);
+    } catch (err) {
+      console.error(`[report] JSON non valido in ${jsonTarget}: ${err.message}`);
+    }
+  } else {
+    console.error(`[report] Mancante ${jsonSource} — fallback su markdown.`);
+  }
+}
+
+// ============================================================================
+// 7. UTILITIES & PROMPT
+// ============================================================================
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildPrompt(browser, viewport, model) {
   return `Sei in CI Azure, senza operatore umano. Esegui i test E2E di questo repository.
 
 Browser obbligatorio per questa run: ${browser}
@@ -323,33 +413,5 @@ CI_STATUS=FAIL
 Usa FAIL se almeno un bug HIGH e' stato trovato, oppure se un test non e' completabile.`;
 }
 
-function archiveSummary(browser, model, viewport) {
-  const source = 'reports/ci-summary.md';
-  const target = `reports/ci-summary-${browser}-${viewport}.md`;
-  if (existsSync(source)) {
-    renameSync(source, target);
-    console.log(`Saved ${target}`);
-  }
-
-  // Dati strutturati per rendering HTML e email (niente parsing regex del markdown).
-  const jsonSource = 'reports/ci-data.json';
-  const jsonTarget = `reports/ci-data-${browser}-${viewport}.json`;
-  if (existsSync(jsonSource)) {
-    renameSync(jsonSource, jsonTarget);
-    try {
-      const data = JSON.parse(readFileSync(jsonTarget, 'utf8'));
-      // Override deterministico dei campi chiave.
-      data.browser = browser;
-      data.viewport = viewport;
-      data.model = model;
-      data.timestamp = new Date().toISOString();
-      if (data.status !== 'PASS' && data.status !== 'FAIL') data.status = '';
-      writeFileSync(jsonTarget, JSON.stringify(data, null, 2), 'utf8');
-      console.log(`Saved ${jsonTarget}`);
-    } catch (err) {
-      console.error(`Invalid ${jsonTarget}: ${err.message} — rendering/email useranno il fallback markdown.`);
-    }
-  } else {
-    console.error(`Missing ${jsonSource} — rendering/email useranno il fallback markdown.`);
-  }
-}
+// Avvio
+await main();
