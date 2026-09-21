@@ -1,7 +1,11 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join, relative } from 'node:path';
+import { createRequire } from 'node:module';
 import dotenv from 'dotenv';
 import { marked } from 'marked';
+
+const require = createRequire(import.meta.url);
+const { PATHS } = require('../config.js');
 
 // ============================================================================
 // 1. CONFIGURAZIONE & SETUP
@@ -10,9 +14,22 @@ import { marked } from 'marked';
 dotenv.config({ quiet: true });
 
 const CONFIG = {
-  reportsDir: 'reports',
+  // reports/raw: report .md + screenshot + metadata generati dall'AI
+  // reports/html: HTML generato da questo script (stessa struttura di raw)
+  rawDir: PATHS.raw,
+  htmlDir: PATHS.html,
   clientName: getClientName(),
 };
+
+// Converte un path assoluto sorgente (raw) nel path di destinazione (html)
+function toHtmlPath(rawAbsPath) {
+  return String(rawAbsPath).replace(`${CONFIG.rawDir}/`, `${CONFIG.htmlDir}/`);
+}
+
+// Rimuove i prefissi "reports/" e "raw/" dai path salvati nei metadata
+function stripReportsPrefix(value) {
+  return normalizePath(String(value)).replace(/^reports\//, '').replace(/^raw\//, '');
+}
 
 // Formato cartella run: yyyy-MM-dd_hh:mm:ss
 const RUN_DIR_RE = /^\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}$/;
@@ -70,14 +87,17 @@ function buildStats(metadata) {
 
 function buildTestLinks(metadata) {
   return (metadata.tests ?? []).map((t) => {
-    const mdPath = typeof t.report === 'string' && t.report ? t.report.replace(/^reports\//, '') : '';
+    const mdPath = typeof t.report === 'string' && t.report ? stripReportsPrefix(t.report) : '';
     const htmlPath = mdPath ? mdPath.replace(/\.md$/i, '.html') : '';
-    const exists = mdPath && existsSync(join(CONFIG.reportsDir, mdPath));
+    const exists = mdPath && existsSync(join(CONFIG.rawDir, mdPath));
     const label = (typeof t.name === 'string' && t.name ? t.name : basename(mdPath || '', '.md')).replace(/\.md$/i, '');
 
     return {
       label: label || 'Test',
+      // href: path relativo alla root di reports/html (usato nella pagina di dettaglio run)
       href: exists ? htmlPath : '',
+      // baseHref: solo il nome file (usato nella rail delle pagine nella stessa cartella)
+      baseHref: exists ? basename(htmlPath) : '',
       status: t.status === 'FAIL' ? 'FAIL' : t.status === 'PASS' ? 'PASS' : '',
     };
   });
@@ -101,12 +121,12 @@ function buildSessionViewModel(session) {
 
   const summaryMdPath = join(sessionDir, 'summary.md');
   const summaryHref = existsSync(summaryMdPath)
-    ? normalizePath(relative(CONFIG.reportsDir, summaryMdPath.replace(/\.md$/i, '.html')))
+    ? normalizePath(relative(CONFIG.htmlDir, toHtmlPath(summaryMdPath).replace(/\.md$/i, '.html')))
     : '';
 
   const screenshots = (Array.isArray(metadata.screenshotPaths) ? metadata.screenshotPaths : [])
-    .map((p) => normalizePath(String(p).replace(/^reports\//, '')))
-    .filter((p) => p && existsSync(join(CONFIG.reportsDir, p)));
+    .map((p) => stripReportsPrefix(p))
+    .filter((p) => p && existsSync(join(CONFIG.rawDir, p)));
 
   return {
     name: browser,
@@ -212,9 +232,10 @@ class RenderContext {
     if (!match) return '';
 
     const file = match[1];
-    if (!existsSync(join(CONFIG.reportsDir, file))) return '';
+    if (!existsSync(join(CONFIG.rawDir, file))) return '';
 
-    const href = normalizePath(relative(this.currentDir, join(CONFIG.reportsDir, file)));
+    // Le immagini restano in reports/raw: l'HTML le referenzia con un path relativo
+    const href = normalizePath(relative(this.currentDir, join(CONFIG.rawDir, file)));
     return `<img src="${escapeAttr(href)}" alt="${escapeAttr(file)}" loading="lazy">`;
   }
 }
@@ -799,7 +820,8 @@ function sessionDetailHtml(vm, runName) {
   const screenshots = vm.screenshots.length
     ? `<div class="detail-shots">${vm.screenshots
         .map((p) => {
-          const href = relFromRun(p, runName);
+          // Gli screenshot stanno in reports/raw: path relativo dalla cartella del run (html) al file raw
+          const href = normalizePath(relative(join(CONFIG.htmlDir, runName), join(CONFIG.rawDir, p)));
           const fileName = p.split('/').pop() ?? p;
           return `<a href="${escapeAttr(href)}" target="_blank" rel="noopener"><img src="${escapeAttr(href)}" alt="${escapeAttr(fileName)}" loading="lazy"></a>`;
         })
@@ -837,8 +859,9 @@ function sessionDetailHtml(vm, runName) {
 function testLinkHtml(test, className) {
   const chip = statusChip(test.status);
   const label = `<span>${escapeHtml(test.label)}</span>${chip}`;
-  if (!test.href) return `<div class="${className}">${label}</div>`;
-  return `<a href="${escapeAttr(test.href)}" class="${className}">${label}</a>`;
+  const href = test.baseHref || test.href;
+  if (!href) return `<div class="${className}">${label}</div>`;
+  return `<a href="${escapeAttr(href)}" class="${className}">${label}</a>`;
 }
 
 function statusChip(status) {
@@ -935,10 +958,10 @@ function listMarkdownFiles(dir) {
 function collectSessions() {
   const sessions = [];
 
-  if (!existsSync(CONFIG.reportsDir)) return sessions;
+  if (!existsSync(CONFIG.rawDir)) return sessions;
 
-  for (const runDir of readdirSync(CONFIG.reportsDir).sort()) {
-    const runPath = join(CONFIG.reportsDir, runDir);
+  for (const runDir of readdirSync(CONFIG.rawDir).sort()) {
+    const runPath = join(CONFIG.rawDir, runDir);
     if (!statSync(runPath).isDirectory() || !RUN_DIR_RE.test(runDir)) continue;
 
     const runMeta = loadRunMetadata(runPath);
@@ -977,8 +1000,8 @@ function collectSessions() {
 }
 
 function buildHtmlReports() {
-  if (!existsSync(CONFIG.reportsDir)) {
-    console.log('[build] Nessuna cartella reports/ trovata — skip render HTML.');
+  if (!existsSync(CONFIG.rawDir)) {
+    console.log('[build] Nessuna cartella reports/raw trovata — skip render HTML.');
     process.exit(0);
   }
 
@@ -995,12 +1018,13 @@ function buildHtmlReports() {
   const runs = groupByRun(sessions);
 
   for (const run of runs) {
-    const detailPath = join(CONFIG.reportsDir, run.name, 'run-detail.html');
+    const detailPath = join(CONFIG.htmlDir, run.name, 'run-detail.html');
+    mkdirSync(dirname(detailPath), { recursive: true });
     writeFileSync(detailPath, runDetailPage(run), 'utf8');
     console.log(`[build] Generato: ${detailPath}`);
   }
 
-  const indexPath = join(CONFIG.reportsDir, 'index.html');
+  const indexPath = join(CONFIG.htmlDir, 'index.html');
   writeFileSync(indexPath, indexPage(runs), 'utf8');
   console.log(`[build] Generato: ${indexPath} (${sessions.length} sessioni elaborate, ${runs.length} run)`);
 }
@@ -1008,17 +1032,19 @@ function buildHtmlReports() {
 function renderSession(session) {
   const { browser, metadata, runMeta, sessionDir, run } = session;
   const browserName = (typeof metadata.browser === 'string' && metadata.browser ? metadata.browser : browser) || browser;
-  const backHref = normalizePath(relative(sessionDir, join(CONFIG.reportsDir, run, 'run-detail.html'))) || '../run-detail.html';
+  const htmlSessionDir = toHtmlPath(sessionDir);
+  const backHref = normalizePath(relative(htmlSessionDir, join(CONFIG.htmlDir, run, 'run-detail.html'))) || '../run-detail.html';
   const backLabel = '← Torna indietro';
   const testLinks = buildTestLinks(metadata);
 
   // Pagina summary
   const summaryMd = join(sessionDir, 'summary.md');
   if (existsSync(summaryMd)) {
-    const summaryCtx = new RenderContext(sessionDir);
+    const summaryCtx = new RenderContext(toHtmlPath(sessionDir));
     const summaryBody = renderMarkdown(stripPathsSection(readFileSync(summaryMd, 'utf8')), summaryCtx);
-    const summaryHtmlPath = summaryMd.replace(/\.md$/i, '.html');
+    const summaryHtmlPath = toHtmlPath(summaryMd).replace(/\.md$/i, '.html');
 
+    mkdirSync(dirname(summaryHtmlPath), { recursive: true });
     writeFileSync(
       summaryHtmlPath,
       reportPage(
@@ -1048,15 +1074,16 @@ function renderSession(session) {
   // Pagine dei test
   for (const link of testLinks) {
     const mdRel = link.href ? link.href.replace(/\.html$/i, '.md') : '';
-    const testMdPath = mdRel ? join(CONFIG.reportsDir, mdRel) : '';
+    const testMdPath = mdRel ? join(CONFIG.rawDir, mdRel) : '';
     if (!mdRel || !existsSync(testMdPath)) continue;
 
     const testDir = join(testMdPath, '..');
-    const testCtx = new RenderContext(testDir);
+    const testCtx = new RenderContext(toHtmlPath(testDir));
     const testBody = renderMarkdown(readFileSync(testMdPath, 'utf8'), testCtx);
-    const testHtmlPath = testMdPath.replace(/\.md$/i, '.html');
+    const testHtmlPath = toHtmlPath(testMdPath).replace(/\.md$/i, '.html');
     const entry = findTestEntry(metadata, mdRel);
 
+    mkdirSync(dirname(testHtmlPath), { recursive: true });
     writeFileSync(
       testHtmlPath,
       reportPage(

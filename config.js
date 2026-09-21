@@ -1,4 +1,4 @@
-// test.config.js - Definizione centralizzata dei test E2E
+// config.js - Configurazione centralizzata: test E2E, path dei report e costanti condivise
 //
 // Ogni test e' identificato da:
 // - id:      identificatore univoco (usato in TESTS_ENABLED per abilitarlo in CI/locale)
@@ -79,4 +79,20 @@ const E2E_TESTS = [
   },
 ];
 
-module.exports = { E2E_TESTS };
+// ============================================================================
+// PATH & COSTANTI CONDIVISE tra gli script (run-e2e-ci, render-reports, upload-reports, email-report)
+// ============================================================================
+
+const PATHS = {
+  // reports/: cartella report (contiene raw/ e html/, pubblicata come artifact di pipeline)
+  reports: 'reports',
+  // reports/raw/: report .md + screenshot + metadata generati dall'AI (run-e2e-ci.mjs)
+  raw: 'reports/raw',
+  // reports/html/: HTML generato da render-reports.mjs (stessa struttura di raw/)
+  html: 'reports/html',
+};
+
+// Prefisso fisso su Azure Blob Storage: lo storico si accumula sempre nello stesso path
+const BLOB_PREFIX = 'e2e';
+
+module.exports = { E2E_TESTS, PATHS, BLOB_PREFIX };

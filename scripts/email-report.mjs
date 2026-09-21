@@ -1,5 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { PATHS } = require('../config.js');
 
 // ============================================================================
 // 1. CONFIGURAZIONE & VALIDAZIONE AMBIENTE
@@ -96,7 +100,7 @@ async function main() {
     process.exit(0);
   }
 
-  const runs = collectRuns('reports');
+  const runs = collectRuns(PATHS.raw);
   const date = latestRunDate(runs);
   const subject = `[${config.clientName || 'E2E'}] Report E2E ${date} — ${overallLabel(runs)}`;
   const textContent = buildText(runs, date, config);
@@ -141,9 +145,9 @@ async function sendSendgridEmail(config, subject, text, html) {
 }
 
 function saveDryRunPreview(html, text, subject, to) {
-  writeFileSync('reports/email-preview.html', html, 'utf8');
-  writeFileSync('reports/email-preview.txt', text, 'utf8');
-  console.log('DRY_RUN — nessuna email inviata. Anteprima salvata in reports/email-preview.html e reports/email-preview.txt');
+  writeFileSync(`${PATHS.reports}/email-preview.html`, html, 'utf8');
+  writeFileSync(`${PATHS.reports}/email-preview.txt`, text, 'utf8');
+  console.log(`DRY_RUN — nessuna email inviata. Anteprima salvata in ${PATHS.reports}/email-preview.html e ${PATHS.reports}/email-preview.txt`);
   console.log(`Subject: ${subject}`);
   console.log(`To: ${to.map((item) => item.email).join(', ')}`);
 }

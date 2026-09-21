@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { E2E_TESTS } = require('../test.config.js');
+const { E2E_TESTS, PATHS } = require('../config.js');
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -66,13 +66,13 @@ function loadConfig() {
 
 // Selezione test:
 // - Se TESTS_ENABLED e' definita (lista di id separati da virgole), vengono eseguiti
-//   SOLO i test con quegli id (override del campo enabled di test.config.js)
+//   SOLO i test con quegli id (override del campo enabled di config.js)
 // - Altrimenti vengono eseguiti i test con enabled: true
 function selectTests(raw) {
   if (raw === undefined || raw.trim() === '') {
     const byEnabled = E2E_TESTS.filter((t) => t.enabled === true);
     if (!byEnabled.length) {
-      throw new Error('Nessun test selezionato: TESTS_ENABLED non definita e nessun test con enabled: true in test.config.js.');
+      throw new Error('Nessun test selezionato: TESTS_ENABLED non definita e nessun test con enabled: true in config.js.');
     }
     return byEnabled;
   }
@@ -127,7 +127,7 @@ async function main() {
   console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);
   console.log(`Unità Totali: ${units.length} (browser x viewport x test)`);
   console.log(`Sessioni in parallelo: ${config.maxParallelSessions}`);
-  console.log(`Cartella run: reports/${stamp}\n`);
+  console.log(`Cartella run: ${PATHS.raw}/${stamp}\n`);
 
   let hasFailures = false;
   // Risultati per combinazione browser/viewport: "browser/viewport" -> [{ test, status }]
@@ -420,11 +420,11 @@ function buildRunStamp() {
 }
 
 // Ogni unità di test scrive il proprio report .md, gli screenshot e un fragment
-// metadata in reports/{stamp}/{browser}/{viewport}/meta/<test-id>.json.
+// metadata in reports/raw/{stamp}/{browser}/{viewport}/meta/<test-id>.json.
 // Qui, a run conclusa, aggregiamo i fragment in summary.md e metadata.json
 // per ogni combinazione browser/viewport (schema identico a quello precedente).
 function aggregateSessionReports(browser, viewport, config, stamp, results) {
-  const sessionDir = `reports/${stamp}/${browser}/${viewport}`;
+  const sessionDir = `${PATHS.raw}/${stamp}/${browser}/${viewport}`;
   mkdirSync(sessionDir, { recursive: true });
 
   const testsMeta = [];
@@ -520,7 +520,7 @@ function computeDurationLabel(stamp) {
 
 // Metadata di run: aggrega lo stato complessivo delle sessioni della run
 function writeRunMetadata(stamp, config, hasFailures) {
-  const runDir = `reports/${stamp}`;
+  const runDir = `${PATHS.raw}/${stamp}`;
   mkdirSync(runDir, { recursive: true });
 
   const sessions = config.browsers.flatMap((browser) =>
@@ -548,7 +548,7 @@ function sleep(ms) {
 }
 
 function buildPrompt(browser, viewport, test, model, stamp) {
-  const sessionDir = `reports/${stamp}/${browser}/${viewport}`;
+  const sessionDir = `${PATHS.raw}/${stamp}/${browser}/${viewport}`;
   const testFileName = test.file.split('/').pop();
 
   return `Sei in CI Azure, senza operatore umano. Esegui UN SOLO test E2E di questo repository.
@@ -563,7 +563,7 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 
 Regole:
 1. Leggi AGENTS.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
-2. Il test di questa run e' UNO SOLO (definizioni in test.config.js). NON eseguire altri test.
+2. Il test di questa run e' UNO SOLO (definizioni in config.js). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 3. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
 4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).

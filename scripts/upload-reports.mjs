@@ -1,70 +1,41 @@
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, posix, relative } from 'node:path';
-import {
-  BlobServiceClient,
-  ContainerSASPermissions,
-  SASProtocol,
-  StorageSharedKeyCredential,
-  generateBlobSASQueryParameters,
-} from '@azure/storage-blob';
+import { getStorageContext } from './azure-blob.mjs';
+import { PATHS } from '../config.js';
 
-const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING?.trim();
-const containerName = !process.env.AZURE_STORAGE_CONTAINER?.trim() || process.env.AZURE_STORAGE_CONTAINER.startsWith('$(')
-  ? 'e2e-reports'
-  : process.env.AZURE_STORAGE_CONTAINER.trim();
-const reportsDir = 'reports';
-const prefix = (process.env.REPORT_BLOB_PREFIX || `e2e/${Date.now()}`).replace(/^\/+|\/+$/g, '');
-const sasDays = Number(process.env.REPORT_SAS_DAYS || 90);
+// Carica i report HTML (reports/html/) su Azure Blob nel path FISSO <prefix>/:
+// ogni run si accumula nello stesso path, lo storico è permanente.
+// L'index.html con lo storico completo è già stato generato da render-reports.mjs
+// (dopo che sync-history.mjs ha scaricato le run precedenti).
 
-if (!connectionString || connectionString.startsWith('$(')) {
+const ctx = await getStorageContext();
+if (!ctx) {
   console.log('AZURE_STORAGE_CONNECTION_STRING not set — skip blob upload.');
   process.exit(0);
 }
 
-if (!existsSync(reportsDir)) {
-  console.log('No reports/ folder — skip blob upload.');
+if (!existsSync(PATHS.html)) {
+  console.log(`No ${PATHS.html}/ folder — skip blob upload.`);
   process.exit(0);
 }
 
-const files = listFiles(reportsDir);
+const files = listFiles(PATHS.html);
 if (!files.length) {
-  console.log('No files in reports/ — skip blob upload.');
+  console.log(`No files in ${PATHS.html}/ — skip blob upload.`);
   process.exit(0);
 }
 
-const { accountName, accountKey } = parseConnectionString(connectionString);
-const credential = new StorageSharedKeyCredential(accountName, accountKey);
-const service = BlobServiceClient.fromConnectionString(connectionString);
-const container = service.getContainerClient(containerName);
-
-try {
-  await container.createIfNotExists();
-} catch (err) {
-  console.log(`Container ${containerName} not created (${err.code || err.message}); assuming it exists.`);
-}
-
-const sas = generateBlobSASQueryParameters(
-  {
-    containerName,
-    permissions: ContainerSASPermissions.parse('rl'),
-    startsOn: new Date(Date.now() - 5 * 60 * 1000),
-    expiresOn: new Date(Date.now() + sasDays * 24 * 60 * 60 * 1000),
-    protocol: SASProtocol.Https,
-  },
-  credential,
-).toString();
-
-const blobBase = `${container.url.replace(/\/$/, '')}/${prefix}`;
+const blobBase = `${ctx.container.url.replace(/\/$/, '')}/${ctx.prefix}`;
 
 for (const filePath of files) {
-  const rel = relative(reportsDir, filePath).replaceAll('\\', '/');
-  const blobName = `${prefix}/${rel}`;
-  const blob = container.getBlockBlobClient(blobName);
+  const rel = relative(PATHS.html, filePath).replaceAll('\\', '/');
+  const blobName = `${ctx.prefix}/${rel}`;
+  const blob = ctx.container.getBlockBlobClient(blobName);
   const contentType = contentTypeFor(filePath);
   const options = { blobHTTPHeaders: { blobContentType: contentType } };
 
   if (filePath.endsWith('.html')) {
-    const rewritten = rewriteHtml(readFileSync(filePath, 'utf8'), rel, blobBase, sas);
+    const rewritten = rewriteHtml(readFileSync(filePath, 'utf8'), rel, blobBase, ctx.sas);
     await blob.upload(rewritten, Buffer.byteLength(rewritten), options);
   } else {
     await blob.uploadStream(createReadStream(filePath), undefined, undefined, options);
@@ -72,7 +43,7 @@ for (const filePath of files) {
   console.log(`Uploaded ${blobName}`);
 }
 
-const reportUrl = `${blobBase}/index.html?${sas}`;
+const reportUrl = `${blobBase}/index.html?${ctx.sas}`;
 console.log(`REPORT_HTML_URL=${reportUrl}`);
 if (process.env.TF_BUILD) {
   console.log(`##vso[task.setvariable variable=REPORT_HTML_URL;issecret=false]${reportUrl}`);
@@ -85,21 +56,9 @@ if (process.env.TF_BUILD) {
   console.log(`##vso[task.uploadsummary]${summaryPath}`);
 }
 
-function parseConnectionString(value) {
-  const parts = Object.fromEntries(
-    value
-      .split(';')
-      .filter(Boolean)
-      .map((entry) => {
-        const index = entry.indexOf('=');
-        return [entry.slice(0, index), entry.slice(index + 1)];
-      }),
-  );
-  if (!parts.AccountName || !parts.AccountKey) {
-    throw new Error('AZURE_STORAGE_CONNECTION_STRING must include AccountName and AccountKey.');
-  }
-  return { accountName: parts.AccountName, accountKey: parts.AccountKey };
-}
+// ============================================================================
+// HELPER
+// ============================================================================
 
 function listFiles(dir) {
   const files = [];

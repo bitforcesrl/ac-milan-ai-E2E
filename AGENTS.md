@@ -36,7 +36,7 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 ### Lettura della configurazione dei test
 
-La configurazione di tutti i test disponibili è nel file `test.config.js` nella root del progetto. Ogni test è definito con questi campi:
+La configurazione di tutti i test disponibili è nel file `config.js` nella root del progetto. Ogni test è definito con questi campi:
 
 - **`id`**: identificatore univoco del test (usato in `TESTS_ENABLED` per abilitarlo)
 - **`name`**: nome univoco e descrittivo del test
@@ -68,7 +68,7 @@ La configurazione di tutti i test disponibili è nel file `test.config.js` nella
 
 ### Flusso di esecuzione
 
-1. Determina i test da eseguire: se `TESTS_ENABLED` è definita usa quella lista di id, altrimenti leggi `test.config.js` ed esegui i test con `enabled: true`
+1. Determina i test da eseguire: se `TESTS_ENABLED` è definita usa quella lista di id, altrimenti leggi `config.js` ed esegui i test con `enabled: true`
 2. **Ridimensiona il browser** al viewport richiesto dalla run (es. "1280x650") usando `browser_resize`
 3. Per ogni test da eseguire:
    - **Leggi il campo `notes`** del test: se presente e non vuoto, leggi e applica le istruzioni contenute PRIMA di iniziare il test

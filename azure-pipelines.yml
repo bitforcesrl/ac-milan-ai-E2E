@@ -39,7 +39,7 @@ parameters:
       - '3'
       - '4'
       - '6'
-  # ---- Test E2E disponibili (definiti in test.config.ts) ----
+  # ---- Test E2E disponibili (definiti in config.js) ----
   - name: failTest
     displayName: Test fail-test (fail.test.md)
     type: boolean
@@ -106,8 +106,6 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
         displayName: Install dependencies and browsers
 
-      # Lista test passata allo script via variabile d'ambiente TESTS_ENABLED
-      # (id separati da virgole, definiti in test.config.ts)
       - script: |
           TESTS_ENABLED=""
           if [ "${{ parameters.failTest }}" = "True" ]; then
@@ -143,17 +141,27 @@ jobs:
           RUN_MOBILE: ${{ parameters.runMobile }}
           MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
 
+      # 1. Sync storico raw: scarica le run precedenti da blob, merge con la run corrente e ricarica
+      - script: node scripts/sync-history.mjs
+        displayName: Sync raw reports history to blob storage
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
+          AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
+          REPORT_BLOB_PREFIX: e2e
+
+      # 2. Render: rigenera l'HTML (incl. index.html) con lo STORICO completo delle run
       - script: node scripts/render-reports.mjs
         displayName: Convert reports to HTML
         env:
           CLIENT_NAME: $(CLIENT_NAME)
 
+      # 3. Upload HTML su path fisso: lo storico si accumula sempre nello stesso path
       - script: node scripts/upload-reports.mjs
-        displayName: Upload reports to blob storage
+        displayName: Upload HTML reports to blob storage
         env:
           AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
           AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
-          REPORT_BLOB_PREFIX: e2e/$(Build.BuildId)
+          REPORT_BLOB_PREFIX: e2e
 
       - task: PublishPipelineArtifact@1
         displayName: Publish reports artifact

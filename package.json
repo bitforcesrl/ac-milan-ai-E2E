@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "e2e:ci": "node scripts/run-e2e-ci.mjs",
+    "e2e:sync": "node scripts/sync-history.mjs",
     "e2e:email": "node scripts/email-report.mjs",
     "e2e:html": "node scripts/render-reports.mjs",
     "e2e:upload": "node scripts/upload-reports.mjs"
