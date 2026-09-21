@@ -32,7 +32,7 @@ parameters:
   - name: maxParallelSessions
     displayName: Sessioni in parallelo (browser x viewport)
     type: string
-    default: '1'
+    default: '3'
     values:
       - '1'
       - '2'
