@@ -33,7 +33,7 @@ config:
 tests:
   - name: fail.test.md
     url: https://store.acmilan.com
-    action: skip
+    action: run
     notes: ''
 
   - name: pdp/pdp.test.md

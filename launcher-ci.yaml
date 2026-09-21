@@ -7,7 +7,13 @@
 #
 # Configurazione viewport/device:
 # - viewport: dimensioni del viewport (larghezzaxaltezza)
-#   Esempi: "1280x650" (desktop), "390x844" (iPhone 12/13/14/15)
+#   Breakpoint supportati:
+#   - desktop: "1280x650"
+#   - tablet : "768x1024" (iPad)
+#   - mobile : "390x844" (iPhone 12/13/14/15)
+#   In CI (azure-pipelines.yml) il viewport e' sovrascritto dalla variabile
+#   d'ambiente VIEWPORTS (parametro pipeline "Viewports", es. "1280x650,768x1024,390x844"):
+#   per ogni combinazione browser x viewport viene eseguita una run completa.
 # - device: nome del dispositivo da emulare (opzionale, vedi .roo/mpc.env.md per lista)
 #   Se specificato, sovrascrive il viewport. Lasciare vuoto per usare viewport personalizzato.
 #

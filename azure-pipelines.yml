@@ -1,16 +1,28 @@
 parameters:
-  - name: browsers
-    displayName: Browser
-    type: string
-    default: chromium
-    values:
-      - chromium
-      - firefox
-      - webkit
-      - chromium,firefox
-      - chromium,webkit
-      - firefox,webkit
-      - chromium,firefox,webkit
+  - name: runChromium
+    displayName: Browser Chromium
+    type: boolean
+    default: true
+  - name: runFirefox
+    displayName: Browser Firefox
+    type: boolean
+    default: false
+  - name: runWebkit
+    displayName: Browser WebKit (Safari)
+    type: boolean
+    default: false
+  - name: runDesktop
+    displayName: Viewport desktop (1280x650)
+    type: boolean
+    default: true
+  - name: runTablet
+    displayName: Viewport tablet (768x1024)
+    type: boolean
+    default: false
+  - name: runMobile
+    displayName: Viewport mobile (390x844)
+    type: boolean
+    default: false
   - name: openrouterAiModel
     displayName: AI Model (OpenRouter)
     type: string
@@ -64,7 +76,12 @@ jobs:
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
           OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
-          BROWSERS: ${{ parameters.browsers }}
+          RUN_CHROMIUM: ${{ parameters.runChromium }}
+          RUN_FIREFOX: ${{ parameters.runFirefox }}
+          RUN_WEBKIT: ${{ parameters.runWebkit }}
+          RUN_DESKTOP: ${{ parameters.runDesktop }}
+          RUN_TABLET: ${{ parameters.runTablet }}
+          RUN_MOBILE: ${{ parameters.runMobile }}
 
       - script: node scripts/render-reports.mjs
         displayName: Convert reports to HTML
