@@ -85,13 +85,11 @@ jobs:
 
       - script: node scripts/render-reports.mjs
         displayName: Convert reports to HTML
-        condition: always()
         env:
           CLIENT_NAME: $(CLIENT_NAME)
 
       - script: node scripts/upload-reports.mjs
         displayName: Upload reports to blob storage
-        condition: always()
         env:
           AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
           AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
@@ -99,14 +97,12 @@ jobs:
 
       - task: PublishPipelineArtifact@1
         displayName: Publish reports artifact
-        condition: always()
         inputs:
           targetPath: reports
           artifact: e2e-reports
 
       - script: node scripts/email-report.mjs
         displayName: Email report via SendGrid
-        condition: always()
         env:
           SENDGRID_API_KEY: $(SENDGRID_API_KEY)
           MAIL_FROM: $(MAIL_FROM)
