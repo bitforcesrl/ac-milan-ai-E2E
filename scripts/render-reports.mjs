@@ -11,7 +11,6 @@ dotenv.config({ quiet: true });
 
 const CONFIG = {
   reportsDir: 'reports',
-  pageSize: 30,
   clientName: getClientName(),
 };
 
@@ -90,15 +89,14 @@ function findTestEntry(metadata, mdRelPath) {
 }
 
 function buildSessionViewModel(session) {
-  const { browser, metadata, runMeta, sessionDir } = session;
+  const { browser, viewport: folderViewport, metadata, runMeta, sessionDir } = session;
   const stats = buildStats(metadata);
   const testLinks = buildTestLinks(metadata);
 
-  const folderViewport = /-(\d+x\d+)$/.exec(browser)?.[1] ?? '';
   const viewport =
     typeof metadata.viewport === 'string' && metadata.viewport ? metadata.viewport : folderViewport;
   const browserName =
-    (typeof metadata.browser === 'string' && metadata.browser ? metadata.browser : browser.replace(/-\d+x\d+$/, '')) ||
+    (typeof metadata.browser === 'string' && metadata.browser ? metadata.browser : browser) ||
     'sconosciuto';
 
   const summaryMdPath = join(sessionDir, 'summary.md');
@@ -379,7 +377,18 @@ const CSS_STYLES = `
   .rail-test-link { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; text-decoration: none; font-size: 0.85rem; }
   .rail-test-link:hover { color: var(--ink); }
 
-  .index-page { max-width: 880px; margin: 0 auto; padding: 60px 24px; }
+  .meta-bit {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin: 6px 0;
+    font-size: 0.85rem;
+  }
+  .meta-bit span { color: var(--graphite); flex-shrink: 0; }
+  .meta-bit b { font: 600 0.78rem var(--mono); text-align: right; overflow-wrap: anywhere; }
+
+  .index-page { max-width: 1280px; margin: 0 auto; padding: 40px 24px 100px; }
   .brand { color: var(--graphite); font-weight: 600; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; }
   .lede { color: var(--graphite); font-size: 1.1rem; margin-bottom: 40px; }
 
@@ -476,17 +485,7 @@ const CSS_STYLES = `
   .bug-bit.ko { background: #fee2e2; color: #b91c1c; }
   .bug-bit.warn { background: #fef3c7; color: #b45309; }
 
-  .detail-page { max-width: 960px; }
   .detail-page .back { margin-bottom: 24px; display: inline-block; }
-  .detail-outcome {
-    display: inline-block;
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-weight: 700;
-    margin-bottom: 20px;
-  }
-  .detail-outcome.ok { background: #dcfce7; color: #15803d; }
-  .detail-outcome.ko { background: #fee2e2; color: #b91c1c; }
   .detail-page .run-stats { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
 
   .detail-session {
@@ -500,13 +499,50 @@ const CSS_STYLES = `
   .detail-session h3 { margin: 0 0 4px; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .detail-session h4 { margin: 18px 0 8px; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--graphite); }
   .detail-meta { margin: 0; color: var(--graphite); font-size: 0.85rem; }
-  .detail-tests { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  .detail-tests a, .detail-tests div { display: flex; justify-content: space-between; align-items: center; font-size: 0.9rem; font-weight: 500; text-decoration: none; }
-  .detail-tests a:hover { text-decoration: underline; }
+  .detail-tests { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .detail-test-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--wash);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+  }
+  .detail-test-name { font-size: 0.9rem; font-weight: 600; overflow-wrap: anywhere; }
+  .detail-test-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .test-detail-link { font-size: 0.8rem; font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .test-detail-link:hover { text-decoration: underline; }
 
   .detail-shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
   .detail-shots a { display: block; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--wash); }
   .detail-shots img { display: block; width: 100%; height: 120px; object-fit: cover; }
+
+  .status-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-icon .icon { display: block; }
+  .status-icon.pass { color: #15803d; background: #dcfce7; }
+  .status-icon.fail { color: #b91c1c; background: #fee2e2; }
+  .status-icon.unknown { color: var(--graphite); background: var(--wash); }
+  .status-cell { width: 48px; text-align: center; }
+  .status-cell .status-icon { margin: 0 auto; }
+
+  .env-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .env-chip { margin: 0; }
+
+
+  .detail-session-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .summary-link { margin: 12px 0 2px; font-size: 0.9rem; }
+  .summary-link a { font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+  .summary-link a:hover { color: var(--ink); }
 
   @media (prefers-color-scheme: dark) {
     .outcome.ok { color: #4ade80; }
@@ -515,8 +551,8 @@ const CSS_STYLES = `
     .progress-fill.ko { background: #ef4444; }
     .bug-bit.ko { background: #7f1d1d; color: #fca5a5; }
     .bug-bit.warn { background: #78350f; color: #fcd34d; }
-    .detail-outcome.ok { background: #064e3b; color: #6ee7b7; }
-    .detail-outcome.ko { background: #7f1d1d; color: #fca5a5; }
+    .status-icon.pass { color: #6ee7b7; background: #064e3b; }
+    .status-icon.fail { color: #fca5a5; background: #7f1d1d; }
   }
 `;
 
@@ -542,7 +578,7 @@ ${content}
 }
 
 // --- 4.3 PAGINE HTML (REPORT & INDEX) ---
-function reportPage(meta, body, sections, indexHref) {
+function reportPage(meta, body, sections, backHref, backLabel) {
   const nav = sections.length
     ? `<nav class="toc" aria-label="Sezioni del report"><ol>${sections
         .map((s) => `<li><a href="#${escapeAttr(s.id)}">${s.text}</a></li>`)
@@ -550,17 +586,22 @@ function reportPage(meta, body, sections, indexHref) {
     : '';
 
   const statusBadge = meta.status
-    ? `<p class="status-badge ${meta.status === 'PASS' ? 'pass' : 'fail'}">${meta.status === 'PASS' ? '✅ PASS' : '❌ FAIL'}</p>`
+    ? `<p class="status-badge ${meta.status === 'PASS' ? 'pass' : 'fail'}">${
+        meta.status === 'PASS' ? iconSvg('pass') : iconSvg('fail')
+      } ${meta.status === 'PASS' ? 'PASS' : 'FAIL'}</p>`
     : '';
 
   const banner = meta.status
     ? `<p class="status-banner ${meta.status === 'PASS' ? 'pass' : 'fail'}">${
-        meta.status === 'PASS' ? '✅ Run superato con successo' : '❌ Run fallito - Verificare gli errori'
+        meta.status === 'PASS'
+          ? `${iconSvg('pass')} Run superato con successo`
+          : `${iconSvg('fail')} Run fallito - Verificare gli errori`
       }</p>`
     : '';
 
   const metaBits = [
     meta.browser ? `<p class="meta-bit"><span>Browser</span><b>${escapeHtml(meta.browser)}</b></p>` : '',
+    meta.viewport ? `<p class="meta-bit"><span>Viewport</span><b>${escapeHtml(meta.viewport)}</b></p>` : '',
     meta.model ? `<p class="meta-bit"><span>Modello AI</span><b>${escapeHtml(meta.model)}</b></p>` : '',
   ]
     .filter(Boolean)
@@ -575,10 +616,10 @@ function reportPage(meta, body, sections, indexHref) {
 
   const content = `<div class="shell">
   <aside class="rail">
-    <a class="back" href="${escapeAttr(indexHref)}">Tutti i report</a>
+    <a class="back" href="${escapeAttr(backHref)}">${escapeHtml(backLabel)}</a>
     <div class="run">
       <p class="run-name">${escapeHtml(meta.label)}</p>
-      ${meta.date ? `<p class="run-date">${escapeHtml(meta.date)}, ore${escapeHtml(meta.time)}</p>` : ''}
+      ${meta.date ? `<p class="run-date">${escapeHtml(meta.date)}, ore ${escapeHtml(meta.time)}</p>` : ''}
       ${statusBadge}
       ${metaBits}
     </div>
@@ -624,8 +665,8 @@ function indexPage(runs) {
       <th>Risultato</th>
       <th>Esecuzione</th>
       <th>Test superati</th>
-      <th>Ambienti</th>
-      <th>Data / Ora</th>
+      <th>Browser</th>
+      <th>Viewport</th>
       <th>Durata</th>
       <th>Bug</th>
     </tr>
@@ -660,18 +701,19 @@ ${rows}
 
 // --- 4.4 COMPONENTI HTML RIPETIBILI ---
 function runRowHtml(run) {
-  const statusClass = run.status === 'PASS' ? 'pass' : run.status === 'FAIL' ? 'fail' : 'unknown';
-  const statusIcon = run.status === 'PASS' ? '✅' : run.status === 'FAIL' ? '❌' : '❔';
+  const statusKind = run.status === 'PASS' ? 'pass' : run.status === 'FAIL' ? 'fail' : 'unknown';
   const statusText = run.status === 'PASS' ? 'Successo' : run.status === 'FAIL' ? 'Fallito' : 'Sconosciuto';
   const outcomeClass = run.total > 0 && run.fail === 0 ? 'ok' : run.fail > 0 ? 'ko' : '';
 
-  const envChips = run.environments.length
-    ? run.environments
-        .map(
-          (e) =>
-            `<span class="env-chip">${escapeHtml(e.browser)}${e.viewport ? ` · ${escapeHtml(e.viewport)}` : ''}</span>`,
-        )
-        .join(' ')
+  const browsers = [...new Set(run.environments.map((e) => e.browser))];
+  const viewports = [...new Set(run.environments.map((e) => e.viewport).filter(Boolean))];
+
+  const browserChips = browsers.length
+    ? `<div class="env-chips">${browsers.map((b) => `<span class="env-chip">${escapeHtml(b)}</span>`).join('')}</div>`
+    : '<span class="muted">—</span>';
+
+  const viewportChips = viewports.length
+    ? `<div class="env-chips">${viewports.map((v) => `<span class="env-chip">${escapeHtml(v)}</span>`).join('')}</div>`
     : '<span class="muted">—</span>';
 
   const bugsBits =
@@ -684,14 +726,17 @@ function runRowHtml(run) {
       .join(' ') || '<span class="muted">0</span>';
 
   return `<tr class="run-row" data-href="${escapeAttr(run.detailHref)}" tabindex="0" role="link" aria-label="Apri dettaglio run ${escapeAttr(run.name)}">
-    <td><span class="chip ${statusClass}">${statusIcon} ${statusText}</span></td>
-    <td><span class="run-cell-name">${escapeHtml(run.label)}</span><span class="run-cell-sub">${escapeHtml(run.name)}</span></td>
+    <td class="status-cell"><span class="status-icon ${statusKind}" title="${statusText}" aria-label="${statusText}">${iconSvg(statusKind)}</span></td>
+    <td>
+      <span class="run-cell-name">${escapeHtml(run.date ? `${run.date}${run.time ? `, ore ${run.time}` : ''}` : run.name)}</span>
+      <span class="run-cell-sub">${escapeHtml(run.name)}</span>
+    </td>
     <td>
       <div class="outcome ${outcomeClass}">${run.total > 0 ? `${run.pass} / ${run.total} con successo` : 'Nessun test'}</div>
       ${run.total > 0 ? `<div class="progress-bar"><div class="progress-fill ${outcomeClass}" style="width:${run.passRate}%"></div></div>` : ''}
     </td>
-    <td>${envChips}</td>
-    <td>${run.date ? `${escapeHtml(run.date)}${run.time ? `<br><span class="muted">${escapeHtml(run.time)}</span>` : ''}` : '<span class="muted">—</span>'}</td>
+    <td>${browserChips}</td>
+    <td>${viewportChips}</td>
     <td>${run.duration ? escapeHtml(run.duration) : '<span class="muted">—</span>'}</td>
     <td>${bugsBits}</td>
   </tr>`;
@@ -706,16 +751,6 @@ function relFromRun(path, runName) {
 }
 
 function runDetailPage(run) {
-  const statusClass = run.status === 'PASS' ? 'pass' : run.status === 'FAIL' ? 'fail' : '';
-  const banner = run.status
-    ? `<p class="status-banner ${statusClass}">${
-        run.status === 'PASS' ? '✅ Run superato con successo' : '❌ Run fallito - Verificare gli errori'
-      }</p>`
-    : '';
-
-  const outcomeClass = run.total > 0 && run.fail === 0 ? 'ok' : run.fail > 0 ? 'ko' : '';
-  const outcome = run.total > 0 ? `${run.pass} / ${run.total} con successo` : 'Nessun test registrato';
-
   const stats = `<dl class="run-stats">
         <div class="stat"><dt>Test Superati</dt><dd class="ok">${run.pass}</dd></div>
         <div class="stat"><dt>Test Falliti</dt><dd class="${run.fail ? 'ko' : ''}">${run.fail}</dd></div>
@@ -731,8 +766,6 @@ function runDetailPage(run) {
   <a class="back" href="../index.html">← Tutte le esecuzioni</a>
   <h1>${escapeHtml(run.label)}</h1>
   <p class="lede">${run.date ? `${escapeHtml(run.date)}${run.time ? `, ore ${escapeHtml(run.time)}` : ''}` : escapeHtml(run.name)}</p>
-  ${banner}
-  <div class="detail-outcome ${outcomeClass}">${outcome}</div>
   ${stats}
   <h2>Ambienti di test</h2>
   ${sessionsHtml || '<p class="muted">Nessuna sessione disponibile per questo run.</p>'}
@@ -750,7 +783,14 @@ function sessionDetailHtml(vm, runName) {
     ? `<ul class="detail-tests">${vm.testLinks
         .map((t) => {
           const href = t.href ? relFromRun(t.href, runName) : '';
-          return testLinkHtml({ ...t, href }, '');
+          const chip = t.status ? statusChip(t.status) : ' <span class="chip unknown">N/D</span>';
+          const detailLink = href
+            ? `<a class="test-detail-link" href="${escapeAttr(href)}">Vai al dettaglio →</a>`
+            : '';
+          return `<li class="detail-test-row">
+            <span class="detail-test-name">${escapeHtml(t.label)}</span>
+            <span class="detail-test-actions">${chip}${detailLink}</span>
+          </li>`;
         })
         .join('')}</ul>`
     : '<p class="muted">Nessun test registrato per questa sessione.</p>';
@@ -772,13 +812,22 @@ function sessionDetailHtml(vm, runName) {
     .filter(Boolean)
     .join(' · ');
 
+  const statusKind = vm.status === 'PASS' ? 'pass' : vm.status === 'FAIL' ? 'fail' : 'unknown';
+  const statusTitle = vm.status === 'PASS' ? 'Sessione superata' : vm.status === 'FAIL' ? 'Sessione fallita' : 'Stato non disponibile';
+
   return `<section class="detail-session">
-    <h3>${escapeHtml(vm.label)}${vm.viewport ? ` <span class="env-chip">${escapeHtml(vm.viewport)}</span>` : ''}${statusChipHtml}</h3>
+    <header class="detail-session-head">
+      <h3>${escapeHtml(vm.label)}${vm.viewport ? ` <span class="env-chip">${escapeHtml(vm.viewport)}</span>` : ''}</h3>
+      <span class="status-icon ${statusKind}" title="${statusTitle}" aria-label="${statusTitle}">${iconSvg(statusKind)}</span>
+    </header>
     <p class="detail-meta">${metaBits || '<span class="muted">Metadati non disponibili</span>'}</p>
-    <h4>Test eseguiti</h4>
+    ${
+      vm.href
+        ? `<p class="summary-link"><a href="${escapeAttr(relFromRun(vm.href, runName))}">Visualizza resoconto della sessione →</a></p>`
+        : ''
+    }
+    <h4>Dettaglio test</h4>
     ${tests}
-    <h4>Log di sessione</h4>
-    ${vm.href ? `<p><a href="${escapeAttr(relFromRun(vm.href, runName))}">Apri il report di sessione completo →</a></p>` : '<p class="muted">Log di sessione non disponibile.</p>'}
     <h4>Screenshot</h4>
     ${screenshots}
   </section>`;
@@ -796,6 +845,41 @@ function statusChip(status) {
   return status === 'PASS'
     ? ' <span class="chip pass" aria-label="Superato">PASS</span>'
     : ' <span class="chip fail" aria-label="Fallito">FAIL</span>';
+}
+
+// Icone SVG inline (nessuna emoji nella UI)
+function iconSvg(kind) {
+  if (kind === 'pass') {
+    return '<svg class="icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15"/><path d="M4.6 8.4l2.4 2.4 4.4-5.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  }
+  if (kind === 'fail') {
+    return '<svg class="icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+  }
+  if (kind === 'doc') {
+    return '<svg class="icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 1.5h5.5L12.5 4.5V14.5H4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 7h4.5M6 9.5h4.5M6 12h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+  }
+  return '<svg class="icon" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.15"/><path d="M6.2 6.2a1.8 1.8 0 1 1 2.6 1.6c-.6.3-.8.6-.8 1.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.4" r="0.9" fill="currentColor"/></svg>';
+}
+
+// Rimuove la sezione "Path Report" (percorsi file) dal markdown dei summary
+function stripPathsSection(markdown) {
+  const lines = String(markdown).split('\n');
+  const out = [];
+  let skipping = false;
+
+  for (const line of lines) {
+    if (!skipping && /^##\s+Path Report\s*$/i.test(line)) {
+      skipping = true;
+      continue;
+    }
+    if (skipping && (/^##\s/.test(line) || /^---\s*$/.test(line))) {
+      skipping = false;
+      if (/^---\s*$/.test(line)) continue; // evita doppi separatori
+    }
+    if (!skipping) out.push(line);
+  }
+
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\n---\s*\n---/g, '\n---');
 }
 
 // --- 4.5 HELPER DI SANITIZZAZIONE E STRINGE ---
@@ -862,23 +946,29 @@ function collectSessions() {
       continue;
     }
 
-    for (const sessionDirName of readdirSync(runPath).sort()) {
-      const sessionDir = join(runPath, sessionDirName);
-      if (!statSync(sessionDir).isDirectory()) continue;
+    for (const browserDirName of readdirSync(runPath).sort()) {
+      const browserDir = join(runPath, browserDirName);
+      if (!statSync(browserDir).isDirectory()) continue;
 
-      const metadata = loadSessionMetadata(sessionDir);
-      if (!metadata) {
-        console.warn(`[build] metadata.json mancante o invalido in ${sessionDir} — sessione ignorata.`);
-        continue;
+      for (const viewportDirName of readdirSync(browserDir).sort()) {
+        const sessionDir = join(browserDir, viewportDirName);
+        if (!statSync(sessionDir).isDirectory()) continue;
+
+        const metadata = loadSessionMetadata(sessionDir);
+        if (!metadata) {
+          console.warn(`[build] metadata.json mancante o invalido in ${sessionDir} — sessione ignorata.`);
+          continue;
+        }
+
+        sessions.push({
+          run: runDir,
+          browser: browserDirName,
+          viewport: viewportDirName,
+          runMeta,
+          metadata,
+          sessionDir,
+        });
       }
-
-      sessions.push({
-        run: runDir,
-        browser: sessionDirName,
-        runMeta,
-        metadata,
-        sessionDir,
-      });
     }
   }
 
@@ -915,33 +1005,37 @@ function buildHtmlReports() {
 }
 
 function renderSession(session) {
-  const { browser, metadata, runMeta, sessionDir } = session;
-  const indexHref = normalizePath(relative(sessionDir, join(CONFIG.reportsDir, 'index.html'))) || 'index.html';
+  const { browser, metadata, runMeta, sessionDir, run } = session;
+  const browserName = (typeof metadata.browser === 'string' && metadata.browser ? metadata.browser : browser) || browser;
+  const backHref = normalizePath(relative(sessionDir, join(CONFIG.reportsDir, run, 'run-detail.html'))) || '../run-detail.html';
+  const backLabel = '← Torna indietro';
   const testLinks = buildTestLinks(metadata);
 
   // Pagina summary
   const summaryMd = join(sessionDir, 'summary.md');
   if (existsSync(summaryMd)) {
     const summaryCtx = new RenderContext(sessionDir);
-    const summaryBody = renderMarkdown(readFileSync(summaryMd, 'utf8'), summaryCtx);
+    const summaryBody = renderMarkdown(stripPathsSection(readFileSync(summaryMd, 'utf8')), summaryCtx);
     const summaryHtmlPath = summaryMd.replace(/\.md$/i, '.html');
 
     writeFileSync(
       summaryHtmlPath,
       reportPage(
         {
-          label: browser,
+          label: browserName,
           date: runMeta.date ?? '',
           time: runMeta.time ?? '',
           status: metadata.status ?? '',
-          browser,
+          browser: browserName,
+          viewport: metadata.viewport ?? session.viewport ?? '',
           model: metadata.model ?? '',
           isSummary: true,
           testLinks,
         },
         summaryBody,
         summaryCtx.toc,
-        indexHref,
+        backHref,
+        backLabel,
       ),
       'utf8',
     );
@@ -970,14 +1064,16 @@ function renderSession(session) {
           date: runMeta.date ?? '',
           time: runMeta.time ?? '',
           status: entry?.status ?? '',
-          browser,
+          browser: browserName,
+          viewport: metadata.viewport ?? session.viewport ?? '',
           model: metadata.model ?? '',
           isSummary: false,
           testLinks: [],
         },
         testBody,
         testCtx.toc,
-        indexHref,
+        backHref,
+        backLabel,
       ),
       'utf8',
     );

@@ -82,7 +82,7 @@ async function main() {
     for (const viewport of config.viewports) {
       console.log(`\n========== E2E: ${browser} @ ${viewport} - AI Model: ${config.model} ==========\n`);
       const exitCode = await runSession(browser, viewport, config, stamp);
-      sessions.push(`${browser}-${viewport}`);
+      sessions.push(`${browser}/${viewport}`);
       if (exitCode !== 0) {
         hasFailures = true;
         process.exitCode = Math.max(process.exitCode || 0, exitCode);
@@ -345,7 +345,7 @@ function buildRunStamp() {
 // L'agente scrive summary.md e metadata.json direttamente nella cartella della
 // sessione (reports/{stamp}/{browser}-{viewport}/); qui li validiamo e arricchiamo.
 function archiveSummary(browser, model, viewport, stamp) {
-  const sessionDir = `reports/${stamp}/${browser}-${viewport}`;
+  const sessionDir = `reports/${stamp}/${browser}/${viewport}`;
   mkdirSync(sessionDir, { recursive: true });
 
   const summaryPath = `${sessionDir}/summary.md`;
@@ -420,13 +420,13 @@ Regole:
 4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (sovrascrive config.viewport del launcher).
 5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
 6. Struttura obbligatoria dei report (usa i tool filesystem per creare file e cartelle):
-   reports/${stamp}/${browser}-${viewport}/
+   reports/${stamp}/${browser}/${viewport}/
      summary.md          (creato solo alla fine, punto 7)
      metadata.json       (creato solo alla fine, punto 7)
      <nome-test>.md      (un file .md per ogni test eseguito, stesso nome del file di test, es. pdp.test.md -> pdp.test.md)
      screenshots/        (tutti gli screenshot della sessione)
-   Nel report di ogni test indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](reports/${stamp}/${browser}-${viewport}/screenshots/screenshot-XXX.png), MAI come semplici path testuali. Indica l'esito di ogni test come PASS o FAIL.
-7. Alla fine crea DUE file dentro reports/${stamp}/${browser}-${viewport}/:
+   Nel report di ogni test indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](reports/${stamp}/${browser}/${viewport}/screenshots/screenshot-XXX.png), MAI come semplici path testuali. Indica l'esito di ogni test come PASS o FAIL.
+7. Alla fine crea DUE file dentro reports/${stamp}/${browser}/${viewport}/:
    a) summary.md con: browser (${browser}), viewport (${viewport}), modello AI (${model}), data, test eseguiti (uno per riga con esito PASS o FAIL), esito complessivo, path dei report, path degli screenshot, conteggio bug HIGH/MEDIUM/LOW.
    b) metadata.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra):
       {
@@ -437,10 +437,10 @@ Regole:
         "date": "YYYY-MM-DD",
         "duration": "es. 12m 30s",
         "status": "PASS" | "FAIL",
-        "tests": [{ "name": "pdp.test.md", "status": "PASS" | "FAIL", "report": "reports/${stamp}/${browser}-${viewport}/<nome-test>.md" }],
+        "tests": [{ "name": "pdp.test.md", "status": "PASS" | "FAIL", "report": "reports/${stamp}/${browser}/${viewport}/<nome-test>.md" }],
         "bugs": { "high": 0, "medium": 0, "low": 0 },
-        "reportPaths": ["reports/${stamp}/${browser}-${viewport}/..."],
-        "screenshotPaths": ["reports/${stamp}/${browser}-${viewport}/screenshots/..."]
+        "reportPaths": ["reports/${stamp}/${browser}/${viewport}/..."],
+        "screenshotPaths": ["reports/${stamp}/${browser}/${viewport}/screenshots/..."]
       }
       "tests" contiene SOLO i test eseguiti (action run/only), non quelli saltati. OGNI elemento di "tests" DEVE avere "name" (nome del file di test), "status" (PASS o FAIL) e "report" (path completo del report .md del test, stringa vuota solo se il report non esiste). Questi dati sono l'unica fonte per il rendering dei report: non trascurarli.
 8. Non chiedere conferma. Non committare. Non modificare i file di test.
