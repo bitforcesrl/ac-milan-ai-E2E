@@ -65,30 +65,33 @@ parameters:
     type: boolean
     default: true
   # ---- Note per-test (override del campo `notes` in config.js, dal form Next.js) ----
+  # NOTA: default ' ' (spazio) e non '' perche' Azure DevOps marca come "Required"
+  # i parametri stringa con default vuoto. run-e2e-ci.mjs fa il trim e ignora
+  # le note vuote/solo spazi, quindi lo spazio viene trattato come "nessuna nota".
   - name: notesFailTest
     displayName: Note per test fail-test
     type: string
-    default: ''
+    default: ' '
   - name: notesPdp
     displayName: Note per test pdp
     type: string
-    default: ''
+    default: ' '
   - name: notesPdpFuzzy
     displayName: Note per test pdp-fuzzy
     type: string
-    default: ''
+    default: ' '
   - name: notesQuickbuyCombinations
     displayName: Note per test quickbuy-combinations
     type: string
-    default: ''
+    default: ' '
   - name: notesQuickbuyPersonalization
     displayName: Note per test quickbuy-personalization
     type: string
-    default: ''
+    default: ' '
   - name: notesQuickbuyCartValidation
     displayName: Note per test quickbuy-cart-validation
     type: string
-    default: ''
+    default: ' '
 
 trigger:
   branches:

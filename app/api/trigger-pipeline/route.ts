@@ -158,7 +158,15 @@ export async function POST(request: Request) {
             }
         }
         // Se il check fallisce si prosegue comunque con il trigger (best-effort)
-    } catch {
+    } catch (err) {
+        console.error("Errore durante la chiamata ad Azure DevOps:", err);
+        return NextResponse.json(
+            {
+                error: "Errore durante la chiamata ad Azure DevOps",
+                details: err instanceof Error ? err.message : String(err),
+            },
+            { status: 502 },
+        );
         // Ignora errori di rete sul check: il trigger viene tentato comunque
     }
 
@@ -218,6 +226,7 @@ export async function POST(request: Request) {
             status: data.status,
         });
     } catch (err) {
+        console.error("Errore durante la chiamata ad Azure DevOps:", err);
         return NextResponse.json(
             {
                 error: "Errore durante la chiamata ad Azure DevOps",
