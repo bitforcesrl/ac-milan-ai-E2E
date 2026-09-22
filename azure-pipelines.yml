@@ -129,7 +129,7 @@ jobs:
           export TESTS_ENABLED
           echo "TESTS_ENABLED=$TESTS_ENABLED"
           node scripts/run-e2e-ci.mjs
-        displayName: Run AI E2E (tests from env TESTS_ENABLED)
+        displayName: Run AI E2E
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
           OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
@@ -149,19 +149,8 @@ jobs:
           AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
           REPORT_BLOB_PREFIX: e2e
 
-      # 2. Render: rigenera l'HTML (incl. index.html) con lo STORICO completo delle run
-      - script: node scripts/render-reports.mjs
-        displayName: Convert reports to HTML
-        env:
-          CLIENT_NAME: $(CLIENT_NAME)
-
-      # 3. Upload HTML su path fisso: lo storico si accumula sempre nello stesso path
-      - script: node scripts/upload-reports.mjs
-        displayName: Upload HTML reports to blob storage
-        env:
-          AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
-          AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
-          REPORT_BLOB_PREFIX: e2e
+      # I report JSON strutturati (meta/<testId>.json) sono già caricati su blob da sync-history.mjs
+      # e sono visualizzati dalla dashboard Next.js (/reports).
 
       - task: PublishPipelineArtifact@1
         displayName: Publish reports artifact

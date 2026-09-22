@@ -1,14 +1,15 @@
 {
   "name": "acmilan-quickbuy-tests",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
   "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
     "e2e:ci": "node scripts/run-e2e-ci.mjs",
     "e2e:sync": "node scripts/sync-history.mjs",
-    "e2e:email": "node scripts/email-report.mjs",
-    "e2e:html": "node scripts/render-reports.mjs",
-    "e2e:upload": "node scripts/upload-reports.mjs"
+    "e2e:email": "node scripts/email-report.mjs"
   },
   "keywords": [
     "playwright",
@@ -22,6 +23,20 @@
     "@azure/storage-blob": "^12.28.0",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "dotenv": "^17.4.2",
-    "marked": "^18.0.13"
+    "geist": "^1.7.2",
+    "marked": "^18.0.13",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

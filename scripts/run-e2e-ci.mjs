@@ -1,20 +1,49 @@
 import 'dotenv/config';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-
-const require = createRequire(import.meta.url);
-const { E2E_TESTS, PATHS } = require('../config.js');
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
+const require = createRequire(import.meta.url);
+const { E2E_TESTS, PATHS } = require('../config.js');
+
 // ============================================================================
-// 1. CONFIGURAZIONE & AMBIENTE
+// 1. CONFIGURAZIONE & ENV PARSING
 // ============================================================================
 
-function parseBooleanEnv(key, fallback) {
+function parseBoolEnv(key, fallback) {
   const raw = process.env[key];
   if (raw === undefined || raw === '') return fallback;
-  return String(raw).trim().toLowerCase() === 'true';
+  return raw.trim().toLowerCase() === 'true';
+}
+
+function parseNumEnv(key, fallback, min = -Infinity) {
+  const val = Number(process.env[key]);
+  return !Number.isNaN(val) && val >= min ? val : fallback;
+}
+
+function selectTests(rawInput) {
+  if (!rawInput || !rawInput.trim()) {
+    const enabled = E2E_TESTS.filter((t) => t.enabled);
+    if (!enabled.length) {
+      throw new Error('Nessun test abilitato: TESTS_ENABLED vuota e nessun test con enabled: true in config.js.');
+    }
+    return enabled;
+  }
+
+  const requestedIds = rawInput.split(',').map((id) => id.trim()).filter(Boolean);
+  const unknownIds = requestedIds.filter((id) => !E2E_TESTS.some((t) => t.id === id));
+
+  if (unknownIds.length) {
+    const validIds = E2E_TESTS.map((t) => t.id).join(', ');
+    throw new Error(`ID test non validi in TESTS_ENABLED: ${unknownIds.join(', ')} (validi: ${validIds})`);
+  }
+
+  // De-duplicazione dei test mantenendo l'ordine
+  const seen = new Set();
+  return requestedIds
+    .filter((id) => !seen.has(id) && seen.add(id))
+    .map((id) => E2E_TESTS.find((t) => t.id === id));
 }
 
 function loadConfig() {
@@ -29,9 +58,9 @@ function loadConfig() {
   }
 
   const browsers = [
-    parseBooleanEnv('RUN_CHROMIUM', true) ? 'chromium' : null,
-    parseBooleanEnv('RUN_FIREFOX', false) ? 'firefox' : null,
-    parseBooleanEnv('RUN_WEBKIT', false) ? 'webkit' : null,
+    parseBoolEnv('RUN_CHROMIUM', true) && 'chromium',
+    parseBoolEnv('RUN_FIREFOX', false) && 'firefox',
+    parseBoolEnv('RUN_WEBKIT', false) && 'webkit',
   ].filter(Boolean);
 
   if (!browsers.length) {
@@ -39,67 +68,31 @@ function loadConfig() {
   }
 
   const viewports = [
-    parseBooleanEnv('RUN_DESKTOP', true) ? '1280x650' : null,
-    parseBooleanEnv('RUN_TABLET', false) ? '768x1024' : null,
-    parseBooleanEnv('RUN_MOBILE', false) ? '390x844' : null,
+    parseBoolEnv('RUN_DESKTOP', true) && '1280x650',
+    parseBoolEnv('RUN_TABLET', false) && '768x1024',
+    parseBoolEnv('RUN_MOBILE', false) && '390x844',
   ].filter(Boolean);
 
   if (!viewports.length) {
     throw new Error('Nessun viewport selezionato (RUN_DESKTOP / RUN_TABLET / RUN_MOBILE).');
   }
 
-  const tests = selectTests(process.env.TESTS_ENABLED);
-
   return {
     apiKey,
     model,
-    maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES || 5),
-    retryBaseMs: Number(process.env.OPENROUTER_RETRY_BASE_MS || 2000),
-    maxTurns: Number(process.env.OPENROUTER_MAX_TURNS || 300),
-    mcpToolTimeout: Number(process.env.MCP_TOOL_TIMEOUT || 180000),
-    maxParallelSessions: Math.max(1, Number(process.env.MAX_PARALLEL_SESSIONS || 1)),
+    maxRetries: parseNumEnv('OPENROUTER_MAX_RETRIES', 5, 1),
+    retryBaseMs: parseNumEnv('OPENROUTER_RETRY_BASE_MS', 2000, 100),
+    maxTurns: parseNumEnv('OPENROUTER_MAX_TURNS', 300, 1),
+    mcpToolTimeout: parseNumEnv('MCP_TOOL_TIMEOUT', 180000, 1000),
+    maxParallelSessions: parseNumEnv('MAX_PARALLEL_SESSIONS', 1, 1),
     browsers,
     viewports,
-    tests,
+    tests: selectTests(process.env.TESTS_ENABLED),
   };
 }
 
-// Selezione test:
-// - Se TESTS_ENABLED e' definita (lista di id separati da virgole), vengono eseguiti
-//   SOLO i test con quegli id (override del campo enabled di config.js)
-// - Altrimenti vengono eseguiti i test con enabled: true
-function selectTests(raw) {
-  if (raw === undefined || raw.trim() === '') {
-    const byEnabled = E2E_TESTS.filter((t) => t.enabled === true);
-    if (!byEnabled.length) {
-      throw new Error('Nessun test selezionato: TESTS_ENABLED non definita e nessun test con enabled: true in config.js.');
-    }
-    return byEnabled;
-  }
-
-  const ids = raw.split(',').map((id) => id.trim()).filter(Boolean);
-  if (!ids.length) {
-    throw new Error('Nessun test selezionato in TESTS_ENABLED.');
-  }
-
-  const unknown = ids.filter((id) => !E2E_TESTS.some((t) => t.id === id));
-  if (unknown.length) {
-    const valid = E2E_TESTS.map((t) => t.id).join(', ');
-    throw new Error(`Id test sconosciuti in TESTS_ENABLED: ${unknown.join(', ')} (id validi: ${valid})`);
-  }
-
-  const seen = new Set();
-  return ids
-    .map((id) => {
-      if (seen.has(id)) return null;
-      seen.add(id);
-      return E2E_TESTS.find((t) => t.id === id);
-    })
-    .filter(Boolean);
-}
-
 // ============================================================================
-// 2. ENTRY POINT PRINCIPALE
+// 2. MAIN & WORKER POOL
 // ============================================================================
 
 async function main() {
@@ -113,9 +106,7 @@ async function main() {
 
   const stamp = buildRunStamp();
 
-  // Unità di esecuzione: una per (browser x viewport x test).
-  // Ogni unità ha la sua conversazione LLM, i suoi server MCP e il suo browser
-  // isolato, quindi può girare in parallelo con le altre.
+  // Unità di esecuzione: browser x viewport x test
   const units = config.browsers.flatMap((browser) =>
     config.viewports.flatMap((viewport) =>
       config.tests.map((test) => ({ browser, viewport, test }))
@@ -125,12 +116,11 @@ async function main() {
   console.log(`Browsers: ${config.browsers.join(', ')}`);
   console.log(`Viewports: ${config.viewports.join(', ')}`);
   console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);
-  console.log(`Unità Totali: ${units.length} (browser x viewport x test)`);
+  console.log(`Unità Totali: ${units.length}`);
   console.log(`Sessioni in parallelo: ${config.maxParallelSessions}`);
-  console.log(`Cartella run: ${PATHS.raw}/${stamp}\n`);
+  console.log(`Cartella run: ${PATHS.reports}/${stamp}\n`);
 
   let hasFailures = false;
-  // Risultati per combinazione browser/viewport: "browser/viewport" -> [{ test, status }]
   const resultsByCombo = new Map();
   let cursor = 0;
 
@@ -138,13 +128,19 @@ async function main() {
     while (cursor < units.length) {
       const unit = units[cursor++];
       const comboKey = `${unit.browser}/${unit.viewport}`;
-      console.log(`\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - AI Model: ${config.model} ==========\n`);
-      const exitCode = await runSession(unit.browser, unit.viewport, unit.test, config, stamp);
-      if (!resultsByCombo.has(comboKey)) resultsByCombo.set(comboKey, []);
+
+      console.log(`\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`);
+      
+      const exitCode = await runSession(unit, config, stamp);
+
+      if (!resultsByCombo.has(comboKey)) {
+        resultsByCombo.set(comboKey, []);
+      }
       resultsByCombo.get(comboKey).push({
         test: unit.test,
         status: exitCode === 0 ? 'PASS' : 'FAIL',
       });
+
       if (exitCode !== 0) {
         hasFailures = true;
         process.exitCode = Math.max(process.exitCode || 0, exitCode);
@@ -152,14 +148,10 @@ async function main() {
     }
   }
 
-  const workers = Array.from(
-    { length: Math.min(config.maxParallelSessions, units.length) },
-    () => worker()
-  );
-  await Promise.all(workers);
+  const poolSize = Math.min(config.maxParallelSessions, units.length);
+  await Promise.all(Array.from({ length: poolSize }, worker));
 
-  // Aggregazione: per ogni combinazione browser/viewport generiamo summary.md e
-  // metadata.json a partire dai risultati delle singole unità di test.
+  // Aggregazione e generazione dei summary finali
   for (const browser of config.browsers) {
     for (const viewport of config.viewports) {
       const comboKey = `${browser}/${viewport}`;
@@ -178,10 +170,10 @@ async function main() {
 }
 
 // ============================================================================
-// 3. ESECUZIONE DELLA SINGOLA SESSIONE (BROWSER x VIEWPORT x TEST)
+// 3. ESECUZIONE SESSIONE AGENTE LLM
 // ============================================================================
 
-async function runSession(browser, viewport, test, config, stamp) {
+async function runSession({ browser, viewport, test }, config, stamp) {
   let mcp;
   try {
     mcp = await initMcpServers(browser);
@@ -226,7 +218,7 @@ async function runSession(browser, viewport, test, config, stamp) {
 
     return 0;
   } catch (err) {
-    console.error(`[${browser}/${test.id}] Errore durante l'esecuzione della sessione: ${err.message}`, err);
+    console.error(`[${browser}/${test.id}] Errore sessione: ${err.message}`, err);
     return 1;
   } finally {
     if (mcp?.clients) {
@@ -236,39 +228,27 @@ async function runSession(browser, viewport, test, config, stamp) {
 }
 
 // ============================================================================
-// 4. GESTIONE MCP (MODEL CONTEXT PROTOCOL)
+// 4. INTEGRAZIONE MCP (MODEL CONTEXT PROTOCOL)
 // ============================================================================
 
 async function initMcpServers(browser) {
+  const cwd = process.cwd();
   const serverConfigs = [
     {
       name: 'playwright',
-      transport: new StdioClientTransport({
-        command: 'npx',
-        args: ['-y', '@playwright/mcp@latest', '--headless', '--isolated', '--browser', browser],
-        cwd: process.cwd(),
-        env: {
-          ...process.env,
-          PLAYWRIGHT_MCP_BROWSER: browser,
-          PLAYWRIGHT_MCP_ISOLATED: 'true',
-        },
-      }),
+      command: 'npx',
+      args: ['-y', '@playwright/mcp@latest', '--headless', '--isolated', '--browser', browser],
+      env: { ...process.env, PLAYWRIGHT_MCP_BROWSER: browser, PLAYWRIGHT_MCP_ISOLATED: 'true' },
     },
     {
       name: 'filesystem',
-      transport: new StdioClientTransport({
-        command: 'npx',
-        args: ['-y', '@modelcontextprotocol/server-filesystem', process.cwd()],
-        cwd: process.cwd(),
-      }),
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', cwd],
     },
     {
       name: 'shell',
-      transport: new StdioClientTransport({
-        command: 'npx',
-        args: ['-y', '@wonderwhy-er/desktop-commander'],
-        cwd: process.cwd(),
-      }),
+      command: 'npx',
+      args: ['-y', '@wonderwhy-er/desktop-commander'],
     },
   ];
 
@@ -276,26 +256,29 @@ async function initMcpServers(browser) {
   const tools = [];
   const toolMap = new Map();
 
-  for (const server of serverConfigs) {
+  for (const s of serverConfigs) {
+    const transport = new StdioClientTransport({ command: s.command, args: s.args, cwd, env: s.env });
     const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
-    console.log(`[mcp] Connessione a ${server.name}...`);
-    await client.connect(server.transport);
+
+    console.log(`[mcp] Connessione a ${s.name}...`);
+    await client.connect(transport);
 
     const { tools: mcpTools } = await client.listTools();
     for (const t of mcpTools) {
-      const exposedName = `${server.name}__${t.name}`;
+      const exposedName = `${s.name}__${t.name}`;
       tools.push({
         type: 'function',
         function: {
           name: exposedName,
-          description: `[${server.name}] ${t.description ?? ''}`,
+          description: `[${s.name}] ${t.description ?? ''}`,
           parameters: t.inputSchema ?? { type: 'object', properties: {} },
         },
       });
       toolMap.set(exposedName, { client, mcpName: t.name });
     }
+
     clients.push(client);
-    console.log(`[mcp] ${server.name}: ${mcpTools.length} tool caricati`);
+    console.log(`[mcp] ${s.name}: ${mcpTools.length} tool caricati`);
   }
 
   console.log(`[mcp] Totale tool disponibili per ${browser}: ${tools.length}`);
@@ -342,20 +325,13 @@ async function executeToolCall(call, toolMap, timeout) {
   }
 
   const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-  console.log(`[tool] ${name} completato in ${duration}s (risposta: ${String(rawResult).length} caratteri)`);
+  console.log(`[tool] ${name} completato in ${duration}s (${String(rawResult).length} chars)`);
 
-  // Tronca i risultati troppo massivi per non saturare il contesto dell'LLM
   return String(rawResult).slice(0, 200000);
 }
 
 async function closeMcpClients(clients) {
-  for (const client of clients) {
-    try {
-      await client.close();
-    } catch {
-      /* Ignora errori in chiusura */
-    }
-  }
+  await Promise.allSettled(clients.map((c) => c.close()));
 }
 
 // ============================================================================
@@ -387,7 +363,6 @@ async function chatCompletion(messages, tools, config) {
 
       const errBody = await res.text();
       const isRetryable = res.status === 429 || res.status >= 500;
-
       lastError = new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
 
       if (!isRetryable) throw lastError;
@@ -402,7 +377,7 @@ async function chatCompletion(messages, tools, config) {
     }
 
     if (attempt < config.maxRetries) {
-      await sleep(config.retryBaseMs * 2 ** (attempt - 1));
+      await sleep(config.retryBaseMs * Math.pow(2, attempt - 1));
     }
   }
 
@@ -410,21 +385,27 @@ async function chatCompletion(messages, tools, config) {
 }
 
 // ============================================================================
-// 6. REPORTING & ARCHIVIAZIONE
+// 6. REPORTING & METADATI
 // ============================================================================
 
 function buildRunStamp() {
   const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  const pad = (n) => String(n).padStart(2, '0');
+  // Trattini invece dei due punti per evitare errori di sistema nei path su Windows
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
 }
 
-// Ogni unità di test scrive il proprio report .md, gli screenshot e un fragment
-// metadata in reports/raw/{stamp}/{browser}/{viewport}/meta/<test-id>.json.
-// Qui, a run conclusa, aggregiamo i fragment in summary.md e metadata.json
-// per ogni combinazione browser/viewport (schema identico a quello precedente).
+function computeDurationLabel(stamp) {
+  const [datePart, timePart] = stamp.split('_');
+  const [y, mo, d] = datePart.split('-').map(Number);
+  const [h, mi, s] = timePart.replace(/-/g, ':').split(':').map(Number);
+  const start = new Date(y, mo - 1, d, h, mi, s);
+  const totalMin = Math.max(0, Math.round((Date.now() - start.getTime()) / 60000));
+  return `${totalMin}m 0s`;
+}
+
 function aggregateSessionReports(browser, viewport, config, stamp, results) {
-  const sessionDir = `${PATHS.raw}/${stamp}/${browser}/${viewport}`;
+  const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;
   mkdirSync(sessionDir, { recursive: true });
 
   const testsMeta = [];
@@ -435,36 +416,90 @@ function aggregateSessionReports(browser, viewport, config, stamp, results) {
   for (const { test, status } of results) {
     const metaPath = `${sessionDir}/meta/${test.id}.json`;
     let fragment = null;
-    try {
-      if (existsSync(metaPath)) {
+
+    if (existsSync(metaPath)) {
+      try {
         fragment = JSON.parse(readFileSync(metaPath, 'utf8'));
+      } catch (err) {
+        console.error(`[report] JSON non valido in ${metaPath}: ${err.message}`);
       }
-    } catch (err) {
-      console.error(`[report] JSON non valido in ${metaPath}: ${err.message}`);
     }
 
-    const reportPath = fragment?.report || `${sessionDir}/${test.file.split('/').pop()}`;
-    if (existsSync(reportPath)) reportPaths.push(reportPath);
-
-    for (const shot of fragment?.screenshotPaths ?? []) {
-      if (existsSync(shot)) screenshotPaths.push(shot);
+    // Fallback: se l'agente non ha scritto il fragment (o non e' valido), lo script
+    // ne genera uno minimo cosi' ogni test ha SEMPRE il suo report JSON.
+    if (!fragment) {
+      fragment = {
+        schemaVersion: 2,
+        test: test.id,
+        testName: test.name,
+        testFile: test.file,
+        browser,
+        viewport,
+        model: config.model,
+        run: stamp,
+        status,
+        duration: '',
+        startedAt: '',
+        finishedAt: '',
+        summary:
+          status === 'PASS'
+            ? 'Test completato con successo, ma il report strutturato non e\' stato generato dall\'agente.'
+            : 'Test fallito e report strutturato non generato dall\'agente: verificare i log della sessione.',
+        steps: [],
+        errors: [],
+        bugs: [],
+        screenshots: [],
+        hash: '',
+        timestamp: new Date().toISOString(),
+      };
+      mkdirSync(`${sessionDir}/meta`, { recursive: true });
+      writeFileSync(metaPath, JSON.stringify(fragment, null, 2), 'utf8');
+      console.warn(`[report] Fragment mancante per ${test.id}: generato fallback in ${metaPath}`);
     }
 
-    if (fragment?.bugs) {
-      bugs.high += Number(fragment.bugs.high || 0);
-      bugs.medium += Number(fragment.bugs.medium || 0);
-      bugs.low += Number(fragment.bugs.low || 0);
+    reportPaths.push(metaPath);
+
+    for (const shot of fragment.screenshots ?? []) {
+      const shotPath = typeof shot === 'string' ? shot : shot?.path;
+      if (shotPath && existsSync(shotPath)) screenshotPaths.push(shotPath);
+    }
+
+    if (fragment.bugsCount) {
+      bugs.high += Number(fragment.bugsCount.high || 0);
+      bugs.medium += Number(fragment.bugsCount.medium || 0);
+      bugs.low += Number(fragment.bugsCount.low || 0);
+    } else if (Array.isArray(fragment.bugs)) {
+      for (const b of fragment.bugs) {
+        const sev = String(b?.severity || '').toUpperCase();
+        if (sev === 'HIGH') bugs.high++;
+        else if (sev === 'MEDIUM') bugs.medium++;
+        else if (sev === 'LOW') bugs.low++;
+      }
     }
 
     testsMeta.push({
-      name: test.file.split('/').pop(),
+      id: test.id,
+      name: test.name,
       status,
-      report: existsSync(reportPath) ? reportPath : '',
+      report: metaPath,
     });
   }
 
   const allPass = testsMeta.length > 0 && testsMeta.every((t) => t.status === 'PASS');
-  const duration = computeDurationLabel(stamp);
+
+  // Summary di sessione (testo leggibile, equivalente del vecchio summary.md)
+  const testsLines = testsMeta
+    .map((t) => `- ${t.name}: ${t.status}`)
+    .join('\n');
+  const summary = [
+    `Esito complessivo: ${allPass ? 'PASS' : 'FAIL'}`,
+    `Browser: ${browser} | Viewport: ${viewport} | Modello AI: ${config.model}`,
+    `Data: ${stamp.slice(0, 10)} ${stamp.slice(11).replace(/-/g, ':')}`,
+    `Bug: HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}`,
+    '',
+    'Test eseguiti:',
+    testsLines,
+  ].join('\n');
 
   const metadata = {
     browser,
@@ -472,55 +507,21 @@ function aggregateSessionReports(browser, viewport, config, stamp, results) {
     model: config.model,
     run: stamp,
     date: stamp.slice(0, 10),
-    duration,
+    duration: computeDurationLabel(stamp),
     status: allPass ? 'PASS' : 'FAIL',
+    summary,
     tests: testsMeta,
     bugs,
     reportPaths,
     screenshotPaths,
   };
+
   writeFileSync(`${sessionDir}/metadata.json`, JSON.stringify(metadata, null, 2), 'utf8');
   console.log(`[report] Salvato ${sessionDir}/metadata.json`);
-
-  const testsLines = testsMeta
-    .map((t) => `- ${t.name}: ${t.status}${t.report ? ` (report: ${t.report})` : ' (report mancante)'}`)
-    .join('\n');
-
-  const summary = `# Summary E2E — ${browser} @ ${viewport}
-
-- **Browser:** ${browser}
-- **Viewport:** ${viewport}
-- **Modello AI:** ${config.model}
-- **Data:** ${stamp.slice(0, 10)} ${stamp.slice(11)}
-- **Esito complessivo:** ${allPass ? 'PASS' : 'FAIL'}
-- **Bug:** HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}
-
-## Test eseguiti
-${testsLines}
-
-## Report
-${reportPaths.length ? reportPaths.map((p) => `- ${p}`).join('\n') : '- (nessun report trovato)'}
-
-## Screenshot
-${screenshotPaths.length ? screenshotPaths.map((p) => `- ${p}`).join('\n') : '- (nessuno screenshot salvato)'}
-`;
-  writeFileSync(`${sessionDir}/summary.md`, summary, 'utf8');
-  console.log(`[report] Salvato ${sessionDir}/summary.md`);
 }
 
-// Stima della durata della run: dallo stamp di inizio a ora (approssimata al minuto)
-function computeDurationLabel(stamp) {
-  const [datePart, timePart] = stamp.split('_');
-  const [y, mo, d] = datePart.split('-').map(Number);
-  const [h, mi, s] = timePart.split(':').map(Number);
-  const start = new Date(y, mo - 1, d, h, mi, s);
-  const totalMin = Math.max(0, Math.round((Date.now() - start.getTime()) / 60000));
-  return `${totalMin}m 0s`;
-}
-
-// Metadata di run: aggrega lo stato complessivo delle sessioni della run
 function writeRunMetadata(stamp, config, hasFailures) {
-  const runDir = `${PATHS.raw}/${stamp}`;
+  const runDir = `${PATHS.reports}/${stamp}`;
   mkdirSync(runDir, { recursive: true });
 
   const sessions = config.browsers.flatMap((browser) =>
@@ -530,7 +531,7 @@ function writeRunMetadata(stamp, config, hasFailures) {
   const data = {
     run: stamp,
     date: stamp.slice(0, 10),
-    time: stamp.slice(11),
+    time: stamp.slice(11).replace(/-/g, ':'),
     status: hasFailures ? 'FAIL' : 'PASS',
     sessions,
   };
@@ -540,7 +541,7 @@ function writeRunMetadata(stamp, config, hasFailures) {
 }
 
 // ============================================================================
-// 7. UTILITIES & PROMPT
+// 7. UTILITIES & PROMPT BUILDER
 // ============================================================================
 
 function sleep(ms) {
@@ -548,8 +549,7 @@ function sleep(ms) {
 }
 
 function buildPrompt(browser, viewport, test, model, stamp) {
-  const sessionDir = `${PATHS.raw}/${stamp}/${browser}/${viewport}`;
-  const testFileName = test.file.split('/').pop();
+  const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;
 
   return `Sei in CI Azure, senza operatore umano. Esegui UN SOLO test E2E di questo repository.
 
@@ -568,34 +568,68 @@ Regole:
 3. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
 4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
 5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
-6. Struttura obbligatoria dei report (usa i tool filesystem per creare file e cartelle):
+6. L'unico output di reportistica e' il JSON strutturato del punto 7.
+   Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
    ${sessionDir}/
-     ${testFileName}          (report del test, stesso nome del file di test)
      screenshots/             (screenshot della sessione, prefissati con "${test.id}-", es. screenshots/${test.id}-001.png)
-     meta/${test.id}.json     (fragment metadata, creato solo alla fine, punto 7)
-   Nel report indica chiaramente: browser (${browser}), viewport (${viewport}) e modello AI (${model}). Includi gli screenshot come immagini markdown ![descrizione](${sessionDir}/screenshots/${test.id}-XXX.png), MAI come semplici path testuali. Indica l'esito del test come PASS o FAIL.
-   NON creare summary.md ne' metadata.json: li genera lo script aggregando i risultati di tutti i test.
-7. Alla fine crea il fragment metadata ${sessionDir}/meta/${test.id}.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra):
+     meta/${test.id}.json     (report strutturato del test, creato solo alla fine, punto 7)
+   SCREENSHOT: salvali SOLO se trovi bug/anomalie (come da AGENTS.md), prefissati con "${test.id}-".
+7. Alla fine crea il report strutturato ${sessionDir}/meta/${test.id}.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra, tutti i testi in italiano):
    {
+     "schemaVersion": 2,
      "test": "${test.id}",
+     "testName": "${test.name}",
+     "testFile": "${test.file}",
      "browser": "${browser}",
      "viewport": "${viewport}",
      "model": "${model}",
      "run": "${stamp}",
      "status": "PASS" | "FAIL",
-     "bugs": { "high": 0, "medium": 0, "low": 0 },
-     "report": "${sessionDir}/${testFileName}",
-     "screenshotPaths": ["${sessionDir}/screenshots/${test.id}-001.png"]
+     "duration": "es. 3m 12s",
+     "startedAt": "ISO8601",
+     "finishedAt": "ISO8601",
+     "summary": "resoconto breve del test in italiano",
+     "steps": [
+       { "title": "titolo passo", "detail": "dettaglio di cosa e' stato verificato", "status": "PASS" | "FAIL" | "INFO" }
+     ],
+     "errors": [
+       { "message": "messaggio errore (console, network 4xx/5xx, React warning)", "context": "dove/c quando si e' verificato" }
+     ],
+     "bugs": [
+       {
+         "id": "BUG-001",
+         "severity": "HIGH" | "MEDIUM" | "LOW",
+         "title": "titolo breve del bug",
+         "description": "descrizione del problema",
+         "stepsToReproduce": ["passo 1", "passo 2"],
+         "expected": "comportamento atteso",
+         "actual": "comportamento osservato",
+         "impact": "impatto su utente/sistema",
+         "screenshots": ["${sessionDir}/screenshots/${test.id}-001.png"]
+       }
+     ],
+     "screenshots": [
+       { "path": "${sessionDir}/screenshots/${test.id}-001.png", "description": "cosa mostra lo screenshot" }
+     ],
+     "hash": "sha256 esadecimale del contenuto logico del report (calcolato da te sui campi principali, es. test+status+bugs)",
+     "timestamp": "ISO8601 della scrittura"
    }
-   "report" e' il path del report .md del test (stringa vuota solo se non esiste). "screenshotPaths" elenca gli screenshot salvati (solo se hai trovato bug/anomalie). Questi dati sono l'unica fonte per il rendering dei report: non trascurarli.
+   Regole per il JSON:
+   - "steps" deve coprire tutte le fasi del test eseguite (con esito per passo).
+   - "errors" elenca errori console/network/React osservati (vuoto se nessuno).
+   - "bugs" elenca i bug trovati con severita' (vuoto se nessuno); ogni screenshot citato in un bug DEVE esistere in "screenshots".
+   - "screenshots" elenca TUTTI gli screenshot salvati (almeno uno per fase principale del test, SEMPRE) con descrizione.
+   - "status" deve riflettere l'esito REALE della verifica: se la condizione richiesta dal test NON e' soddisfatta, lo status e' FAIL
+     (es. se il test chiede di verificare la presenza di una voce nel menu e la voce non c'e', lo status e' FAIL).
+   - Questo JSON e' l'UNICA fonte per la dashboard dei report: compila ogni campo con cura, non lasciare campi richiesti vuoti se hai i dati.
 8. Non chiedere conferma. Non committare. Non modificare i file di test.
 
 Quando hai finito, l'ultima riga della tua risposta deve essere esattamente una di queste:
 CI_STATUS=PASS
 CI_STATUS=FAIL
 
-Usa FAIL se almeno un bug HIGH e' stato trovato, oppure se il test non e' completabile.`;
+Usa FAIL se almeno un bug HIGH e' stato trovato, se la condizione del test non e' soddisfatta, oppure se il test non e' completabile.
+IMPORTANTE: CI_STATUS deve corrispondere ESATTAMENTE al campo "status" del JSON che hai scritto.`;
 }
 
-// Avvio
 await main();

@@ -84,12 +84,9 @@ const E2E_TESTS = [
 // ============================================================================
 
 const PATHS = {
-  // reports/: cartella report (contiene raw/ e html/, pubblicata come artifact di pipeline)
+  // reports/: report JSON strutturati + screenshot + metadata generati dall'AI (run-e2e-ci.mjs),
+  // pubblicati come artifact di pipeline e caricati su Azure Blob da sync-history.mjs
   reports: 'reports',
-  // reports/raw/: report .md + screenshot + metadata generati dall'AI (run-e2e-ci.mjs)
-  raw: 'reports/raw',
-  // reports/html/: HTML generato da render-reports.mjs (stessa struttura di raw/)
-  html: 'reports/html',
 };
 
 // Prefisso fisso su Azure Blob Storage: lo storico si accumula sempre nello stesso path

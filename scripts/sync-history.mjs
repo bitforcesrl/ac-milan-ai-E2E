@@ -1,12 +1,14 @@
+import 'dotenv/config';
+
 import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative } from 'node:path';
 import { getStorageContext } from './azure-blob.mjs';
 import { PATHS } from '../config.js';
 
-// Sincronizza lo storico dei report raw con Azure Blob:
-// 1. scarica lo storico esistente (<prefix>/raw/) in reports/raw/
-// 2. carica i report raw della run corrente (merge: i file locali hanno la priorità)
-// Così il render locale rigenera l'index con lo STORICO completo delle run.
+// Sincronizza lo storico dei report con Azure Blob:
+// 1. scarica lo storico esistente (<prefix>/) in reports/
+// 2. carica i report della run corrente (merge: i file locali hanno la priorità)
+// La dashboard Next.js (/reports) legge i JSON direttamente dal container.
 
 const ctx = await getStorageContext();
 if (!ctx) {
@@ -14,7 +16,7 @@ if (!ctx) {
   process.exit(0);
 }
 
-const blobPrefix = `${ctx.prefix}/raw`;
+const blobPrefix = ctx.prefix;
 
 const blobs = [];
 for await (const blob of ctx.container.listBlobsFlat({ prefix: `${blobPrefix}/` })) {
@@ -22,30 +24,29 @@ for await (const blob of ctx.container.listBlobsFlat({ prefix: `${blobPrefix}/` 
   blobs.push(blob.name);
 }
 
-if (!blobs.length) {
+if (blobs.length) {
+  console.log(`Trovati ${blobs.length} blob nello storico — download in ${PATHS.reports}/...`);
+  for (const blobName of blobs) {
+    const rel = blobName.slice(blobPrefix.length + 1);
+    const target = join(PATHS.reports, rel);
+    if (existsSync(target)) continue; // i file della run corrente hanno la priorità
+    mkdirSync(dirname(target), { recursive: true });
+    await ctx.container.getBlockBlobClient(blobName).downloadToFile(target);
+  }
+  console.log('Storico scaricato e merge completato.');
+} else {
   console.log('Nessuno storico presente su blob — parte da zero.');
-  process.exit(0);
 }
-
-console.log(`Trovati ${blobs.length} blob nello storico — download in ${PATHS.raw}/...`);
-for (const blobName of blobs) {
-  const rel = blobName.slice(blobPrefix.length + 1);
-  const target = join(PATHS.raw, rel);
-  if (existsSync(target)) continue; // i file della run corrente hanno la priorità
-  mkdirSync(dirname(target), { recursive: true });
-  await ctx.container.getBlockBlobClient(blobName).downloadToFile(target);
-}
-console.log('Storico scaricato e merge completato.');
 
 // --- Upload dei report raw della run corrente (merge nello stesso path) ---
-const localFiles = existsSync(PATHS.raw) ? listFiles(PATHS.raw) : [];
+const localFiles = existsSync(PATHS.reports) ? listFiles(PATHS.reports) : [];
 if (!localFiles.length) {
-  console.log(`No files in ${PATHS.raw}/ — skip raw upload.`);
+  console.log(`No files in ${PATHS.reports}/ — skip raw upload.`);
   process.exit(0);
 }
 
 for (const filePath of localFiles) {
-  const rel = relative(PATHS.raw, filePath).replaceAll('\\', '/');
+  const rel = relative(PATHS.reports, filePath).replaceAll('\\', '/');
   const blobName = `${blobPrefix}/${rel}`;
   const blob = ctx.container.getBlockBlobClient(blobName);
   const options = { blobHTTPHeaders: { blobContentType: contentTypeFor(filePath) } };
@@ -72,6 +73,8 @@ function contentTypeFor(filePath) {
       return 'text/html; charset=utf-8';
     case '.md':
       return 'text/markdown; charset=utf-8';
+    case '.json':
+      return 'application/json; charset=utf-8';
     case '.png':
       return 'image/png';
     case '.jpg':

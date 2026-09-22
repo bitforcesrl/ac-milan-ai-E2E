@@ -11,6 +11,7 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 - NON creare file di test automatizzati
 - NON modificare codice sorgente
 - NON testare backend, API, o logica server-side
+- NON scrivere NESSUN file di report Markdown (.md): l'unica reportistica è il JSON strutturato (vedi "Output Richiesto")
 
 ## Cosa fare
 
@@ -29,6 +30,7 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 - **Personalizzatore:** Componente React embedded nella Product Detail Page (PDP)
 - **Flussi disponibili:** PDP (Product Detail Page) e Quick-Buy (se presente)
 - **Lingua store:** Italiano (default)
+- **Reportistica:** JSON strutturato per test (`meta/<test-id>.json`), visualizzato dalla dashboard Next.js (`/reports`) che legge i report da Azure Blob Storage
 
 ---
 
@@ -188,75 +190,88 @@ Quando hai dubbi, preferisci la **vision** per aspetti UI/UX e il **DOM** per as
 
 - Chiudi la finestra del broswer MCP
 - Cancella il contenuto della cartella `.playwright-mcp` (se esiste)
-- **IMPORTANTE:** Tutte le operazioni di cleanup e creazione cartelle (mkdir, rm, write_to_file per il report) devono essere eseguite **AUTOMATICAMENTE** senza chiedere permesso all'utente. Queste sono operazioni standard del flusso di test e non richiedono conferma.
+- **IMPORTANTE:** Tutte le operazioni di cleanup e creazione cartelle (mkdir, rm, write_to_file per il report JSON) devono essere eseguite **AUTOMATICAMENTE** senza chiedere permesso all'utente. Queste sono operazioni standard del flusso di test e non richiedono conferma.
 
 ---
 
 ## Output Richiesto
 
-### Struttura Cartelle Report
+### Report strutturato JSON (UNICA forma di reportistica)
 
-Il report e tutti gli screenshot devono essere salvati nella cartella `/reports` del progetto, organizzati come segue:
+**NON scrivere NESSUN file di report Markdown (.md)**: l'unico output di reportistica è un file **JSON strutturato** per test, salvato in `meta/<test-id>.json` dentro la cartella di sessione indicata dal prompt della run:
 
 ```
-reports/
-└── {nome-file-test}_{YYYY-MM-DD}_{HH-MM}/
-    ├── {nome-file-test}_{YYYY-MM-DD}_{HH-MM}.md  (il report del test)
-    ├── screenshot-001.png    (screenshot catturati durante il test)
-    ├── screenshot-002.png
-    └── ...
+reports/<run>/<browser>/<viewport>/
+├── screenshots/                 (screenshot, prefissati con "<test-id>-", es. screenshots/<test-id>-001.png)
+└── meta/
+    └── <test-id>.json           (report strutturato del test)
 ```
 
-- **Nome cartella:** `{nome-file-test}_{data-esecuzione}_{ora-esecuzione}` (es. `pdp-flow_2026-07-07_16-30`)
-- Il nome del file test è il nome del file `.md` senza estensione
-- La data è nel formato `YYYY-MM-DD`
-- L'ora è nel formato `HH-MM` (24h) per evitare clash tra test eseguiti nella stessa giornata
-- Gli screenshot devono essere salvati all'interno di questa cartella **solo se viene trovato un bug o un'anomalia** durante il test. Non salvare screenshot di pagine che funzionano correttamente senza problemi.
-- **Il file del report deve avere lo stesso nome della cartella che lo contiene** (es. `pdp-flow_2026-07-07_16-30.md`)
-- **Gli screenshot devono essere sempre linkati nel report** usando la sintassi markdown per le immagini: `![descrizione](nome-file.png)`. Inserire gli screenshot inline nel report in corrispondenza della fase o del bug a cui si riferiscono, in modo che siano immediatamente visibili durante la lettura.
+Lo script CI (`run-e2e-ci.mjs`) aggrega i fragment JSON in `metadata.json` di sessione e di run: NON creare tu `summary.md` né `metadata.json`.
 
-### Contenuto del Report
+### Schema del JSON (schemaVersion 2)
 
-Generare un file con lo stesso nome della cartella contenente:
-Tutti i report devono essere scritti in lingua italiana
+Il file `meta/<test-id>.json` deve contenere ESATTAMENTE questo schema (JSON valido, nessun testo extra, tutti i testi in italiano):
 
-1. **Executive Summary** - Stato generale del test
-2. **Test Scenario** - Configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
-3. **Bugs Found** - Lista dettagliata dei bug con:
-   - Severità (HIGH/MEDIUM/LOW)
-   - Descrizione
-   - Steps to reproduce
-   - Expected vs Actual
-   - Impact
-   - Screenshot (se disponibile)
-4. **Technical Observations** - Errori console, network issues, React warnings
-5. **UX Issues** - Problemi di usabilità con suggerimenti
-6. **Recommendations** - Suggerimenti per fix prioritizzati
-7. **Execution Time** - Tempo totale impiegato per eseguire il test (dall'inizio alla fine)
-8. **Viewport** - Dimensioni della finestra del browser utilizzate durante il test (larghezza x altezza in pixel)
-
----
-
-## Template Bug Report
-
-```markdown
-### 🔴/🟡/🟢 BUG-XXX: [Titolo]
-
-**Severity:** HIGH/MEDIUM/LOW  
-**Location:** [Dove si verifica - PDP, cart, preview, etc.]  
-**Description:** [Descrizione del problema]
-
-**Steps to Reproduce:**
-
-1. ...
-2. ...
-3. ...
-
-**Expected:** [Comportamento atteso]  
-**Actual:** [Comportamento osservato]  
-**Impact:** [Impatto sull'utente/sistema]  
-**Screenshot:** [link se disponibile]
+```json
+{
+  "schemaVersion": 2,
+  "test": "<id del test>",
+  "testName": "<nome del test>",
+  "testFile": "<percorso del file .md del test>",
+  "browser": "<browser>",
+  "viewport": "<viewport>",
+  "model": "<modello AI>",
+  "run": "<stamp della run>",
+  "status": "PASS",
+  "duration": "es. 3m 12s",
+  "startedAt": "<ISO8601>",
+  "finishedAt": "<ISO8601>",
+  "summary": "resoconto breve del test",
+  "steps": [
+    { "title": "titolo passo", "detail": "dettaglio di cosa è stato verificato", "status": "PASS" }
+  ],
+  "errors": [
+    { "message": "messaggio errore (console, network 4xx/5xx, React warning)", "context": "dove/quando si è verificato" }
+  ],
+  "bugs": [
+    {
+      "id": "BUG-001",
+      "severity": "HIGH",
+      "title": "titolo breve del bug",
+      "description": "descrizione del problema",
+      "stepsToReproduce": ["passo 1", "passo 2"],
+      "expected": "comportamento atteso",
+      "actual": "comportamento osservato",
+      "impact": "impatto su utente/sistema",
+      "screenshots": ["<percorso screenshot>"]
+    }
+  ],
+  "screenshots": [
+    { "path": "<percorso screenshot>", "description": "cosa mostra lo screenshot" }
+  ],
+  "hash": "<sha256 esadecimale calcolato sui campi principali>",
+  "timestamp": "<ISO8601 della scrittura>"
+}
 ```
+
+**Regole per il JSON:**
+
+- `steps` deve coprire tutte le fasi del test eseguite, con esito per passo (`PASS` / `FAIL` / `INFO`)
+- `errors` elenca errori console/network/React osservati (array vuoto se nessuno)
+- `bugs` elenca i bug trovati con severità `HIGH` / `MEDIUM` / `LOW` (array vuoto se nessuno); ogni screenshot citato in un bug DEVE esistere in `screenshots`
+- `screenshots` elenca TUTTI gli screenshot salvati (solo se hai trovato bug/anomalie) con descrizione
+- Il JSON è l'UNICA fonte per la dashboard dei report (app Next.js `/reports`): compila ogni campo con cura, non lasciare campi richiesti vuoti se hai i dati
+- Gli screenshot vanno salvati **solo se viene trovato un bug o un'anomalia**; non salvare screenshot di pagine funzionanti
+
+### Contenuto atteso (equivalente del vecchio report .md)
+
+1. **Summary** — stato generale del test e scenario (taglia, personalizzazione, patch, prezzo finale)
+2. **Steps** — fasi eseguite con esito
+3. **Errors** — errori console, network issues, React warnings
+4. **Bugs** — lista dettagliata con severità (HIGH/MEDIUM/LOW), descrizione, steps to reproduce, expected vs actual, impact, screenshot
+5. **Screenshots** — elenco completo con descrizione
+6. **Duration / Viewport** — tempo di esecuzione e dimensioni del browser
 
 ---
 
@@ -268,8 +283,7 @@ Tutti i report devono essere scritti in lingua italiana
 - Leggere i prezzi dinamicamente dalla pagina (non usare valori hardcoded)
 - Verificare che l'anteprima si aggiorni in tempo reale
 - Prestare attenzione a problemi specifici di React (state management, re-rendering, lifecycle)
-- **Tracciare sempre il tempo di esecuzione** del test e includerlo nel report finale
+- **Tracciare sempre il tempo di esecuzione** del test e includerlo nel report JSON (`duration`, `startedAt`, `finishedAt`)
 - **Massima attenzione ai caratteri testuali**: durante i controlli visivi, prestare estrema attenzione a tutti i caratteri presenti nel testo e nelle immagini (errori di battitura, caratteri speciali errati, formattazione inconsistente, testo troncato o illeggibile)
 - **Il nome del giocatore inserito sulla maglia sarà sempre visualizzato in MAIUSCOLO**: questo è il comportamento corretto e desiderato, NON deve essere segnalato come bug.
 - **Selezione taglie**: le taglie disponibili dipendono da come sono configurate sul prodotto. Non c'è requisito che appaiano sempre tutte abilitate o disabilitate — alcune taglie possono anche non comparire affatto. Comportamento atteso, NON va segnalato come bug.
-
