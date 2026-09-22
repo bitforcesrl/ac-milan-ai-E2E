@@ -32,6 +32,68 @@ type PipelineConfig = {
     quickbuyCartValidation?: boolean;
 };
 
+/**
+ * GET: restituisce le build della pipeline attualmente in corso (o in coda).
+ * Usato dalla home page per impedire l'avvio di run parallele.
+ */
+export async function GET() {
+    const org = process.env.AZURE_DEVOPS_ORG;
+    const project = process.env.AZURE_DEVOPS_PROJECT;
+    const pipelineId = process.env.AZURE_DEVOPS_PIPELINE_ID;
+    const pat = process.env.AZURE_DEVOPS_PAT;
+
+    if (!org || !project || !pipelineId || !pat) {
+        return NextResponse.json(
+            { error: "Configurazione Azure DevOps mancante." },
+            { status: 500 },
+        );
+    }
+
+    const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?definitions=${pipelineId}&statusFilter=inProgress,notStarted&$top=10&api-version=7.1`;
+    const auth = Buffer.from(`:${pat}`).toString("base64");
+
+    try {
+        const res = await fetch(url, {
+            headers: { Authorization: `Basic ${auth}` },
+            cache: "no-store",
+        });
+
+        if (!res.ok) {
+            return NextResponse.json(
+                { error: `Azure DevOps ha risposto con status ${res.status}` },
+                { status: res.status },
+            );
+        }
+
+        const data = await res.json();
+        const running = (data.value ?? []).map(
+            (b: {
+                id: number;
+                buildNumber: string;
+                status: string;
+                queueTime?: string;
+                _links?: { web?: { href?: string } };
+            }) => ({
+                id: b.id,
+                buildNumber: b.buildNumber,
+                status: b.status,
+                queueTime: b.queueTime,
+                webUrl: b._links?.web?.href,
+            }),
+        );
+
+        return NextResponse.json({ running });
+    } catch (err) {
+        return NextResponse.json(
+            {
+                error: "Errore durante la chiamata ad Azure DevOps",
+                details: err instanceof Error ? err.message : String(err),
+            },
+            { status: 502 },
+        );
+    }
+}
+
 export async function POST(request: Request) {
     const org = process.env.AZURE_DEVOPS_ORG;
     const project = process.env.AZURE_DEVOPS_PROJECT;
@@ -47,6 +109,50 @@ export async function POST(request: Request) {
             },
             { status: 500 },
         );
+    }
+
+    // Verifica che non ci siano già build in corso o in coda per questa pipeline
+    const checkUrl = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?definitions=${pipelineId}&statusFilter=inProgress,notStarted&$top=10&api-version=7.1`;
+    const auth = Buffer.from(`:${pat}`).toString("base64");
+
+    try {
+        const checkRes = await fetch(checkUrl, {
+            headers: { Authorization: `Basic ${auth}` },
+            cache: "no-store",
+        });
+
+        if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            const running = (checkData.value ?? []).map(
+                (b: {
+                    id: number;
+                    buildNumber: string;
+                    status: string;
+                    queueTime?: string;
+                    _links?: { web?: { href?: string } };
+                }) => ({
+                    id: b.id,
+                    buildNumber: b.buildNumber,
+                    status: b.status,
+                    queueTime: b.queueTime,
+                    webUrl: b._links?.web?.href,
+                }),
+            );
+
+            if (running.length > 0) {
+                return NextResponse.json(
+                    {
+                        error:
+                            "Esistono già run E2E in corso: attendere il completamento prima di avviarne una nuova.",
+                        running,
+                    },
+                    { status: 409 },
+                );
+            }
+        }
+        // Se il check fallisce si prosegue comunque con il trigger (best-effort)
+    } catch {
+        // Ignora errori di rete sul check: il trigger viene tentato comunque
     }
 
     // Configurazione opzionale dal form in home page
@@ -68,8 +174,6 @@ export async function POST(request: Request) {
     }
 
     const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?api-version=7.1`;
-
-    const auth = Buffer.from(`:${pat}`).toString("base64");
 
     try {
         const res = await fetch(url, {

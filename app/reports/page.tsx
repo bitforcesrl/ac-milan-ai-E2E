@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { listRuns, type RunSummary } from '@/lib/azure-reports';
+import { listRunningBuilds } from '@/lib/azure-devops';
 import { CheckCircle, XCircle, HelpCircle } from '@deemlol/next-icons';
 
 export const dynamic = 'force-dynamic';
@@ -18,12 +19,15 @@ function statusIconSvg(kind: 'pass' | 'fail' | 'unknown') {
 export default async function ReportsPage() {
     let runs: RunSummary[] = [];
     let error: string | null = null;
+    let runningBuilds: Awaited<ReturnType<typeof listRunningBuilds>> = [];
 
     try {
         runs = await listRuns();
     } catch (err) {
         error = err instanceof Error ? err.message : String(err);
     }
+
+    runningBuilds = await listRunningBuilds();
 
     return (
         <div className="min-h-screen bg-white text-black antialiased">
@@ -36,6 +40,28 @@ export default async function ReportsPage() {
                 </div>
             </header>
             <main className="mx-auto max-w-7xl px-6 pt-8 pb-24">
+                {runningBuilds.length > 0 && (
+                    <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-grey bg-grey px-4 py-3 text-sm">
+                        <span className="relative flex h-2.5 w-2.5">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                        </span>
+                        <span className="font-medium">
+                            {runningBuilds.length === 1
+                                ? '1 pipeline E2E è in corso'
+                                : `${runningBuilds.length} pipeline E2E sono in corso`}
+                        </span>
+                        {runningBuilds.map((b) => (
+                            <span
+                                key={b.id}
+                                className="rounded-full border border-dark-grey px-2.5 py-0.5 font-mono text-[0.72rem]"
+                            >
+                                {b.buildNumber} ({b.status})
+                            </span>
+                        ))}
+                    </div>
+                )}
+
                 {error && (
                     <p className={`text-lg ${muted}`}>Errore di accesso ad Azure Blob: {error}</p>
                 )}

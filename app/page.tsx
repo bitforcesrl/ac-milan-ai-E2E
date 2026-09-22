@@ -15,7 +15,7 @@ import {
 } from "@/lib/e2e-tests";
 
 const BUTTON_CLASS =
-  "flex h-12 w-56 items-center justify-center gap-3 rounded-full bg-zinc-900 px-6 font-milan-pulse text-base text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-zinc-300 cursor-pointer";
+  "flex items-center justify-center gap-2 rounded-full bg-zinc-900 px-6 py-3 font-milan-pulse text-base text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-zinc-300 cursor-pointer";
 
 const CHECKBOX_CLASS =
   "h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 cursor-pointer";
@@ -81,14 +81,17 @@ export default function Home() {
   async function triggerPipeline() {
     setState("loading");
     setErrorMessage(null);
+
     try {
       const res = await fetch("/api/trigger-pipeline", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const data = await res.json().catch(() => null);
+        // 409: il server ha rilevato run già in corso
         setErrorMessage(data?.error ?? `Errore HTTP ${res.status}`);
         setState("error");
         return;
@@ -102,10 +105,19 @@ export default function Home() {
 
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col gap-8 py-24 px-8 bg-white dark:bg-black sm:px-16">
-        <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
-          AC Milan — AI E2E Tests
-        </h1>
+      <main className="flex flex-1 w-full max-w-4xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black sm:px-16">
+        <header className="flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
+            AC Milan — AI E2E Tests
+          </h1>
+          <Link
+            href="/reports"
+            className={BUTTON_CLASS}
+          >
+            <BarChart2 size={18} />
+            Reports
+          </Link>
+        </header>
         <p className="text-lg leading-8 text-zinc-600 dark:text-zinc-400">
           Test automatici del personalizzatore di maglie dell’e-commerce,
           eseguiti da agenti AI come fossero utenti reali. Ogni run produce un
@@ -216,20 +228,17 @@ export default function Home() {
             ))}
           </fieldset>
 
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <Link href="/reports" className={BUTTON_CLASS}>
-              <BarChart2 className="h-4 w-4" />
-              Vai ai Reports
-            </Link>
+          <div className="flex justify-center">
             <button
               type="submit"
               disabled={state === "loading"}
               className={BUTTON_CLASS}
             >
-              <Play className="h-4 w-4" />
-              {state === "loading"
-                ? "Avvio pipeline…"
-                : "Triggera pipeline E2E"}
+              <Play size={18} />
+              <span>
+                {state === "loading"
+                  ? "Avvio pipeline…"
+                  : "Avvia test E2E"}</span>
             </button>
           </div>
 
