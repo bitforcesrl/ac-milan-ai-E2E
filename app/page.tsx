@@ -45,7 +45,7 @@ const DEFAULT_FORM: FormState = {
   maxParallelSessions: String(MAX_PARALLEL_SESSIONS_CONFIG.default),
   // Default dei test = campo `enabled` in config.js
   ...Object.fromEntries(
-    E2E_TEST_LIST.map((t) => [testIdToPipelineParam(t.id), t.enabled]),
+    E2E_TEST_LIST.map((t) => [testIdToPipelineParam(t.id), false]),
   ),
   // Default note per-test = campo `notes` in config.js
   ...Object.fromEntries(
@@ -77,7 +77,7 @@ const VIEWPORTS: { key: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
 const TESTS: { key: string; label: string; notesKey: string }[] =
   E2E_TEST_LIST.map((t) => ({
     key: testIdToPipelineParam(t.id),
-    label: `${t.id} (${t.file})`,
+    label: t.name,
     notesKey: notesParamForTest(t.id),
   }));
 

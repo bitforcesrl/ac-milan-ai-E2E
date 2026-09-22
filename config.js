@@ -1,7 +1,7 @@
 const E2E_TESTS = [
   {
     id: 'fail-test',
-    name: 'Fail Test (sanity check agente)',
+    name: 'Fail Test',
     file: 'fail.test.md',
     url: 'https://store.acmilan.com',
     enabled: false,
