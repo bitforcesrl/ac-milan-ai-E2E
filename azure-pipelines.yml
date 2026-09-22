@@ -107,27 +107,6 @@ jobs:
         displayName: Install dependencies and browsers
 
       - script: |
-          TESTS_ENABLED=""
-          if [ "${{ parameters.failTest }}" = "True" ]; then
-            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}fail-test"
-          fi
-          if [ "${{ parameters.pdp }}" = "True" ]; then
-            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}pdp"
-          fi
-          if [ "${{ parameters.pdpFuzzy }}" = "True" ]; then
-            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}pdp-fuzzy"
-          fi
-          if [ "${{ parameters.quickbuyCombinations }}" = "True" ]; then
-            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-combinations"
-          fi
-          if [ "${{ parameters.quickbuyPersonalization }}" = "True" ]; then
-            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-personalization"
-          fi
-          if [ "${{ parameters.quickbuyCartValidation }}" = "True" ]; then
-            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-cart-validation"
-          fi
-          export TESTS_ENABLED
-          echo "TESTS_ENABLED=$TESTS_ENABLED"
           node scripts/run-e2e-ci.mjs
         displayName: Run AI E2E
         env:
@@ -140,6 +119,12 @@ jobs:
           RUN_TABLET: ${{ parameters.runTablet }}
           RUN_MOBILE: ${{ parameters.runMobile }}
           MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
+          E2E_TEST_FAIL_TEST: ${{ parameters.failTest }}
+          E2E_TEST_PDP: ${{ parameters.pdp }}
+          E2E_TEST_PDP_FUZZY: ${{ parameters.pdpFuzzy }}
+          E2E_TEST_QUICKBUY_COMBINATIONS: ${{ parameters.quickbuyCombinations }}
+          E2E_TEST_QUICKBUY_PERSONALIZATION: ${{ parameters.quickbuyPersonalization }}
+          E2E_TEST_QUICKBUY_CART_VALIDATION: ${{ parameters.quickbuyCartValidation }}
 
       # 1. Sync storico raw: scarica le run precedenti da blob, merge con la run corrente e ricarica
       - script: node scripts/sync-history.mjs

@@ -40,19 +40,17 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 La configurazione di tutti i test disponibili è nel file `config.js` nella root del progetto. Ogni test è definito con questi campi:
 
-- **`id`**: identificatore univoco del test (usato in `TESTS_ENABLED` per abilitarlo)
+- **`id`**: identificatore univoco del test (usato per derivare la variabile `E2E_TEST_*`)
 - **`name`**: nome univoco e descrittivo del test
 - **`file`**: percorso del file `.md` del test, relativo alla cartella `tests/`
 - **`url`**: URL completo della pagina da testare
-- **`enabled`**: se `true` il test viene eseguito di default; se `false` viene skippato (a meno che non sia abilitato esplicitamente via `TESTS_ENABLED`)
+- **`enabled`**: se `true` il test viene eseguito quando non sono presenti flag `E2E_TEST_*`; se `false` viene skippato
 - **`notes`**: note/istruzioni aggiuntive per l'esecuzione (stringa vuota se non presenti)
 
 **Selezione dei test:**
 
-- Se la variabile d'ambiente `TESTS_ENABLED` è definita (lista di `id` separati da virgole), vengono eseguiti SOLO i test con quegli id (override del campo `enabled`)
-- Se `TESTS_ENABLED` non è definita, vengono eseguiti i test con `enabled: true`
-- In CI Azure la lista `TESTS_ENABLED` è costruita dalla pipeline (parametri booleani per ogni test)
-- In locale è definita nel file `.env` (vedi `.env.template`)
+- In CI Azure e in locale ogni test è controllato dalla variabile `E2E_TEST_<ID_NORMALIZZATO>` (vedi `.env.template`)
+- Se non è presente alcun flag `E2E_TEST_*`, vengono eseguiti i test con `enabled: true`
 
 **Campo `notes`:**
 
@@ -70,7 +68,7 @@ La configurazione di tutti i test disponibili è nel file `config.js` nella root
 
 ### Flusso di esecuzione
 
-1. Determina i test da eseguire: se `TESTS_ENABLED` è definita usa quella lista di id, altrimenti leggi `config.js` ed esegui i test con `enabled: true`
+1. Determina i test da eseguire leggendo i flag `E2E_TEST_*`; se non sono presenti, leggi `config.js` ed esegui i test con `enabled: true`
 2. **Ridimensiona il browser** al viewport richiesto dalla run (es. "1280x650") usando `browser_resize`
 3. Per ogni test da eseguire:
    - **Leggi il campo `notes`** del test: se presente e non vuoto, leggi e applica le istruzioni contenute PRIMA di iniziare il test

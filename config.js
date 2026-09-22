@@ -1,21 +1,17 @@
 // config.js - Configurazione centralizzata: test E2E, path dei report e costanti condivise
 //
 // Ogni test e' identificato da:
-// - id:      identificatore univoco (usato in TESTS_ENABLED per abilitarlo in CI/locale)
+// - id:      identificatore univoco (usato per derivare la variabile E2E_TEST_* )
 // - name:    nome univoco e descrittivo del test (usato nei report)
 // - file:    percorso del file .md del test, relativo alla cartella tests/
 // - url:     URL completo della pagina da testare
-// - enabled: se true il test viene eseguito di default; se false viene skippato
-//            (a meno che non sia abilitato esplicitamente via TESTS_ENABLED)
+// - enabled: se true il test viene eseguito quando non sono presenti flag E2E_TEST_*
 // - notes:   note/istruzioni aggiuntive per l'esecuzione (stringa vuota se non presenti)
 //
 // Selezione dei test:
-// - Se TESTS_ENABLED e' definita (lista di id separati da virgole), vengono eseguiti
-//   SOLO i test con quegli id (override del campo enabled)
-// - Se TESTS_ENABLED non e' definita, vengono eseguiti i test con enabled: true
-// - In Azure Pipeline ogni test ha un parametro booleano che, se true,
-//   aggiunge l'id alla variabile d'ambiente TESTS_ENABLED
-// - In locale si usa la variabile TESTS_ENABLED nel file .env
+// - In Azure Pipeline e in locale ogni test ha un flag booleano
+//   E2E_TEST_<ID_NORMALIZZATO>; run-e2e-ci.mjs seleziona dinamicamente i test true
+// - Se non e' presente alcun flag E2E_TEST_*, vengono eseguiti i test con enabled: true
 
 /**
  * @typedef {Object} E2ETest

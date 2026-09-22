@@ -22,28 +22,32 @@ function parseNumEnv(key, fallback, min = -Infinity) {
   return !Number.isNaN(val) && val >= min ? val : fallback;
 }
 
-function selectTests(rawInput) {
-  if (!rawInput || !rawInput.trim()) {
-    const enabled = E2E_TESTS.filter((t) => t.enabled);
-    if (!enabled.length) {
-      throw new Error('Nessun test abilitato: TESTS_ENABLED vuota e nessun test con enabled: true in config.js.');
+function testEnvKey(testId) {
+  return `E2E_TEST_${testId.replace(/-/g, '_').toUpperCase()}`;
+}
+
+function selectTests() {
+  const pipelineFlags = E2E_TESTS.map((test) => ({
+    test,
+    envKey: testEnvKey(test.id),
+  })).filter(({ envKey }) => process.env[envKey] !== undefined);
+
+  if (pipelineFlags.length) {
+    const selected = pipelineFlags
+      .filter(({ envKey }) => parseBoolEnv(envKey, false))
+      .map(({ test }) => test);
+
+    if (!selected.length) {
+      throw new Error('Nessun test selezionato dai parametri della pipeline.');
     }
-    return enabled;
+    return selected;
   }
 
-  const requestedIds = rawInput.split(',').map((id) => id.trim()).filter(Boolean);
-  const unknownIds = requestedIds.filter((id) => !E2E_TESTS.some((t) => t.id === id));
-
-  if (unknownIds.length) {
-    const validIds = E2E_TESTS.map((t) => t.id).join(', ');
-    throw new Error(`ID test non validi in TESTS_ENABLED: ${unknownIds.join(', ')} (validi: ${validIds})`);
+  const enabled = E2E_TESTS.filter((test) => test.enabled);
+  if (!enabled.length) {
+    throw new Error('Nessun test abilitato: nessun test con enabled: true in config.js.');
   }
-
-  // De-duplicazione dei test mantenendo l'ordine
-  const seen = new Set();
-  return requestedIds
-    .filter((id) => !seen.has(id) && seen.add(id))
-    .map((id) => E2E_TESTS.find((t) => t.id === id));
+  return enabled;
 }
 
 function loadConfig() {
@@ -87,7 +91,7 @@ function loadConfig() {
     maxParallelSessions: parseNumEnv('MAX_PARALLEL_SESSIONS', 1, 1),
     browsers,
     viewports,
-    tests: selectTests(process.env.TESTS_ENABLED),
+    tests: selectTests(),
   };
 }
 
