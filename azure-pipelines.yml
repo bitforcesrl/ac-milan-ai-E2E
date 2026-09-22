@@ -1,0 +1,186 @@
+parameters:
+  - name: runChromium
+    displayName: Browser Chromium
+    type: boolean
+    default: true
+  - name: runFirefox
+    displayName: Browser Firefox
+    type: boolean
+    default: false
+  - name: runWebkit
+    displayName: Browser WebKit (Safari)
+    type: boolean
+    default: false
+  - name: runDesktop
+    displayName: Viewport desktop (1280x650)
+    type: boolean
+    default: true
+  - name: runTablet
+    displayName: Viewport tablet (768x1024)
+    type: boolean
+    default: false
+  - name: runMobile
+    displayName: Viewport mobile (390x844)
+    type: boolean
+    default: false
+  - name: openrouterAiModel
+    displayName: AI Model (OpenRouter)
+    type: string
+    default: qwen/qwen3.7-plus
+    values:
+      - qwen/qwen3.7-plus
+  - name: maxParallelSessions
+    displayName: Sessioni in parallelo (browser x viewport)
+    type: string
+    default: '3'
+    values:
+      - '1'
+      - '2'
+      - '3'
+      - '4'
+      - '6'
+  # ---- Test E2E disponibili (definiti in config.js) ----
+  - name: failTest
+    displayName: Test fail-test (fail.test.md)
+    type: boolean
+    default: false
+  - name: pdp
+    displayName: Test pdp (pdp/pdp.test.md)
+    type: boolean
+    default: false
+  - name: pdpFuzzy
+    displayName: Test pdp-fuzzy (pdp/pdp-fuzzy.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyCombinations
+    displayName: Test quickbuy-combinations (quickbuy/quickbuy-combinations.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyPersonalization
+    displayName: Test quickbuy-personalization (quickbuy/quickbuy-personalization.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyCartValidation
+    displayName: Test quickbuy-cart-validation (quickbuy/quickbuy-cart-validation.test.md)
+    type: boolean
+    default: true
+  # ---- Note per-test (override del campo `notes` in config.js, dal form Next.js) ----
+  - name: notesFailTest
+    displayName: Note per test fail-test
+    type: string
+    default: ''
+  - name: notesPdp
+    displayName: Note per test pdp
+    type: string
+    default: ''
+  - name: notesPdpFuzzy
+    displayName: Note per test pdp-fuzzy
+    type: string
+    default: ''
+  - name: notesQuickbuyCombinations
+    displayName: Note per test quickbuy-combinations
+    type: string
+    default: ''
+  - name: notesQuickbuyPersonalization
+    displayName: Note per test quickbuy-personalization
+    type: string
+    default: ''
+  - name: notesQuickbuyCartValidation
+    displayName: Note per test quickbuy-cart-validation
+    type: string
+    default: ''
+
+trigger:
+  branches:
+    include:
+      - main
+      - pipeline-test 
+
+pr: none
+
+schedules:
+  - cron: '0 6 * * *'
+    displayName: Daily E2E 06:00 UTC
+    branches:
+      include:
+        - main
+    always: true
+
+pool:
+  name: 'Internal Linux with Docker' 
+  demands:
+    - jdk -equals 21
+
+variables:
+  - group: acmilan-e2e-secrets
+
+jobs:
+  - job: e2e
+    displayName: AI E2E tests
+    timeoutInMinutes: 20
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 22
+        inputs:
+          versionSpec: '22.x'
+
+      - script: |
+          npm install
+          npx playwright install --with-deps chromium firefox webkit
+        displayName: Install dependencies and browsers
+
+      - script: |
+          node scripts/run-e2e-ci.mjs
+        displayName: Run AI E2E
+        env:
+          OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
+          OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
+          RUN_CHROMIUM: ${{ parameters.runChromium }}
+          RUN_FIREFOX: ${{ parameters.runFirefox }}
+          RUN_WEBKIT: ${{ parameters.runWebkit }}
+          RUN_DESKTOP: ${{ parameters.runDesktop }}
+          RUN_TABLET: ${{ parameters.runTablet }}
+          RUN_MOBILE: ${{ parameters.runMobile }}
+          MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
+          E2E_TEST_FAIL_TEST: ${{ parameters.failTest }}
+          E2E_TEST_PDP: ${{ parameters.pdp }}
+          E2E_TEST_PDP_FUZZY: ${{ parameters.pdpFuzzy }}
+          E2E_TEST_QUICKBUY_COMBINATIONS: ${{ parameters.quickbuyCombinations }}
+          E2E_TEST_QUICKBUY_PERSONALIZATION: ${{ parameters.quickbuyPersonalization }}
+          E2E_TEST_QUICKBUY_CART_VALIDATION: ${{ parameters.quickbuyCartValidation }}
+          E2E_TEST_NOTES_FAIL_TEST: ${{ parameters.notesFailTest }}
+          E2E_TEST_NOTES_PDP: ${{ parameters.notesPdp }}
+          E2E_TEST_NOTES_PDP_FUZZY: ${{ parameters.notesPdpFuzzy }}
+          E2E_TEST_NOTES_QUICKBUY_COMBINATIONS: ${{ parameters.notesQuickbuyCombinations }}
+          E2E_TEST_NOTES_QUICKBUY_PERSONALIZATION: ${{ parameters.notesQuickbuyPersonalization }}
+          E2E_TEST_NOTES_QUICKBUY_CART_VALIDATION: ${{ parameters.notesQuickbuyCartValidation }}
+
+      # 1. Sync storico raw: scarica le run precedenti da blob, merge con la run corrente e ricarica
+      - script: node scripts/upload-reports-to-azure.mjs
+        displayName: Upload reports to Azure Blob
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
+          AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
+          REPORT_BLOB_PREFIX: e2e
+
+      # I report JSON strutturati (meta/<testId>.json) sono già caricati su blob da sync-history.mjs
+      # e sono visualizzati dalla dashboard Next.js (/reports).
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish reports artifact
+        inputs:
+          targetPath: reports
+          artifact: e2e-reports
+
+      # - script: node scripts/send-email-report.mjs
+      #   displayName: Send Email report via SendGrid
+      #   env:
+      #     SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+      #     MAIL_FROM: $(MAIL_FROM)
+      #     MAIL_TO: $(MAIL_TO)
+      #     REPORT_HTML_URL: $(REPORT_HTML_URL)
+      #     CLIENT_NAME: $(CLIENT_NAME)
+
+
