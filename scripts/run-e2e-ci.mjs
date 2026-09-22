@@ -581,7 +581,7 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 - playwright__: automazione browser ${browser} (snapshot, click, type, screenshot, ecc.)
 
 Regole:
-1. Leggi AGENTS.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
+1. Leggi AGENTS.e2e.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
 2. Il test di questa run e' UNO SOLO (definizioni in config.js). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 3. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
@@ -592,7 +592,7 @@ Regole:
    ${sessionDir}/
      screenshots/             (screenshot della sessione, prefissati con "${test.id}-", es. screenshots/${test.id}-001.png)
      tests/${test.id}.json    (report strutturato del test, creato solo alla fine, punto 7)
-   SCREENSHOT: salvali SOLO se trovi bug/anomalie (come da AGENTS.md), prefissati con "${test.id}-".
+   SCREENSHOT: salvali SOLO se trovi bug/anomalie (come da AGENTS.e2e.md), prefissati con "${test.id}-".
 7. Alla fine crea il report strutturato ${sessionDir}/tests/${test.id}.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra, tutti i testi in italiano):
    {
      "schemaVersion": 2,
