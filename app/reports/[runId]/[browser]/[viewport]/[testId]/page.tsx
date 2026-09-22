@@ -12,10 +12,10 @@ const SECTIONS = [
     { id: 'screenshots', label: 'Screenshot' },
 ];
 
-const root = 'min-h-screen bg-slate-50 text-slate-900 antialiased';
-const muted = 'text-slate-500';
-const chip = 'inline-block rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap';
-const section = 'mb-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm';
+const root = 'min-h-screen bg-white text-black antialiased';
+const muted = 'text-dark-grey';
+const chip = 'inline-block rounded-full border border-grey bg-grey px-2.5 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap text-black';
+const section = 'mb-5 rounded-xl border border-grey bg-white p-5 shadow-sm';
 
 export default async function TestDetailPage({
     params,
@@ -63,12 +63,12 @@ export default async function TestDetailPage({
         <div className={root}>
             <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="self-start pt-10 lg:sticky lg:top-0 lg:max-h-screen lg:overflow-y-auto">
-                    <Link className="font-medium hover:underline" href={backHref}>← Torna indietro</Link>
-                    <div className="my-6 border-b border-slate-200 pb-5">
-                        <p className="m-0 text-xl font-semibold">{label}</p>
+                    <Link className="font-medium text-dark-grey hover:text-primary hover:underline" href={backHref}>← Torna indietro</Link>
+                    <div className="my-6 border-b border-grey pb-5">
+                        <p className="store-heading m-0 text-base leading-snug">{label}</p>
                         <p className={`mt-1 mb-0 text-sm ${muted}`}>{detail.runId}</p>
                         {detail.status && (
-                            <p className={`mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold ${isPass ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
+                            <p className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${isPass ? 'bg-green-100 text-green-600' : 'bg-primary/10 text-primary'}`}>
                                 {isPass ? <CheckCircle size={18} aria-hidden="true" /> : <XCircle size={18} aria-hidden="true" />} {isPass ? 'PASS' : 'FAIL'}
                             </p>
                         )}
@@ -79,7 +79,7 @@ export default async function TestDetailPage({
                             <ol className="m-0 list-none p-0">
                                 {sections.map((s) => (
                                     <li key={s.id}>
-                                        <a href={`#${s.id}`} className="block py-1 pl-3 text-sm border-l-2 border-transparent hover:text-slate-900:text-slate-50">{s.label}</a>
+                                        <a href={`#${s.id}`} className="block py-1 pl-3 text-sm border-l-2 border-transparent text-dark-grey transition-colors hover:border-primary hover:text-black">{s.label}</a>
                                     </li>
                                 ))}
                             </ol>
@@ -89,7 +89,7 @@ export default async function TestDetailPage({
 
                 <main className="min-w-0 max-w-3xl pt-10 pb-24">
                     {detail.status && (
-                        <p className={`mb-7 flex items-center gap-2.5 rounded-lg px-4 py-3.5 font-semibold border-l-4 ${isPass ? 'bg-green-100 text-green-700 border-green-500' : 'bg-red-100 text-red-700 border-red-500'}`}>
+                        <p className={`mb-7 flex items-center gap-2.5 rounded-lg px-4 py-3.5 font-semibold border-l-4 ${isPass ? 'bg-green-100 text-green-700 border-green-500' : 'bg-primary/10 text-primary border-primary'}`}>
                             {isPass ? (
                                 <><CheckCircle size={18} aria-hidden="true" /> Run superato con successo</>
                             ) : (
@@ -100,23 +100,23 @@ export default async function TestDetailPage({
 
                     {report.summary && (
                         <section id="summary" className={section}>
-                            <h2 className="mb-3 text-xl font-semibold">Summary</h2>
+                            <h2 className="store-heading mb-3 text-lg">Summary</h2>
                             <p>{report.summary}</p>
                         </section>
                     )}
 
                     {hasSteps && (
                         <section id="steps" className={section}>
-                            <h2 className="mb-3 text-xl font-semibold">Passi del test</h2>
+                            <h2 className="store-heading mb-3 text-lg">Passi del test</h2>
                             {(report.steps ?? []).map((step, i) => {
                                 const st = (step.status ?? '').toLowerCase();
                                 const chipCls = st === 'pass'
                                     ? 'bg-green-100 text-green-700'
                                     : st === 'fail'
-                                        ? 'bg-red-100 text-red-700'
-                                        : `bg-slate-100 ${muted}`;
+                                        ? 'bg-primary/10 text-primary'
+                                        : `bg-grey ${muted}`;
                                 return (
-                                    <div key={i} className="flex items-start gap-2.5 border-b border-slate-200 py-2 last:border-b-0">
+                                    <div key={i} className="flex items-start gap-2.5 border-b border-grey py-2 last:border-b-0">
                                         <span className={`inline-block shrink-0 rounded px-2 py-0.5 text-[0.65rem] font-bold tracking-wide ${chipCls}`}>
                                             {step.status || 'INFO'}
                                         </span>
@@ -132,9 +132,9 @@ export default async function TestDetailPage({
 
                     {hasErrors && (
                         <section id="errors" className={section}>
-                            <h2 className="mb-3 text-xl font-semibold">Errori tecnici</h2>
+                            <h2 className="store-heading mb-3 text-lg">Errori tecnici</h2>
                             {(report.errors ?? []).map((err, i) => (
-                                <div key={i} className="mb-2 rounded-lg border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm">
+                                <div key={i} className="mb-2 rounded-lg border border-primary/30 bg-primary/5 px-3.5 py-2.5 text-sm">
                                     <div className="font-mono text-xs break-all">{err.message}</div>
                                     {err.context && <div className={`mt-1 text-xs ${muted}`}>{err.context}</div>}
                                 </div>
@@ -144,7 +144,7 @@ export default async function TestDetailPage({
 
                     {hasBugs && (
                         <section id="bugs" className={section}>
-                            <h2 className="mb-3 text-xl font-semibold">Bug trovati</h2>
+                            <h2 className="store-heading mb-3 text-lg">Bug trovati</h2>
                             {(report.bugs ?? []).map((bug, i) => (
                                 <BugCard key={bug.id ?? i} bug={bug} />
                             ))}
@@ -153,10 +153,10 @@ export default async function TestDetailPage({
 
                     {detail.screenshots.length > 0 && (
                         <section id="screenshots" className={section}>
-                            <h2 className="mb-3 text-xl font-semibold">Screenshot</h2>
+                            <h2 className="store-heading mb-3 text-lg">Screenshot</h2>
                             <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
                                 {detail.screenshots.map((shot) => (
-                                    <a key={shot.url} href={shot.url} target="_blank" rel="noopener noreferrer" title={shot.description} className="block overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                                    <a key={shot.url} href={shot.url} target="_blank" rel="noopener noreferrer" title={shot.description} className="block overflow-hidden rounded-lg border border-grey bg-grey transition-shadow hover:shadow-md">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img src={shot.url} alt={shot.description || shot.name} loading="lazy" className="block h-30 w-full object-cover" />
                                     </a>
@@ -173,12 +173,12 @@ export default async function TestDetailPage({
 function BugCard({ bug }: { bug: BugEntry }) {
     const sev = (bug.severity ?? '').toUpperCase();
     const sevCls = sev === 'HIGH'
-        ? 'bg-red-100 text-red-700'
+        ? 'bg-primary/10 text-primary'
         : sev === 'MEDIUM'
             ? 'bg-amber-100 text-amber-700'
-            : 'bg-slate-100 text-slate-700';
+            : 'bg-grey text-dark-grey';
     return (
-        <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3.5">
+        <div className="mb-3 rounded-lg border border-grey bg-grey px-4 py-3.5">
             <div className="mb-2 flex flex-wrap items-center gap-2.5">
                 {bug.id && <span className={chip}>{bug.id}</span>}
                 {sev && <span className={`inline-block rounded px-1.5 py-0.5 text-[0.68rem] font-bold tracking-wide ${sevCls}`}>{sev}</span>}

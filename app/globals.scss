@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+@import './styles/fonts.css';
+
+/*
+ * Theme configuration — Tailwind v4 (@theme).
+ * Porting of the legacy tailwind.config.js theme: change only these
+ * variables to rebrand the app.
+ */
+@theme {
+  /* Colors */
+  --color-primary: #e0071b;
+  --color-secondary: #a29161;
+  --color-grey: #ededed;
+  --color-grey-30: rgba(237, 237, 237, 0.3);
+  --color-grey-15: rgba(237, 237, 237, 0.15);
+  --color-dark-grey: #2a2a2a;
+  --color-red: #ff0000;
+  --color-notification: #eadfc6;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Gradients */
+  --background-image-gradient-border: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(224, 7, 27, 0.5) 100%);
+  --background-image-gradient-b2g: linear-gradient(180deg, #111 0%, #1a1a1a 50%, #000 100%);
+  --background-image-gradient-r2b: linear-gradient(180deg, #e0071b 0%, #111 100%);
+  --background-image-gradient-gallery-w2t: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
+  --background-image-gradient-gallery-t2w: linear-gradient(0deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
+  --background-image-gradient-g2b2g: linear-gradient(90deg, #1a1a1a 0%, #000 50%, #1a1a1a 100%);
+
+  /* Fonts */
+  --font-raleway: 'raleway', sans-serif;
+  --font-milan-pulse: 'milan-pulse', sans-serif;
+
+  /* Font sizes (d1–d7) */
+  --text-d1: 48px;
+  --text-d1--line-height: 48px;
+  --text-d2: 40px;
+  --text-d2--line-height: 40px;
+  --text-d3: 32px;
+  --text-d3--line-height: 32px;
+  --text-d4: 24px;
+  --text-d4--line-height: 24px;
+  --text-d5: 18px;
+  --text-d5--line-height: 18px;
+  --text-d6: 16px;
+  --text-d6--line-height: 16px;
+  --text-d7: 18px;
+  --text-d7--line-height: 24px;
+
+  /* Shadows */
+  --shadow-m1: 0px 0px 8px 4px #000;
+  --shadow-m2: 0px 4px 8px 2px rgba(0, 0, 0, 0.5) inset;
+
+  /* Animations */
+  --animate-fade-in: fadeIn 200ms ease-in-out;
+
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+}
+
+* {
+  user-select: none;
+}
+
+body {
+  @apply font-raleway;
+  background: var(--color-white);
+  color: var(--color-black);
+}
+
+h1 { @apply text-d1 font-milan-pulse; }
+h2 { @apply text-d2 font-milan-pulse; }
+h3 { @apply text-d3 font-milan-pulse; }
+h4 { @apply text-d4 font-milan-pulse; }
+h5 { @apply text-d5 font-milan-pulse; }
+h6 { @apply text-d6 font-milan-pulse; }
+
+p {
+  @apply text-d7 font-raleway font-normal;
+}
+
+button {
+  @apply font-milan-pulse;
+}

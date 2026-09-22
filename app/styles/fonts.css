@@ -1,0 +1,23 @@
+@font-face {
+  font-family: 'raleway';
+  src: url('/fonts/raleway-regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'raleway';
+  src: url('/fonts/raleway-bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'milan-pulse';
+  src: url('/fonts/milan-pulse-regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
