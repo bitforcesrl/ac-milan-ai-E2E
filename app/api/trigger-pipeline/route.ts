@@ -184,7 +184,7 @@ export async function POST(request: Request) {
     // Costruisce i templateParameters solo con i campi effettivamente presenti
     const templateParameters: Record<string, string> = {};
     for (const [key, value] of Object.entries(config)) {
-        if (value === undefined || value === null) continue;
+        if (value === undefined || value === null || value === "") continue;
         templateParameters[key] = String(value);
     }
 
