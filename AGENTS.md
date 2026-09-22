@@ -40,19 +40,20 @@ Eseguire test end-to-end manuali (via browser MCP) su un e-commerce Shopify con 
 
 La configurazione di tutti i test disponibili è nel file `config.js` nella root del progetto. Ogni test è definito con questi campi:
 
-- **`id`**: identificatore univoco del test (usato in `TESTS_ENABLED` per abilitarlo)
+- **`id`**: identificatore univoco del test (usato per il flag env `TEST_<ID in SNAKE_CASE>`, es. `pdp-fuzzy` → `TEST_PDP_FUZZY`)
 - **`name`**: nome univoco e descrittivo del test
 - **`file`**: percorso del file `.md` del test, relativo alla cartella `tests/`
 - **`url`**: URL completo della pagina da testare
-- **`enabled`**: se `true` il test viene eseguito di default; se `false` viene skippato (a meno che non sia abilitato esplicitamente via `TESTS_ENABLED`)
+- **`enabled`**: se `true` il test viene eseguito di default; se `false` viene skippato (a meno che non sia abilitato esplicitamente via flag `TEST_*`)
 - **`notes`**: note/istruzioni aggiuntive per l'esecuzione (stringa vuota se non presenti)
 
 **Selezione dei test:**
 
-- Se la variabile d'ambiente `TESTS_ENABLED` è definita (lista di `id` separati da virgole), vengono eseguiti SOLO i test con quegli id (override del campo `enabled`)
-- Se `TESTS_ENABLED` non è definita, vengono eseguiti i test con `enabled: true`
-- In CI Azure la lista `TESTS_ENABLED` è costruita dalla pipeline (parametri booleani per ogni test)
-- In locale è definita nel file `.env` (vedi `.env.template`)
+- Ogni test ha un flag env `TEST_<ID in SNAKE_CASE>` (es. `pdp-fuzzy` → `TEST_PDP_FUZZY`)
+- Se almeno un flag `TEST_*` è definito, SOLO i flag a `true` determinano i test eseguiti
+- Se nessun flag è definito, vengono eseguiti i test con `enabled: true`
+- In CI Azure i test sono passati come parametro object `[{ id, enabled }]` al template `templates/e2e-job.yml`, che genera i flag `TEST_*` automaticamente
+- In locale i flag `TEST_*` si definiscono nel file `.env` (vedi `.env.template`)
 
 **Campo `notes`:**
 
@@ -70,7 +71,7 @@ La configurazione di tutti i test disponibili è nel file `config.js` nella root
 
 ### Flusso di esecuzione
 
-1. Determina i test da eseguire: se `TESTS_ENABLED` è definita usa quella lista di id, altrimenti leggi `config.js` ed esegui i test con `enabled: true`
+1. Determina i test da eseguire: leggi `config.js` ed esegui i test con `enabled: true` (o quelli abilitati dai flag `TEST_*` nel `.env`, se presenti)
 2. **Ridimensiona il browser** al viewport richiesto dalla run (es. "1280x650") usando `browser_resize`
 3. Per ogni test da eseguire:
    - **Leggi il campo `notes`** del test: se presente e non vuoto, leggi e applica le istruzioni contenute PRIMA di iniziare il test
