@@ -97,7 +97,6 @@ trigger:
   branches:
     include:
       - main
-      - pipeline-test 
 
 pr: none
 
