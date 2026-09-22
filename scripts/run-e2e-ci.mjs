@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const require = createRequire(import.meta.url);
-const { E2E_TESTS, PATHS } = require('../config.js');
+const { E2E_TESTS, BROWSERS, VIEWPORTS, PATHS } = require('../config.js');
 
 // ============================================================================
 // 1. CONFIGURAZIONE & ENV PARSING
@@ -61,24 +61,21 @@ function loadConfig() {
     throw new Error('OPENROUTER_AI_MODEL mancante.');
   }
 
-  const browsers = [
-    parseBoolEnv('RUN_CHROMIUM', true) && 'chromium',
-    parseBoolEnv('RUN_FIREFOX', false) && 'firefox',
-    parseBoolEnv('RUN_WEBKIT', false) && 'webkit',
-  ].filter(Boolean);
+  // Browser e viewport definiti in config.js (unica fonte di verita')
+  const browsers = BROWSERS.filter((b) => parseBoolEnv(b.envKey, b.default)).map((b) => b.id);
 
   if (!browsers.length) {
-    throw new Error('Nessun browser selezionato (RUN_CHROMIUM / RUN_FIREFOX / RUN_WEBKIT).');
+    throw new Error(
+      `Nessun browser selezionato (${BROWSERS.map((b) => b.envKey).join(' / ')}).`,
+    );
   }
 
-  const viewports = [
-    parseBoolEnv('RUN_DESKTOP', true) && '1280x650',
-    parseBoolEnv('RUN_TABLET', false) && '768x1024',
-    parseBoolEnv('RUN_MOBILE', false) && '390x844',
-  ].filter(Boolean);
+  const viewports = VIEWPORTS.filter((v) => parseBoolEnv(v.envKey, v.default)).map((v) => v.id);
 
   if (!viewports.length) {
-    throw new Error('Nessun viewport selezionato (RUN_DESKTOP / RUN_TABLET / RUN_MOBILE).');
+    throw new Error(
+      `Nessun viewport selezionato (${VIEWPORTS.map((v) => v.envKey).join(' / ')}).`,
+    );
   }
 
   return {

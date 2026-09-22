@@ -1,29 +1,3 @@
-// config.js - Configurazione centralizzata: test E2E, path dei report e costanti condivise
-//
-// Ogni test e' identificato da:
-// - id:      identificatore univoco (usato per derivare la variabile E2E_TEST_* )
-// - name:    nome univoco e descrittivo del test (usato nei report)
-// - file:    percorso del file .md del test, relativo alla cartella tests/
-// - url:     URL completo della pagina da testare
-// - enabled: se true il test viene eseguito quando non sono presenti flag E2E_TEST_*
-// - notes:   note/istruzioni aggiuntive per l'esecuzione (stringa vuota se non presenti)
-//
-// Selezione dei test:
-// - In Azure Pipeline e in locale ogni test ha un flag booleano
-//   E2E_TEST_<ID_NORMALIZZATO>; run-e2e-ci.mjs seleziona dinamicamente i test true
-// - Se non e' presente alcun flag E2E_TEST_*, vengono eseguiti i test con enabled: true
-
-/**
- * @typedef {Object} E2ETest
- * @property {string} id
- * @property {string} name
- * @property {string} file
- * @property {string} url
- * @property {boolean} enabled
- * @property {string} notes
- */
-
-/** @type {E2ETest[]} */
 const E2E_TESTS = [
   {
     id: 'fail-test',
@@ -76,6 +50,36 @@ const E2E_TESTS = [
 ];
 
 // ============================================================================
+// BROWSER & VIEWPORT: unica fonte di verita' per script CI e form Next.js
+// - envKey: variabile d'ambiente letta da run-e2e-ci.mjs (RUN_*)
+// - default: usato quando la variabile non e' presente (locale) e come
+//   default del form in home page
+// ============================================================================
+
+/** @type {{ id: string, envKey: string, default: boolean }[]} */
+const BROWSERS = [
+  { id: 'chromium', envKey: 'RUN_CHROMIUM', default: true },
+  { id: 'firefox', envKey: 'RUN_FIREFOX', default: false },
+  { id: 'webkit', envKey: 'RUN_WEBKIT', default: false },
+];
+
+/** @type {{ id: string, label: string, envKey: string, default: boolean }[]} */
+const VIEWPORTS = [
+  { id: '1280x650', label: 'Desktop', envKey: 'RUN_DESKTOP', default: true },
+  { id: '768x1024', label: 'Tablet', envKey: 'RUN_TABLET', default: false },
+  { id: '390x844', label: 'Mobile', envKey: 'RUN_MOBILE', default: false },
+];
+
+// Modelli AI OpenRouter disponibili (primo = default)
+const AI_MODELS = ['qwen/qwen3.7-plus'];
+
+// Sessioni in parallelo (browser x viewport)
+const MAX_PARALLEL_SESSIONS = {
+  default: 3,
+  options: [1, 2, 3],
+};
+
+// ============================================================================
 // PATH & COSTANTI CONDIVISE tra gli script (run-e2e-ci, render-reports, upload-reports, email-report)
 // ============================================================================
 
@@ -88,4 +92,12 @@ const PATHS = {
 // Prefisso fisso su Azure Blob Storage: lo storico si accumula sempre nello stesso path
 const BLOB_PREFIX = 'e2e';
 
-module.exports = { E2E_TESTS, PATHS, BLOB_PREFIX };
+module.exports = {
+  E2E_TESTS,
+  BROWSERS,
+  VIEWPORTS,
+  AI_MODELS,
+  MAX_PARALLEL_SESSIONS,
+  PATHS,
+  BLOB_PREFIX,
+};

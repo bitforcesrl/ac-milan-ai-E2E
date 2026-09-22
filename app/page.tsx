@@ -1,56 +1,250 @@
+"use client";
+
 import Link from "next/link";
-import TriggerPipelineButton from "./trigger-pipeline-button";
+import { useState } from "react";
+import { BarChart2, Play } from "@deemlol/next-icons";
+import {
+  E2E_TEST_LIST,
+  BROWSER_LIST,
+  VIEWPORT_LIST,
+  AI_MODEL_LIST,
+  MAX_PARALLEL_SESSIONS_CONFIG,
+  testIdToPipelineParam,
+  browserIdToPipelineParam,
+  viewportIdToPipelineParam,
+} from "@/lib/e2e-tests";
+
+const BUTTON_CLASS =
+  "flex h-12 w-56 items-center justify-center gap-3 rounded-full bg-zinc-900 px-6 font-milan-pulse text-base text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-zinc-300 cursor-pointer";
+
+const CHECKBOX_CLASS =
+  "h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 cursor-pointer";
+
+const SELECT_CLASS =
+  "h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-black focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 cursor-pointer";
+
+// Chiavi derivate dinamicamente da config.js:
+// - browser/viewport: runChromium, runDesktop, ... (parametri pipeline)
+// - test: quickbuyCartValidation, ... (parametri pipeline)
+type FormState = {
+  [param: string]: boolean | string;
+};
+
+const DEFAULT_FORM: FormState = {
+  // Default browser/viewport = campo `default` in config.js
+  ...Object.fromEntries(
+    BROWSER_LIST.map((b) => [browserIdToPipelineParam(b.id), b.default]),
+  ),
+  ...Object.fromEntries(
+    VIEWPORT_LIST.map((v) => [viewportIdToPipelineParam(v.label), v.default]),
+  ),
+  openrouterAiModel: AI_MODEL_LIST[0],
+  maxParallelSessions: String(MAX_PARALLEL_SESSIONS_CONFIG.default),
+  // Default dei test = campo `enabled` in config.js
+  ...Object.fromEntries(
+    E2E_TEST_LIST.map((t) => [testIdToPipelineParam(t.id), t.enabled]),
+  ),
+};
+
+const AI_MODELS: string[] = AI_MODEL_LIST;
+const PARALLEL_OPTIONS: string[] = MAX_PARALLEL_SESSIONS_CONFIG.options.map(
+  String,
+);
+
+const BROWSERS: { key: string; label: string }[] = BROWSER_LIST.map((b) => ({
+  key: browserIdToPipelineParam(b.id),
+  label: b.id.charAt(0).toUpperCase() + b.id.slice(1),
+}));
+
+const VIEWPORTS: { key: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
+  key: viewportIdToPipelineParam(v.label),
+  label: `${v.label} (${v.id})`,
+}));
+
+// Lista test derivata da config.js: label = "<id> (<file>)", chiave = parametro pipeline
+const TESTS: { key: string; label: string }[] = E2E_TEST_LIST.map((t) => ({
+  key: testIdToPipelineParam(t.id),
+  label: `${t.id} (${t.file})`,
+}));
 
 export default function Home() {
+  const [state, setState] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  function setField(key: string, value: boolean | string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function triggerPipeline() {
+    setState("loading");
+    setErrorMessage(null);
+    try {
+      const res = await fetch("/api/trigger-pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        setErrorMessage(data?.error ?? `Errore HTTP ${res.status}`);
+        setState("error");
+        return;
+      }
+      setState("success");
+    } catch {
+      setErrorMessage("Errore di rete durante la chiamata all'API.");
+      setState("error");
+    }
+  }
+
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col gap-10 py-24 px-8 bg-white dark:bg-black sm:px-16">
-        <div className="flex flex-col gap-4">
-          <h1 className="text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            AC Milan — AI E2E Tests
-          </h1>
-          <p className="text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Questa dashboard gestisce i test end-to-end del personalizzatore di
-            maglie dell'e-commerce Shopify di AC Milan. I test vengono
-            eseguiti da agenti AI (via browser MCP) su diverse combinazioni di
-            browser e viewport, simulando un utente reale lungo tutto il flusso
-            di personalizzazione e acquisto: selezione taglia, nome e patch sul
-            personalizzatore React della PDP, aggiunta al carrello e verifica
-            della coerenza tra selezione e carrello.
-          </p>
-          <p className="text-base leading-7 text-zinc-600 dark:text-zinc-400">
-            Al termine di ogni run, i report strutturati (JSON) e gli screenshot
-            vengono caricati su Azure Blob Storage e sono consultabili nella
-            sezione{" "}
-            <Link
-              href="/reports"
-              className="font-medium text-zinc-950 underline underline-offset-4 dark:text-zinc-50"
-            >
-              Reports
-            </Link>
-            , dove è possibile analizzare l'esito di ogni test, i bug
-            rilevati e gli errori console/network.
-          </p>
-        </div>
+      <main className="flex flex-1 w-full max-w-3xl flex-col gap-8 py-24 px-8 bg-white dark:bg-black sm:px-16">
+        <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
+          AC Milan — AI E2E Tests
+        </h1>
+        <p className="text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+          Test automatici del personalizzatore di maglie dell’e-commerce,
+          eseguiti da agenti AI come fossero utenti reali. Ogni run produce un
+          report con esiti, bug e screenshot.
+        </p>
 
-        <div className="flex flex-col gap-4">
+        <form
+          className="flex flex-col gap-6 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800"
+          onSubmit={(e) => {
+            e.preventDefault();
+            triggerPipeline();
+          }}
+        >
           <h2 className="text-xl font-semibold text-black dark:text-zinc-50">
-            Azioni
+            Configurazione run
           </h2>
-          <div className="flex flex-col gap-4 text-base font-medium sm:flex-row sm:items-center">
-            <Link
-              href="/reports"
-              className="flex h-12 items-center justify-center rounded-full border border-solid border-black/[.08] px-6 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
-            >
-              📊 Vai ai Reports
-            </Link>
-            <TriggerPipelineButton />
+
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Browser
+            </legend>
+            {BROWSERS.map(({ key, label }) => (
+              <label
+                key={key}
+                className="flex items-center gap-3 text-sm text-black dark:text-zinc-100"
+              >
+                <input
+                  type="checkbox"
+                  className={CHECKBOX_CLASS}
+                  checked={form[key] as boolean}
+                  onChange={(e) => setField(key, e.target.checked as never)}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Viewport
+            </legend>
+            {VIEWPORTS.map(({ key, label }) => (
+              <label
+                key={key}
+                className="flex items-center gap-3 text-sm text-black dark:text-zinc-100"
+              >
+                <input
+                  type="checkbox"
+                  className={CHECKBOX_CLASS}
+                  checked={form[key] as boolean}
+                  onChange={(e) => setField(key, e.target.checked as never)}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+
+          <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
+            <label className="flex flex-col gap-2 text-sm font-medium text-black dark:text-zinc-100">
+              AI Model (OpenRouter)
+              <select
+                className={SELECT_CLASS}
+                value={form.openrouterAiModel as string}
+                onChange={(e) => setField("openrouterAiModel", e.target.value)}
+              >
+                {AI_MODELS.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-2 text-sm font-medium text-black dark:text-zinc-100">
+              Sessioni in parallelo (browser x viewport)
+              <select
+                className={SELECT_CLASS}
+                value={form.maxParallelSessions as string}
+                onChange={(e) =>
+                  setField("maxParallelSessions", e.target.value)
+                }
+              >
+                {PARALLEL_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-          <p className="text-sm text-zinc-500 dark:text-zinc-500">
-            Il pulsante avvia la pipeline E2E su Azure DevOps tramite REST API
-            (richiede le variabili d'ambiente AZURE_DEVOPS_*).
-          </p>
-        </div>
+
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              Test E2E
+            </legend>
+            {TESTS.map(({ key, label }) => (
+              <label
+                key={key}
+                className="flex items-center gap-3 text-sm text-black dark:text-zinc-100"
+              >
+                <input
+                  type="checkbox"
+                  className={CHECKBOX_CLASS}
+                  checked={form[key] as boolean}
+                  onChange={(e) => setField(key, e.target.checked as never)}
+                />
+                {label}
+              </label>
+            ))}
+          </fieldset>
+
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <Link href="/reports" className={BUTTON_CLASS}>
+              <BarChart2 className="h-4 w-4" />
+              Vai ai Reports
+            </Link>
+            <button
+              type="submit"
+              disabled={state === "loading"}
+              className={BUTTON_CLASS}
+            >
+              <Play className="h-4 w-4" />
+              {state === "loading"
+                ? "Avvio pipeline…"
+                : "Triggera pipeline E2E"}
+            </button>
+          </div>
+
+          {state === "success" && (
+            <p className="text-sm text-green-700 dark:text-green-400">
+              Pipeline avviata con la configurazione selezionata, è in corso.
+            </p>
+          )}
+          {state === "error" && (
+            <p className="text-sm text-red-600 dark:text-red-400">
+              Errore: la pipeline non è stata avviata.
+              {errorMessage ? ` (${errorMessage})` : ""}
+            </p>
+          )}
+        </form>
       </main>
     </div>
   );

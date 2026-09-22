@@ -29,8 +29,8 @@ export default async function ReportsPage() {
         <div className="min-h-screen bg-white text-black antialiased">
             <header className="bg-black text-white">
                 <div className="mx-auto max-w-7xl px-6 py-8">
-                    <h1 className="store-heading mb-1 text-3xl sm:text-4xl">Report E2E</h1>
-                    <p className="text-sm text-white/60">
+                    <h1 className="store-heading mb-4 text-3xl sm:text-4xl">Report E2E</h1>
+                    <p className="text-sm text-white">
                         Resoconto esecuzioni della pipeline, dettaglio test eseguiti, bug riscontrati e screenshot
                     </p>
                 </div>

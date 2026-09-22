@@ -55,7 +55,7 @@ export default async function RunDetailPage({
             <header className="bg-black text-white">
                 <main className="mx-auto max-w-7xl px-6 py-8">
                     <Link className="mb-3 inline-block text-sm font-medium text-white transition-colors hover:text-white" href="/reports">← Tutte le esecuzioni</Link>
-                    <h1 className="store-heading mb-1 text-2xl sm:text-3xl">{run.date || run.runId}</h1>
+                    <h1 className="store-heading mb-4 text-2xl sm:text-3xl">{run.date || run.runId}</h1>
                     <p className="font-mono text-sm text-white">{run.runId}</p>
                 </main>
             </header>
