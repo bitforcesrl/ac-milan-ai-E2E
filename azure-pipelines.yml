@@ -129,7 +129,7 @@ jobs:
           versionSpec: '22.x'
 
       - script: |
-          npm install
+          npm ci
           npx playwright install --with-deps chromium firefox webkit
         displayName: Install dependencies and browsers
 
