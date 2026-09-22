@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import { createReadStream, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, relative } from 'node:path';
-import { getStorageContext } from './azure-blob.mjs';
+import { getStorageContext } from './azure-storage-context.mjs';
 import { PATHS } from '../config.js';
 
 // Sincronizza lo storico dei report con Azure Blob:

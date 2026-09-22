@@ -8,9 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "e2e:ci": "node scripts/run-e2e-ci.mjs",
-    "e2e:sync": "node scripts/sync-history.mjs",
+    "e2e:upload-reports": "node scripts/upload-reports-to-azure.mjs",
     "e2e:clean-azure": "node scripts/clean-azure-blobs.mjs",
-    "e2e:email": "node scripts/email-report.mjs"
+    "e2e:send-email": "node scripts/send-email-report.mjs"
   },
   "keywords": [
     "playwright",
@@ -22,6 +22,7 @@
   "license": "ISC",
   "dependencies": {
     "@azure/storage-blob": "^12.28.0",
+    "@deemlol/next-icons": "^0.2.7",
     "@modelcontextprotocol/sdk": "^1.12.0",
     "dotenv": "^17.4.2",
     "geist": "^1.7.2",

@@ -127,8 +127,8 @@ jobs:
           E2E_TEST_QUICKBUY_CART_VALIDATION: ${{ parameters.quickbuyCartValidation }}
 
       # 1. Sync storico raw: scarica le run precedenti da blob, merge con la run corrente e ricarica
-      - script: node scripts/sync-history.mjs
-        displayName: Sync raw reports history to blob storage
+      - script: node scripts/upload-reports-to-azure.mjs
+        displayName: Upload reports to Azure Blob
         env:
           AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
           AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
@@ -143,8 +143,8 @@ jobs:
           targetPath: reports
           artifact: e2e-reports
 
-      # - script: node scripts/email-report.mjs
-      #   displayName: Email report via SendGrid
+      # - script: node scripts/send-email-report.mjs
+      #   displayName: Send Email report via SendGrid
       #   env:
       #     SENDGRID_API_KEY: $(SENDGRID_API_KEY)
       #     MAIL_FROM: $(MAIL_FROM)

@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { getStorageContext } from './azure-blob.mjs';
+import { getStorageContext } from './azure-storage-context.mjs';
 
 // Cancella TUTTI i blob di reportistica sotto <prefix>/ sul container Azure.
 // Utile per ripartire da uno storico pulito (es. dopo un cambio di layout dei path).
