@@ -37,25 +37,33 @@ parameters:
       - '1'
       - '2'
       - '3'
-  # ---- Test E2E disponibili (id definiti in config.js) ----
-  # Per aggiungere un test: aggiungerlo a config.js e qui una voce { id, enabled }.
-  # I flag env TEST_<ID in SNAKE_CASE> sono generati automaticamente dal template.
-  - name: tests
-    displayName: Test E2E da eseguire (JSON: [{ id, enabled }])
-    type: object
-    default:
-      - id: fail-test
-        enabled: false
-      - id: pdp
-        enabled: false
-      - id: pdp-fuzzy
-        enabled: false
-      - id: quickbuy-combinations
-        enabled: false
-      - id: quickbuy-personalization
-        enabled: false
-      - id: quickbuy-cart-validation
-        enabled: true
+      - '4'
+      - '6'
+  # ---- Test E2E disponibili (definiti in config.js) ----
+  - name: failTest
+    displayName: Test fail-test (fail.test.md)
+    type: boolean
+    default: false
+  - name: pdp
+    displayName: Test pdp (pdp/pdp.test.md)
+    type: boolean
+    default: false
+  - name: pdpFuzzy
+    displayName: Test pdp-fuzzy (pdp/pdp-fuzzy.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyCombinations
+    displayName: Test quickbuy-combinations (quickbuy/quickbuy-combinations.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyPersonalization
+    displayName: Test quickbuy-personalization (quickbuy/quickbuy-personalization.test.md)
+    type: boolean
+    default: false
+  - name: quickbuyCartValidation
+    displayName: Test quickbuy-cart-validation (quickbuy/quickbuy-cart-validation.test.md)
+    type: boolean
+    default: true
 
 trigger:
   branches:
@@ -82,14 +90,81 @@ variables:
   - group: acmilan-e2e-secrets
 
 jobs:
-  - template: templates/e2e-job.yml
-    parameters:
-      tests: ${{ parameters.tests }}
-      runChromium: ${{ parameters.runChromium }}
-      runFirefox: ${{ parameters.runFirefox }}
-      runWebkit: ${{ parameters.runWebkit }}
-      runDesktop: ${{ parameters.runDesktop }}
-      runTablet: ${{ parameters.runTablet }}
-      runMobile: ${{ parameters.runMobile }}
-      openrouterAiModel: ${{ parameters.openrouterAiModel }}
-      maxParallelSessions: ${{ parameters.maxParallelSessions }}
+  - job: e2e
+    displayName: AI E2E tests
+    timeoutInMinutes: 20
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 22
+        inputs:
+          versionSpec: '22.x'
+
+      - script: |
+          npm install
+          npx playwright install --with-deps chromium firefox webkit
+        displayName: Install dependencies and browsers
+
+      - script: |
+          TESTS_ENABLED=""
+          if [ "${{ parameters.failTest }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}fail-test"
+          fi
+          if [ "${{ parameters.pdp }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}pdp"
+          fi
+          if [ "${{ parameters.pdpFuzzy }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}pdp-fuzzy"
+          fi
+          if [ "${{ parameters.quickbuyCombinations }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-combinations"
+          fi
+          if [ "${{ parameters.quickbuyPersonalization }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-personalization"
+          fi
+          if [ "${{ parameters.quickbuyCartValidation }}" = "True" ]; then
+            TESTS_ENABLED="${TESTS_ENABLED:+$TESTS_ENABLED,}quickbuy-cart-validation"
+          fi
+          export TESTS_ENABLED
+          echo "TESTS_ENABLED=$TESTS_ENABLED"
+          node scripts/run-e2e-ci.mjs
+        displayName: Run AI E2E
+        env:
+          OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
+          OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
+          RUN_CHROMIUM: ${{ parameters.runChromium }}
+          RUN_FIREFOX: ${{ parameters.runFirefox }}
+          RUN_WEBKIT: ${{ parameters.runWebkit }}
+          RUN_DESKTOP: ${{ parameters.runDesktop }}
+          RUN_TABLET: ${{ parameters.runTablet }}
+          RUN_MOBILE: ${{ parameters.runMobile }}
+          MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
+
+      # 1. Sync storico raw: scarica le run precedenti da blob, merge con la run corrente e ricarica
+      - script: node scripts/sync-history.mjs
+        displayName: Sync raw reports history to blob storage
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
+          AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
+          REPORT_BLOB_PREFIX: e2e
+
+      # I report JSON strutturati (meta/<testId>.json) sono già caricati su blob da sync-history.mjs
+      # e sono visualizzati dalla dashboard Next.js (/reports).
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish reports artifact
+        inputs:
+          targetPath: reports
+          artifact: e2e-reports
+
+      # - script: node scripts/email-report.mjs
+      #   displayName: Email report via SendGrid
+      #   env:
+      #     SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+      #     MAIL_FROM: $(MAIL_FROM)
+      #     MAIL_TO: $(MAIL_TO)
+      #     REPORT_HTML_URL: $(REPORT_HTML_URL)
+      #     CLIENT_NAME: $(CLIENT_NAME)
+
+

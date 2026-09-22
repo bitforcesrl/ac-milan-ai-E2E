@@ -22,45 +22,31 @@ function parseNumEnv(key, fallback, min = -Infinity) {
   return !Number.isNaN(val) && val >= min ? val : fallback;
 }
 
-// Nome della variabile d'ambiente che abilita un test: TEST_ + id in SNAKE_CASE
-// (es. 'pdp-fuzzy' -> TEST_PDP_FUZZY). Usata sia in CI Azure sia in locale (.env).
-function testEnvName(id) {
-  return 'TEST_' + id.toUpperCase().replace(/-/g, '_');
-}
+function selectTests(rawInput) {
+  if (!rawInput || !rawInput.trim()) {
+    const enabled = E2E_TESTS.filter((t) => t.enabled);
+    if (!enabled.length) {
+      throw new Error('Nessun test abilitato: TESTS_ENABLED vuota e nessun test con enabled: true in config.js.');
+    }
+    return enabled;
+  }
 
-// Rileva flag TEST_* definiti che non corrispondono a nessun id in config.js
-// (tipico refuso nella pipeline Azure o nel .env): fallisce subito invece di
-// skippare silenziosamente il test.
-function validateTestFlags() {
-  const validEnvNames = new Set(E2E_TESTS.map((t) => testEnvName(t.id)));
-  const unknown = Object.keys(process.env)
-    .filter((k) => k.startsWith('TEST_') && !validEnvNames.has(k));
-  if (unknown.length) {
+  const requestedIds = rawInput.split(',').map((id) => id.trim()).filter(Boolean);
+  const unknownIds = requestedIds.filter((id) => !E2E_TESTS.some((t) => t.id === id));
+
+  if (unknownIds.length) {
     const validIds = E2E_TESTS.map((t) => t.id).join(', ');
-    throw new Error(`Flag TEST_* sconosciuti: ${unknown.join(', ')} (id validi in config.js: ${validIds})`);
+    throw new Error(`ID test non validi in TESTS_ENABLED: ${unknownIds.join(', ')} (validi: ${validIds})`);
   }
-}
 
-function selectTests() {
-  // Se almeno un flag TEST_* e' definito (true o false), i flag determinano la selezione
-  const hasFlags = E2E_TESTS.some((t) => {
-    const raw = process.env[testEnvName(t.id)];
-    return raw !== undefined && raw !== '';
-  });
-
-  const selected = hasFlags
-    ? E2E_TESTS.filter((t) => parseBoolEnv(testEnvName(t.id), false))
-    : E2E_TESTS.filter((t) => t.enabled);
-
-  if (!selected.length) {
-    throw new Error('Nessun test abilitato: nessun flag TEST_* a true e nessun test con enabled: true in config.js.');
-  }
-  return selected;
+  // De-duplicazione dei test mantenendo l'ordine
+  const seen = new Set();
+  return requestedIds
+    .filter((id) => !seen.has(id) && seen.add(id))
+    .map((id) => E2E_TESTS.find((t) => t.id === id));
 }
 
 function loadConfig() {
-  validateTestFlags();
-
   const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey || apiKey.startsWith('$(')) {
     throw new Error('OPENROUTER_API_KEY mancante o non valida (verificare Azure secrets).');
@@ -101,7 +87,7 @@ function loadConfig() {
     maxParallelSessions: parseNumEnv('MAX_PARALLEL_SESSIONS', 1, 1),
     browsers,
     viewports,
-    tests: selectTests(),
+    tests: selectTests(process.env.TESTS_ENABLED),
   };
 }
 
