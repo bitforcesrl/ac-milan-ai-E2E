@@ -15,16 +15,16 @@ import {
 } from "@/lib/e2e-tests";
 
 const BUTTON_CLASS =
-  "flex items-center justify-center gap-2 rounded-full bg-zinc-900 px-6 py-3 font-milan-pulse text-base text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-zinc-300 cursor-pointer";
+  "flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 font-milan-pulse text-base text-black transition-colors hover:bg-zinc-300 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer";
 
 const CHECKBOX_CLASS =
-  "h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 cursor-pointer";
+  "h-4 w-4 rounded border-zinc-600 bg-zinc-800 focus:ring-zinc-100 cursor-pointer";
 
 const TEXTAREA_CLASS =
-  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-100";
 
 const SELECT_CLASS =
-  "h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-black focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 cursor-pointer";
+  "h-10 rounded-md border border-zinc-700 bg-zinc-900 px-3 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-zinc-100 cursor-pointer";
 
 // Chiavi derivate dinamicamente da config.js:
 // - browser/viewport: runChromium, runDesktop, ... (parametri pipeline)
@@ -118,10 +118,10 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-4xl flex-col gap-8 py-16 px-8 bg-white dark:bg-black sm:px-16">
+    <div className="flex flex-col flex-1 items-center justify-center bg-black font-sans">
+      <main className="flex flex-1 w-full max-w-4xl flex-col gap-8 py-16 px-8 bg-black sm:px-16">
         <header className="flex items-center justify-between gap-4">
-          <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-zinc-50">
+          <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">
             AC Milan — AI E2E Tests
           </h1>
           <Link
@@ -132,31 +132,31 @@ export default function Home() {
             Reports
           </Link>
         </header>
-        <p className="text-lg leading-8 text-zinc-600 dark:text-zinc-400">
+        <p className="text-lg leading-8 text-zinc-400">
           Test automatici del personalizzatore di maglie dell’e-commerce,
           eseguiti da agenti AI come fossero utenti reali. Ogni run produce un
           report con esiti, bug e screenshot.
         </p>
 
         <form
-          className="flex flex-col gap-6 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800"
+          className="flex flex-col gap-6 rounded-xl border border-zinc-800 p-6"
           onSubmit={(e) => {
             e.preventDefault();
             triggerPipeline();
           }}
         >
-          <h2 className="text-xl font-semibold text-black dark:text-zinc-50">
+          <h2 className="text-xl font-semibold text-zinc-50">
             Configurazione run
           </h2>
 
           <fieldset className="flex flex-col gap-3">
-            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
               Browser
             </legend>
             {BROWSERS.map(({ key, label }) => (
               <label
                 key={key}
-                className="flex items-center gap-3 text-sm text-black dark:text-zinc-100"
+                className="flex items-center gap-3 text-sm text-zinc-100"
               >
                 <input
                   type="checkbox"
@@ -170,13 +170,13 @@ export default function Home() {
           </fieldset>
 
           <fieldset className="flex flex-col gap-3">
-            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
               Viewport
             </legend>
             {VIEWPORTS.map(({ key, label }) => (
               <label
                 key={key}
-                className="flex items-center gap-3 text-sm text-black dark:text-zinc-100"
+                className="flex items-center gap-3 text-sm text-zinc-100"
               >
                 <input
                   type="checkbox"
@@ -190,7 +190,7 @@ export default function Home() {
           </fieldset>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:gap-8">
-            <label className="flex flex-col gap-2 text-sm font-medium text-black dark:text-zinc-100">
+            <label className="flex flex-col gap-2 text-sm font-medium text-zinc-100">
               AI Model (OpenRouter)
               <select
                 className={SELECT_CLASS}
@@ -204,7 +204,7 @@ export default function Home() {
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-black dark:text-zinc-100">
+            <label className="flex flex-col gap-2 text-sm font-medium text-zinc-100">
               Sessioni in parallelo (browser x viewport)
               <select
                 className={SELECT_CLASS}
@@ -223,12 +223,12 @@ export default function Home() {
           </div>
 
           <fieldset className="flex flex-col gap-3">
-            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+            <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-400">
               Test E2E
             </legend>
             {TESTS.map(({ key, label, notesKey }) => (
               <div key={key} className="flex flex-col gap-2">
-                <label className="flex items-center gap-3 text-sm text-black dark:text-zinc-100">
+                <label className="flex items-center gap-3 text-sm text-zinc-100">
                   <input
                     type="checkbox"
                     className={CHECKBOX_CLASS}
@@ -238,7 +238,7 @@ export default function Home() {
                   {label}
                 </label>
                 {Boolean(form[key]) && (
-                  <label className="flex flex-col gap-1 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
+                  <label className="flex flex-col gap-1 pl-7 text-xs text-zinc-400">
                     Eventuali note per l{"'"}agente AI (opzionale)
                     <textarea
                       className={TEXTAREA_CLASS}
@@ -267,12 +267,12 @@ export default function Home() {
           </div>
 
           {state === "success" && (
-            <p className="text-sm text-green-700 dark:text-green-400">
+            <p className="text-sm text-green-400">
               Pipeline avviata con la configurazione selezionata, è in corso.
             </p>
           )}
           {state === "error" && (
-            <p className="text-sm text-red-600 dark:text-red-400">
+            <p className="text-sm text-red-400">
               Errore: la pipeline non è stata avviata.
               {errorMessage ? ` (${errorMessage})` : ""}
             </p>
