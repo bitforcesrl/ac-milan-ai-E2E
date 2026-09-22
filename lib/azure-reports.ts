@@ -149,11 +149,11 @@ const CONTAINER_NAME =
         ? process.env.AZURE_STORAGE_CONTAINER.trim()
         : 'e2e-reports';
 
-const PREFIX = (process.env.REPORT_BLOB_PREFIX || 'e2e').replace(/^\/+|\/+$/g, '');
+const PREFIX = (process.env.AZURE_REPORT_BLOB_PREFIX || 'e2e').replace(/^\/+|\/+$/g, '');
 // I report sono caricati su blob da sync-history.mjs direttamente sotto <prefix>/
 
 
-const sasDays = Number(process.env.REPORT_SAS_DAYS || 90);
+const sasDays = 90;
 
 // ---------------------------------------------------------------------------
 // Client blob (lazy, solo server)

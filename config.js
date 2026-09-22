@@ -58,16 +58,16 @@ const E2E_TESTS = [
 
 /** @type {{ id: string, envKey: string, default: boolean }[]} */
 const BROWSERS = [
-  { id: 'chromium', envKey: 'RUN_CHROMIUM', default: true },
-  { id: 'firefox', envKey: 'RUN_FIREFOX', default: false },
-  { id: 'webkit', envKey: 'RUN_WEBKIT', default: false },
+  { id: 'chromium', envKey: 'E2E_RUN_CHROMIUM', default: true },
+  { id: 'firefox', envKey: 'E2E_RUN_FIREFOX', default: false },
+  { id: 'webkit', envKey: 'E2E_RUN_WEBKIT', default: false },
 ];
 
 /** @type {{ id: string, label: string, envKey: string, default: boolean }[]} */
 const VIEWPORTS = [
-  { id: '1280x650', label: 'Desktop', envKey: 'RUN_DESKTOP', default: true },
-  { id: '768x1024', label: 'Tablet', envKey: 'RUN_TABLET', default: false },
-  { id: '390x844', label: 'Mobile', envKey: 'RUN_MOBILE', default: false },
+  { id: '1280x650', label: 'Desktop', envKey: 'E2E_RUN_DESKTOP', default: true },
+  { id: '768x1024', label: 'Tablet', envKey: 'E2E_RUN_TABLET', default: false },
+  { id: '390x844', label: 'Mobile', envKey: 'E2E_RUN_MOBILE', default: false },
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)
