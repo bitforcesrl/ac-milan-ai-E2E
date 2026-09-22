@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 
@@ -34,45 +34,32 @@ function parseFrom(value) {
 }
 
 function loadConfig() {
-  const isDryRun = Boolean(process.env.DRY_RUN);
-  const apiKey = getCleanEnv('SENDGRID_API_KEY');
-  const mailFromRaw = getCleanEnv('MAIL_FROM');
-  const mailToRaw = getCleanEnv('MAIL_TO');
-  const reportUrl = getCleanEnv('REPORT_HTML_URL');
-  const clientName = getCleanEnv('CLIENT_NAME');
-
-  if (isDryRun) {
-    return {
-      isDryRun,
-      clientName,
-      reportUrl: reportUrl || 'http://localhost/reports/index.html',
-      to: mailToRaw ? parseRecipients(mailToRaw) : [{ email: 'dry-run@example.com' }],
-      from: mailFromRaw ? parseFrom(mailFromRaw) : { email: 'noreply@example.com' },
-      apiKey: 'DRY_RUN_KEY',
-    };
-  }
+  const apiKey = getCleanEnv('EMAIL_SENDGRID_API_KEY');
+  const mailFromRaw = getCleanEnv('EMAIL_FROM');
+  const mailToRaw = getCleanEnv('EMAIL_TO');
+  const reportUrl = getCleanEnv('EMAIL_REPORT_HTML_URL');
+  const clientName = getCleanEnv('EMAIL_CLIENT_NAME');
 
   if (!apiKey) {
-    return { isDryRun: false, disabled: true, reason: 'SENDGRID_API_KEY non configurata' };
+    return { disabled: true, reason: 'EMAIL_SENDGRID_API_KEY non configurata' };
   }
 
   if (!mailFromRaw || !mailToRaw) {
-    throw new Error('MAIL_FROM e MAIL_TO sono obbligatori quando SENDGRID_API_KEY e\' valorizzata.');
+    throw new Error('EMAIL_FROM e EMAIL_TO sono obbligatori quando EMAIL_SENDGRID_API_KEY e\' valorizzata.');
   }
 
   const from = parseFrom(mailFromRaw);
   if (!from) {
     throw new Error(
-      `MAIL_FROM non e' un indirizzo valido: "${mailFromRaw}". Usa una casella reale verificata su SendGrid.`
+      `EMAIL_FROM non e' un indirizzo valido: "${mailFromRaw}". Usa una casella reale verificata su SendGrid.`
     );
   }
 
   if (!reportUrl) {
-    throw new Error('REPORT_HTML_URL mancante. Caricare i report nello storage prima di eseguire il dispatch email.');
+    throw new Error('EMAIL_REPORT_HTML_URL mancante. Caricare i report nello storage prima di eseguire il dispatch email.');
   }
 
   return {
-    isDryRun: false,
     disabled: false,
     apiKey,
     from,
@@ -106,11 +93,6 @@ async function main() {
   const textContent = buildText(runs, date, config);
   const htmlContent = buildHtml(runs, date, config);
 
-  if (config.isDryRun) {
-    saveDryRunPreview(htmlContent, textContent, subject, config.to);
-    process.exit(0);
-  }
-
   try {
     await sendSendgridEmail(config, subject, textContent, htmlContent);
     console.log(`[mail] Email inviata con successo a: ${config.to.map((item) => item.email).join(', ')}`);
@@ -142,14 +124,6 @@ async function sendSendgridEmail(config, subject, text, html) {
     const detail = await response.text();
     throw new Error(`SendGrid API HTTP ${response.status}: ${detail}`);
   }
-}
-
-function saveDryRunPreview(html, text, subject, to) {
-  writeFileSync(`${PATHS.reports}/email-preview.html`, html, 'utf8');
-  writeFileSync(`${PATHS.reports}/email-preview.txt`, text, 'utf8');
-  console.log(`DRY_RUN — nessuna email inviata. Anteprima salvata in ${PATHS.reports}/email-preview.html e ${PATHS.reports}/email-preview.txt`);
-  console.log(`Subject: ${subject}`);
-  console.log(`To: ${to.map((item) => item.email).join(', ')}`);
 }
 
 // ============================================================================

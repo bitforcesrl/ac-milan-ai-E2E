@@ -26,7 +26,7 @@ export async function getStorageContext() {
     container,
     containerName,
     // Prefisso fisso su blob: lo storico si accumula sempre nello stesso path
-    prefix: (process.env.REPORT_BLOB_PREFIX || BLOB_PREFIX).replace(/^\/+|\/+$/g, ''),
+    prefix: (process.env.AZURE_REPORT_BLOB_PREFIX || BLOB_PREFIX).replace(/^\/+|\/+$/g, ''),
   };
 }
 

@@ -137,13 +137,13 @@ jobs:
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
           OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
-          RUN_CHROMIUM: ${{ parameters.runChromium }}
-          RUN_FIREFOX: ${{ parameters.runFirefox }}
-          RUN_WEBKIT: ${{ parameters.runWebkit }}
-          RUN_DESKTOP: ${{ parameters.runDesktop }}
-          RUN_TABLET: ${{ parameters.runTablet }}
-          RUN_MOBILE: ${{ parameters.runMobile }}
-          MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
+          E2E_RUN_CHROMIUM: ${{ parameters.runChromium }}
+          E2E_RUN_FIREFOX: ${{ parameters.runFirefox }}
+          E2E_RUN_WEBKIT: ${{ parameters.runWebkit }}
+          E2E_RUN_DESKTOP: ${{ parameters.runDesktop }}
+          E2E_RUN_TABLET: ${{ parameters.runTablet }}
+          E2E_RUN_MOBILE: ${{ parameters.runMobile }}
+          E2E_MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
           E2E_TEST_FAIL_TEST: ${{ parameters.failTest }}
           E2E_TEST_PDP: ${{ parameters.pdp }}
           E2E_TEST_PDP_FUZZY: ${{ parameters.pdpFuzzy }}
@@ -163,10 +163,7 @@ jobs:
         env:
           AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
           AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
-          REPORT_BLOB_PREFIX: e2e
-
-      # I report JSON strutturati (meta/<testId>.json) sono già caricati su blob da sync-history.mjs
-      # e sono visualizzati dalla dashboard Next.js (/reports).
+          AZURE_REPORT_BLOB_PREFIX: $(AZURE_REPORT_BLOB_PREFIX)
 
       - task: PublishPipelineArtifact@1
         displayName: Publish reports artifact
@@ -177,10 +174,10 @@ jobs:
       # - script: node scripts/send-email-report.mjs
       #   displayName: Send Email report via SendGrid
       #   env:
-      #     SENDGRID_API_KEY: $(SENDGRID_API_KEY)
-      #     MAIL_FROM: $(MAIL_FROM)
-      #     MAIL_TO: $(MAIL_TO)
-      #     REPORT_HTML_URL: $(REPORT_HTML_URL)
-      #     CLIENT_NAME: $(CLIENT_NAME)
+      #     EMAIL_SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+      #     EMAIL_FROM: $(EMAIL_FROM)
+      #     EMAIL_TO: $(EMAIL_TO)
+      #     EMAIL_REPORT_HTML_URL: $(EMAIL_REPORT_HTML_URL)
+      #     EMAIL_CLIENT_NAME: $(EMAIL_CLIENT_NAME)
 
 
