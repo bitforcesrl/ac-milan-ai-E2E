@@ -20,6 +20,9 @@ const BUTTON_CLASS =
 const CHECKBOX_CLASS =
   "h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 dark:border-zinc-600 dark:bg-zinc-800 cursor-pointer";
 
+const TEXTAREA_CLASS =
+  "w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+
 const SELECT_CLASS =
   "h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-black focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 cursor-pointer";
 
@@ -44,7 +47,16 @@ const DEFAULT_FORM: FormState = {
   ...Object.fromEntries(
     E2E_TEST_LIST.map((t) => [testIdToPipelineParam(t.id), t.enabled]),
   ),
+  // Default note per-test = campo `notes` in config.js
+  ...Object.fromEntries(
+    E2E_TEST_LIST.map((t) => [notesParamForTest(t.id), t.notes]),
+  ),
 };
+
+// Chiave form/pipeline per la nota di un test, es. 'pdp' -> 'notesPdp'
+function notesParamForTest(id: string): string {
+  return "notes" + testIdToPipelineParam(id).charAt(0).toUpperCase() + testIdToPipelineParam(id).slice(1);
+}
 
 const AI_MODELS: string[] = AI_MODEL_LIST;
 const PARALLEL_OPTIONS: string[] = MAX_PARALLEL_SESSIONS_CONFIG.options.map(
@@ -62,10 +74,12 @@ const VIEWPORTS: { key: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
 }));
 
 // Lista test derivata da config.js: label = "<id> (<file>)", chiave = parametro pipeline
-const TESTS: { key: string; label: string }[] = E2E_TEST_LIST.map((t) => ({
-  key: testIdToPipelineParam(t.id),
-  label: `${t.id} (${t.file})`,
-}));
+const TESTS: { key: string; label: string; notesKey: string }[] =
+  E2E_TEST_LIST.map((t) => ({
+    key: testIdToPipelineParam(t.id),
+    label: `${t.id} (${t.file})`,
+    notesKey: notesParamForTest(t.id),
+  }));
 
 export default function Home() {
   const [state, setState] = useState<
@@ -212,19 +226,29 @@ export default function Home() {
             <legend className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               Test E2E
             </legend>
-            {TESTS.map(({ key, label }) => (
-              <label
-                key={key}
-                className="flex items-center gap-3 text-sm text-black dark:text-zinc-100"
-              >
-                <input
-                  type="checkbox"
-                  className={CHECKBOX_CLASS}
-                  checked={form[key] as boolean}
-                  onChange={(e) => setField(key, e.target.checked as never)}
-                />
-                {label}
-              </label>
+            {TESTS.map(({ key, label, notesKey }) => (
+              <div key={key} className="flex flex-col gap-2">
+                <label className="flex items-center gap-3 text-sm text-black dark:text-zinc-100">
+                  <input
+                    type="checkbox"
+                    className={CHECKBOX_CLASS}
+                    checked={form[key] as boolean}
+                    onChange={(e) => setField(key, e.target.checked as never)}
+                  />
+                  {label}
+                </label>
+                {Boolean(form[key]) && (
+                  <label className="flex flex-col gap-1 pl-7 text-xs text-zinc-500 dark:text-zinc-400">
+                    Eventuali note per l{"'"}agente AI (opzionale)
+                    <textarea
+                      className={TEXTAREA_CLASS}
+                      rows={3}
+                      value={form[notesKey] as string}
+                      onChange={(e) => setField(notesKey, e.target.value)}
+                    />
+                  </label>
+                )}
+              </div>
             ))}
           </fieldset>
 

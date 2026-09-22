@@ -30,6 +30,13 @@ type PipelineConfig = {
     quickbuyCombinations?: boolean;
     quickbuyPersonalization?: boolean;
     quickbuyCartValidation?: boolean;
+    // Note per-test (override del campo `notes` in config.js per la run corrente)
+    notesFailTest?: string;
+    notesPdp?: string;
+    notesPdpFuzzy?: string;
+    notesQuickbuyCombinations?: string;
+    notesQuickbuyPersonalization?: string;
+    notesQuickbuyCartValidation?: string;
 };
 
 /**

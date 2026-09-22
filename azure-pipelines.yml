@@ -64,6 +64,31 @@ parameters:
     displayName: Test quickbuy-cart-validation (quickbuy/quickbuy-cart-validation.test.md)
     type: boolean
     default: true
+  # ---- Note per-test (override del campo `notes` in config.js, dal form Next.js) ----
+  - name: notesFailTest
+    displayName: Note per test fail-test
+    type: string
+    default: ''
+  - name: notesPdp
+    displayName: Note per test pdp
+    type: string
+    default: ''
+  - name: notesPdpFuzzy
+    displayName: Note per test pdp-fuzzy
+    type: string
+    default: ''
+  - name: notesQuickbuyCombinations
+    displayName: Note per test quickbuy-combinations
+    type: string
+    default: ''
+  - name: notesQuickbuyPersonalization
+    displayName: Note per test quickbuy-personalization
+    type: string
+    default: ''
+  - name: notesQuickbuyCartValidation
+    displayName: Note per test quickbuy-cart-validation
+    type: string
+    default: ''
 
 trigger:
   branches:
@@ -125,6 +150,12 @@ jobs:
           E2E_TEST_QUICKBUY_COMBINATIONS: ${{ parameters.quickbuyCombinations }}
           E2E_TEST_QUICKBUY_PERSONALIZATION: ${{ parameters.quickbuyPersonalization }}
           E2E_TEST_QUICKBUY_CART_VALIDATION: ${{ parameters.quickbuyCartValidation }}
+          E2E_TEST_NOTES_FAIL_TEST: ${{ parameters.notesFailTest }}
+          E2E_TEST_NOTES_PDP: ${{ parameters.notesPdp }}
+          E2E_TEST_NOTES_PDP_FUZZY: ${{ parameters.notesPdpFuzzy }}
+          E2E_TEST_NOTES_QUICKBUY_COMBINATIONS: ${{ parameters.notesQuickbuyCombinations }}
+          E2E_TEST_NOTES_QUICKBUY_PERSONALIZATION: ${{ parameters.notesQuickbuyPersonalization }}
+          E2E_TEST_NOTES_QUICKBUY_CART_VALIDATION: ${{ parameters.notesQuickbuyCartValidation }}
 
       # 1. Sync storico raw: scarica le run precedenti da blob, merge con la run corrente e ricarica
       - script: node scripts/upload-reports-to-azure.mjs

@@ -26,6 +26,21 @@ function testEnvKey(testId) {
   return `E2E_TEST_${testId.replace(/-/g, '_').toUpperCase()}`;
 }
 
+// Chiave env per la nota per-test passata dalla pipeline (form Next.js),
+// es. 'quickbuy-cart-validation' -> 'E2E_TEST_NOTES_QUICKBUY_CART_VALIDATION'
+function testNotesEnvKey(testId) {
+  return `E2E_TEST_NOTES_${testId.replace(/-/g, '_').toUpperCase()}`;
+}
+
+// Applica l'override delle note per-test: se la pipeline passa E2E_TEST_NOTES_*,
+// quella nota sostituisce il campo `notes` di config.js per la run corrente
+function applyNotesOverrides(tests) {
+  return tests.map((test) => {
+    const envNotes = process.env[testNotesEnvKey(test.id)]?.trim();
+    return envNotes ? { ...test, notes: envNotes } : test;
+  });
+}
+
 function selectTests() {
   const pipelineFlags = E2E_TESTS.map((test) => ({
     test,
@@ -88,7 +103,7 @@ function loadConfig() {
     maxParallelSessions: parseNumEnv('MAX_PARALLEL_SESSIONS', 1, 1),
     browsers,
     viewports,
-    tests: selectTests(),
+    tests: applyNotesOverrides(selectTests()),
   };
 }
 
