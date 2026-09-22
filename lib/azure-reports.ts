@@ -6,7 +6,7 @@
 //
 //   e2e/<stamp>/metadata.json                                  ← metadata di run
 //   e2e/<stamp>/<browser>/<viewport>/metadata.json             ← metadata di sessione
-//   e2e/<stamp>/<browser>/<viewport>/meta/<testId>.json        ← report strutturato del test (schemaVersion 2)
+//   e2e/<stamp>/<browser>/<viewport>/tests/<testId>.json       ← report strutturato del test (schemaVersion 2)
 //   e2e/<stamp>/<browser>/<viewport>/screenshots/<testId>-*.png
 
 import {
@@ -49,7 +49,7 @@ export type ScreenshotEntry = {
     description?: string;
 };
 
-/** Fragment JSON per test, scritto dall'agente (meta/<testId>.json). */
+/** Fragment JSON per test, scritto dall'agente (tests/<testId>.json). */
 export type TestReport = {
     schemaVersion?: number;
     test?: string;
@@ -89,16 +89,16 @@ type SessionMeta = {
 
 type RunMeta = {
     run?: string;
+    /** Data della run in UTC ISO (es. 2026-09-22T09:01:03Z). */
     date?: string;
-    time?: string;
     status?: string;
     sessions?: string[];
 };
 
 export type RunSummary = {
     runId: string;
+    /** Data della run in UTC ISO. */
     date: string;
-    time: string;
     status: string;
     pass: number;
     fail: number;
@@ -320,8 +320,7 @@ export async function listRuns(): Promise<RunSummary[]> {
 
         summaries.push({
             runId,
-            date: runMeta.date ?? runId.slice(0, 10),
-            time: runMeta.time ?? runId.slice(11).replace(/-/g, ':'),
+            date: runMeta.date ?? `${runId.slice(0, 10)}T${runId.slice(11).replace(/-/g, ':')}Z`,
             status:
                 rawStatus === 'PASS' || rawStatus === 'FAIL'
                     ? rawStatus
@@ -403,8 +402,7 @@ export async function getRun(runIdRaw: string): Promise<RunDetail | null> {
 
     return {
         runId,
-        date: runMeta.date ?? runId.slice(0, 10),
-        time: runMeta.time ?? runId.slice(11).replace(/-/g, ':'),
+        date: runMeta.date ?? `${runId.slice(0, 10)}T${runId.slice(11).replace(/-/g, ':')}Z`,
         status:
             rawStatus === 'PASS' || rawStatus === 'FAIL'
                 ? rawStatus
@@ -440,7 +438,7 @@ export async function getTest(
     if (!sessionMeta) return null;
 
     const report = await downloadJson<TestReport>(
-        `${PREFIX}/${runId}/${browser}/${viewport}/meta/${testId}.json`,
+        `${PREFIX}/${runId}/${browser}/${viewport}/tests/${testId}.json`,
     );
     if (!report) return null;
 

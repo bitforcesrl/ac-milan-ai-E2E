@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getRun } from '@/lib/azure-reports';
 import { statusChip, statusIcon } from '../ui';
+import { RunDateTime } from '../local-datetime';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +28,7 @@ export default async function RunDetailPage({
         <div className="reports-root">
             <main className="index-page detail-page">
                 <Link className="back" href="/reports">← Tutte le esecuzioni</Link>
-                <h1>{run.date ? `${run.date}${run.time ? `, ore ${run.time}` : ''}` : run.runId}</h1>
+                <h1><RunDateTime date={run.date} runId={run.runId} /></h1>
                 <p className="lede">{run.runId}</p>
 
                 <dl className="run-stats">

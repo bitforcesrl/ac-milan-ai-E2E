@@ -9,6 +9,7 @@
     "lint": "eslint",
     "e2e:ci": "node scripts/run-e2e-ci.mjs",
     "e2e:sync": "node scripts/sync-history.mjs",
+    "e2e:clean-azure": "node scripts/clean-azure-blobs.mjs",
     "e2e:email": "node scripts/email-report.mjs"
   },
   "keywords": [

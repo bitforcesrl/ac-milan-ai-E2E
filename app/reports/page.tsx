@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listRuns, type RunSummary } from '@/lib/azure-reports';
 import { iconSvg } from './ui';
+import { RunDateTime } from './local-datetime';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +79,7 @@ function RunRow({ run }: { run: RunSummary }) {
             </td>
             <td>
                 <Link href={`/reports/${run.runId}`} className="run-cell-name">
-                    {run.date ? `${run.date}${run.time ? `, ore ${run.time}` : ''}` : run.runId}
+                    <RunDateTime date={run.date} runId={run.runId} />
                 </Link>
                 <span className="run-cell-sub">{run.runId}</span>
             </td>

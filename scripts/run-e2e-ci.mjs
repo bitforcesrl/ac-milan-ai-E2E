@@ -389,17 +389,17 @@ async function chatCompletion(messages, tools, config) {
 // ============================================================================
 
 function buildRunStamp() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  // Trattini invece dei due punti per evitare errori di sistema nei path su Windows
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+  // toISOString() e' sempre in UTC: la dashboard lo converte nel fuso locale dell'utente.
+  // "2026-09-22T08:59:24.123Z" -> "2026-09-22_08-59-24"
+  // (trattini invece dei due punti per evitare errori di sistema nei path su Windows)
+  return new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
 }
 
 function computeDurationLabel(stamp) {
   const [datePart, timePart] = stamp.split('_');
   const [y, mo, d] = datePart.split('-').map(Number);
   const [h, mi, s] = timePart.replace(/-/g, ':').split(':').map(Number);
-  const start = new Date(y, mo - 1, d, h, mi, s);
+  const start = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
   const totalMin = Math.max(0, Math.round((Date.now() - start.getTime()) / 60000));
   return `${totalMin}m 0s`;
 }
@@ -414,7 +414,7 @@ function aggregateSessionReports(browser, viewport, config, stamp, results) {
   const bugs = { high: 0, medium: 0, low: 0 };
 
   for (const { test, status } of results) {
-    const metaPath = `${sessionDir}/meta/${test.id}.json`;
+    const metaPath = `${sessionDir}/tests/${test.id}.json`;
     let fragment = null;
 
     if (existsSync(metaPath)) {
@@ -452,7 +452,7 @@ function aggregateSessionReports(browser, viewport, config, stamp, results) {
         hash: '',
         timestamp: new Date().toISOString(),
       };
-      mkdirSync(`${sessionDir}/meta`, { recursive: true });
+      mkdirSync(`${sessionDir}/tests`, { recursive: true });
       writeFileSync(metaPath, JSON.stringify(fragment, null, 2), 'utf8');
       console.warn(`[report] Fragment mancante per ${test.id}: generato fallback in ${metaPath}`);
     }
@@ -501,12 +501,15 @@ function aggregateSessionReports(browser, viewport, config, stamp, results) {
     testsLines,
   ].join('\n');
 
+  // Data della sessione in UTC ISO (derivata dallo stamp UTC)
+  const isoDate = `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`;
+
   const metadata = {
     browser,
     viewport,
     model: config.model,
     run: stamp,
-    date: stamp.slice(0, 10),
+    date: isoDate,
     duration: computeDurationLabel(stamp),
     status: allPass ? 'PASS' : 'FAIL',
     summary,
@@ -530,8 +533,8 @@ function writeRunMetadata(stamp, config, hasFailures) {
 
   const data = {
     run: stamp,
-    date: stamp.slice(0, 10),
-    time: stamp.slice(11).replace(/-/g, ':'),
+    // Data della run in UTC ISO: la dashboard la converte nel fuso locale dell'utente
+    date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
     status: hasFailures ? 'FAIL' : 'PASS',
     sessions,
   };
@@ -572,9 +575,9 @@ Regole:
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
    ${sessionDir}/
      screenshots/             (screenshot della sessione, prefissati con "${test.id}-", es. screenshots/${test.id}-001.png)
-     meta/${test.id}.json     (report strutturato del test, creato solo alla fine, punto 7)
+     tests/${test.id}.json    (report strutturato del test, creato solo alla fine, punto 7)
    SCREENSHOT: salvali SOLO se trovi bug/anomalie (come da AGENTS.md), prefissati con "${test.id}-".
-7. Alla fine crea il report strutturato ${sessionDir}/meta/${test.id}.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra, tutti i testi in italiano):
+7. Alla fine crea il report strutturato ${sessionDir}/tests/${test.id}.json con ESATTAMENTE questo schema JSON (valido, nessun testo extra, tutti i testi in italiano):
    {
      "schemaVersion": 2,
      "test": "${test.id}",
