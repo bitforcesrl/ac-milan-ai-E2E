@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getRun } from '@/lib/azure-reports';
-import { CheckCircle, XCircle, HelpCircle } from '@deemlol/next-icons';
+import { ArrowLeft, CheckCircle, XCircle, HelpCircle } from '@deemlol/next-icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +43,7 @@ export default async function RunDetailPage({
         return (
             <div className="min-h-screen bg-white text-black antialiased">
                 <main className="mx-auto max-w-7xl px-6 pt-10 pb-24">
-                    <Link className="mb-6 inline-block font-medium text-dark-grey hover:text-primary hover:underline" href="/reports">← Tutte le esecuzioni</Link>
+                    <Link className="mb-6 inline-flex items-center gap-1.5 font-medium text-dark-grey hover:text-primary hover:underline" href="/reports"><ArrowLeft size={16} aria-hidden="true" /> Tutte le esecuzioni</Link>
                     <p className={`text-lg ${muted}`}>Run non trovata: {runId}</p>
                 </main>
             </div>
@@ -54,7 +54,7 @@ export default async function RunDetailPage({
         <div className="min-h-screen bg-white text-black antialiased">
             <header className="bg-black text-white">
                 <main className="mx-auto max-w-7xl px-6 py-8">
-                    <Link className="mb-3 inline-block text-sm font-medium text-white transition-colors hover:text-white" href="/reports">← Tutte le esecuzioni</Link>
+                    <Link className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-white transition-colors hover:text-white" href="/reports"><ArrowLeft size={16} aria-hidden="true" /> Tutte le esecuzioni</Link>
                     <h1 className="store-heading mb-4 text-2xl sm:text-3xl">{run.date || run.runId}</h1>
                     <p className="font-mono text-sm text-white">{run.runId}</p>
                 </main>

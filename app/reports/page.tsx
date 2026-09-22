@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { listRuns, type RunSummary } from '@/lib/azure-reports';
 import { listRunningBuilds } from '@/lib/azure-devops';
-import { CheckCircle, XCircle, HelpCircle } from '@deemlol/next-icons';
+import { ArrowLeft, CheckCircle, XCircle, HelpCircle } from '@deemlol/next-icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +33,8 @@ export default async function ReportsPage() {
         <div className="min-h-screen bg-white text-black antialiased">
             <header className="bg-black text-white">
                 <div className="mx-auto max-w-7xl px-6 py-8">
-                    <h1 className="store-heading mb-4 text-3xl sm:text-4xl">Report E2E</h1>
+                    <Link className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-white transition-colors hover:text-white" href="/reports"><ArrowLeft size={16} aria-hidden="true" /> Home</Link>
+                    <h1 className="store-heading mb-4 text-3xl sm:text-4xl">AC Milan — Reports E2E</h1>
                     <p className="text-sm text-white">
                         Resoconto esecuzioni della pipeline, dettaglio test eseguiti, bug riscontrati e screenshot
                     </p>

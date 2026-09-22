@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getTest, type BugEntry } from '@/lib/azure-reports';
-import { CheckCircle, XCircle } from '@deemlol/next-icons';
+import { ArrowLeft, CheckCircle, XCircle } from '@deemlol/next-icons';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +30,7 @@ export default async function TestDetailPage({
             <div className={root}>
                 <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                     <aside className="pt-10">
-                        <Link className="font-medium hover:underline" href={`/reports/${runId}`}>← Torna indietro</Link>
+                        <Link className="inline-flex items-center gap-1.5 font-medium hover:underline" href={`/reports/${runId}`}><ArrowLeft size={16} aria-hidden="true" /> Torna indietro</Link>
                     </aside>
                     <main className="min-w-0 max-w-3xl pt-10 pb-24">
                         <p className={`text-lg ${muted}`}>Report non trovato per il test: {testId}</p>
@@ -63,7 +63,7 @@ export default async function TestDetailPage({
         <div className={root}>
             <div className="mx-auto grid max-w-7xl grid-cols-1 gap-12 px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
                 <aside className="self-start pt-10 lg:sticky lg:top-0 lg:max-h-screen lg:overflow-y-auto">
-                    <Link className="font-medium text-dark-grey hover:text-primary hover:underline" href={backHref}>← Torna indietro</Link>
+                    <Link className="inline-flex items-center gap-1.5 font-medium text-dark-grey hover:text-primary hover:underline" href={backHref}><ArrowLeft size={16} aria-hidden="true" /> Torna indietro</Link>
                     <div className="my-6 border-b border-grey pb-5">
                         <p className="store-heading m-0 text-base leading-snug">{label}</p>
                         <p className={`mt-1 mb-0 text-sm ${muted}`}>{detail.runId}</p>
