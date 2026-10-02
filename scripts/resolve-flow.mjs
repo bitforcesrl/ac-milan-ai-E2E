@@ -6,9 +6,10 @@
 // Flussi:
 // - pull-request -> PR su main: config configs/pr.config.json, destinatario =
 //                   autore della PR (Build.RequestedForEmail), invio solo su FAIL
-// - app          -> run triggerata dall'app Next.js (build variable E2E_RUN_CONFIG
-//                   passata a queue-time da /api/azure-pipeline): destinatari =
-//                   emailRecipients nel JSON, invio SEMPRE (pass o fail)
+// - app          -> run triggerata dall'app Next.js (template parameter
+//                   e2eRunConfig passato da /api/azure-pipeline, esposto come
+//                   env E2E_RUN_CONFIG nel job): destinatari = emailRecipients
+//                   nel JSON, invio SEMPRE (pass o fail)
 // - pipeline     -> lancio manuale/schedule su main: configs/pipeline.config.json,
 //                   destinatari = EMAIL_SCHEDULED_RECIPIENTS, invio solo su FAIL
 //
@@ -49,8 +50,8 @@ function resolveFlow() {
   const emailTo = getCleanEnv('EMAIL_SCHEDULED_RECIPIENTS');
 
   // Diagnostica: distingue "variabile assente" da "macro non espansa" (la
-  // macro $(E2E_RUN_CONFIG) resta letterale quando la variabile non esiste
-  // sulla build, tipico di un trigger senza variables in payload).
+  // macro resta letterale quando il template parameter e2eRunConfig non è
+  // stato passato nel payload POST di /api/azure-pipeline).
   const rawRunConfig = process.env.E2E_RUN_CONFIG;
   if (!runConfigJson && buildReason !== 'PullRequest') {
     if (rawRunConfig === undefined) {
