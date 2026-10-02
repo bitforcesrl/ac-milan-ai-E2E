@@ -48,6 +48,26 @@ function resolveFlow() {
   const runConfigJson = getCleanEnv('E2E_RUN_CONFIG');
   const emailTo = getCleanEnv('EMAIL_SCHEDULED_RECIPIENTS');
 
+  // Diagnostica: distingue "variabile assente" da "macro non espansa" (la
+  // macro $(E2E_RUN_CONFIG) resta letterale quando la variabile non esiste
+  // sulla build, tipico di un trigger senza variables in payload).
+  const rawRunConfig = process.env.E2E_RUN_CONFIG;
+  if (!runConfigJson && buildReason !== 'PullRequest') {
+    if (rawRunConfig === undefined) {
+      console.warn(
+        '[flow DEBUG] E2E_RUN_CONFIG non presente tra le variabili d\'ambiente del job: la build è stata queueata senza la variabile (verificare il payload POST di /api/azure-pipeline o che l\'app deployata sia aggiornata).'
+      );
+    } else if (rawRunConfig.trim().startsWith('$(')) {
+      console.warn(
+        '[flow DEBUG] E2E_RUN_CONFIG contiene la macro $(E2E_RUN_CONFIG) non espansa: la variabile non esiste sulla build (queue-time variable mancante).'
+      );
+    } else {
+      console.warn(
+        `[flow DEBUG] E2E_RUN_CONFIG valorizzata ma scartata (lunghezza ${rawRunConfig.length}): JSON probabilmente non valido.`
+      );
+    }
+  }
+
   if (buildReason === 'PullRequest') {
     return {
       runMode: 'pull-request',
