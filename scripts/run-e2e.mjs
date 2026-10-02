@@ -664,11 +664,11 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   }
 
   // Coerenza bug/screenshot: ogni bug dichiarato deve avere almeno uno screenshot
-  // (regola di AGENTS.e2e.md). Se non c'e', l'agente non ha documentato i bug: warning.
+  // (regola del prompt di run). Se non c'e', l'agente non ha documentato i bug: warning.
   if ((bugs.high + bugs.medium + bugs.low) > 0 && screenshotPaths.length === 0) {
     console.warn(
       `[report] ATTENZIONE: ${bugs.high + bugs.medium + bugs.low} bug dichiarati ma nessuno screenshot salvato ` +
-      `in ${shotsDir} (l'agente ha violato la regola screenshot-su-bug di AGENTS.e2e.md).`
+      `in ${shotsDir} (l'agente ha violato la regola screenshot-su-bug del prompt di run).`
     );
   }
 
@@ -811,19 +811,67 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 - playwright__: automazione browser ${browser} (snapshot, click, type, screenshot, ecc.)
 
 Regole:
-1. Leggi AGENTS.e2e.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
-2. Il test di questa run e' UNO SOLO (definizioni in config.js). NON eseguire altri test.
+1. Comportamento generale (obbligatorio):
+   - Usa il browser come un utente REALE: testa tutti i flussi di personalizzazione disponibili, verifica la coerenza
+     tra cio' che l'utente seleziona e cio' che finisce nel carrello, leggi prezzi e costi DINAMICAMENTE dalla pagina
+     (mai valori hardcoded).
+   - NON scrivere test Playwright automatizzati, NON usare codegen, NON creare file di test automatizzati,
+     NON modificare codice sorgente, NON testare backend/API/logica server-side.
+2. Preparazione browser (PRIMA di navigare all'url del test):
+   - Avvia il browser in modalita' incognito/profilo isolato per simulare un utente reale senza cookie/cache preesistenti.
+   - Ridimensiona il browser al viewport richiesto dalla run con browser_resize PRIMA di navigare
+     (es. browser_resize({ width: 1280, height: 650 })) e rispettalo per tutta la run.
+   - Attendi che la pagina sia completamente caricata prima di iniziare il test.
+   - Chiudi banner e popup: cerca e chiudi eventuali consensi cookie, banner pubblicitari, popup di newsletter o altri
+     overlay che ostruiscono la vista (clicca "Accetta", "Rifiuta", "Chiudi", "X" o simili).
+   - Overlay di upsell nel carrello: quando si naviga al carrello dopo aver aggiunto un prodotto si apre AUTOMATICAMENTE
+     un overlay di upsell. NON e' un errore: comportamento atteso, chiudilo con la "X" in alto a destra prima di
+     procedere. NON documentarlo come bug.
+3. Gestione viewport durante il test:
+   - Prima di ogni interazione o verifica visiva, assicurati che l'elemento/sezione da testare sia COMPLETAMENTE visibile
+     nel viewport: se e' parzialmente visibile o fuori vista, scrolla fino a renderlo completamente visibile prima di
+     procedere (fondamentale per permettere all'operatore umano di monitorare il test in tempo reale).
+4. Vision vs DOM:
+   - Usa screenshot (playwright__browser_take_screenshot) per verifiche VISIVE: coerenza di layout/allineamenti/spacing,
+     colori/font/dimensioni, hover e focus states, rendering di immagini/anteprime/overlay, elementi sovrapposti o tagliati,
+     anteprime sfocate o distorte, testi troncati o formattazione inconsistente.
+   - Usa snapshot (playwright__browser_snapshot) per contenuti e funzionalita': leggere prezzi/quantita'/nomi, verificare
+     presenza e cliccabilita' di pulsanti/campi/messaggi, compilare form, selezionare opzioni, navigare tra elementi.
+   - In dubbio: vision per aspetti UI/UX, DOM per aspetti funzionali/di contenuto.
+5. Aspetti UI da verificare indipendentemente dal test (segnala anomalie nel report):
+   - Layout e rendering: il componente React si renderizza senza errori visibili; layout coerente con il resto della pagina
+     Shopify; nessun elemento sovrapposto o tagliato; immagini anteprima di buona qualita'; pulsanti di personalizzazione
+     ben distinguibili (attivo vs non attivo).
+   - Feedback visivo: hover state sui pulsanti; focus state visibile per accessibilita' keyboard.
+   - Tipografia e colori: font leggibili e coerenti; contrasto sufficiente; colori coerenti col brand; dimensioni testo appropriate.
+6. Cosa monitorare (segnala anomalie nel report):
+   - Errori tecnici: errori console JavaScript; richieste HTTP 4xx/5xx; React warnings/errors; elementi non cliccabili che
+     dovrebbero esserlo; pulsanti senza effetto; pagine bianche o blank states; loop di navigazione o re-rendering infiniti.
+   - Problemi UX: prezzi non aggiornati correttamente; anteprime non funzionanti o non aggiornate; form che si resettano
+     inaspettatamente; elementi aggiunti al carrello senza selezione utente; messaggi di errore mancanti o poco chiari;
+     feedback visivo assente dopo azioni; stato del personalizzatore perso durante la navigazione.
+7. Note specifiche:
+   - Massima attenzione ai caratteri testuali: errori di battitura, caratteri speciali errati, formattazione inconsistente,
+     testo troncato o illeggibile.
+   - NON segnalare come bug: il nome del giocatore visualizzato in MAIUSCOLO (comportamento corretto e desiderato); taglie
+     che non compaiono affatto (dipendono dalla configurazione del prodotto, alcune possono non esserci); l'overlay di upsell
+     nel carrello (comportamento atteso, si chiude con la "X").
+   - Documenta ogni anomalia, anche se sembra minore. Presta attenzione a problemi React (state management, re-rendering,
+     lifecycle). Verifica che l'anteprima si aggiorni in tempo reale.
+   - Traccia il tempo di esecuzione del test e includilo nel report (sezione Execution Time).
+   - A fine test: chiudi il browser MCP e cancella il contenuto della cartella .playwright-mcp (se esiste).
+     Tutte le operazioni di cleanup e creazione cartelle sono AUTOMATICHE, senza chiedere conferma.
+8. Il test di questa run e' UNO SOLO (definizioni in config.js). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
-3. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
-5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
-6. L'unico file Markdown di reportistica e' il report del test del punto 7; i metadati JSON del punto 8
+9. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
+10. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
+11. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
    ${sessionDir}/
      screenshots/             (screenshot della sessione, prefissati con "${test.id}-", es. screenshots/${test.id}-001.png)
-     tests/${test.id}.md      (report Markdown del test, creato solo alla fine, punto 7)
-     metadata/${test.id}.json  (metadati JSON TEMPORANEI del test, generati da te, punto 8)
+     tests/${test.id}.md      (report Markdown del test, creato solo alla fine, punto 13)
+     metadata/${test.id}.json  (metadati JSON TEMPORANEI del test, generati da te, punto 14)
    SCREENSHOT (REGOLA STRETTA): salva screenshot ESCLUSIVAMENTE per documentare bug/anomalie trovate
    (per ogni bug uno o piu' screenshot, quelli necessari a mostrare il problema), prefissati con "${test.id}-". VIETATI screenshot
    "di documentazione", "di stato iniziale" o di pagine che funzionano correttamente. Se il test e' PASS e
@@ -837,7 +885,7 @@ Regole:
    3. Verifica con un tool filesystem/shell che il file esista; se non esiste, riprova.
    4. Linkalo inline nel report Markdown: ![descrizione](../screenshots/${test.id}-001.png)
       e aggiungi il percorso in "screenshotPaths" nei metadati.
-7. Alla fine crea il report Markdown ${sessionDir}/tests/${test.id}.md (tutti i testi in italiano).
+13. Alla fine crea il report Markdown ${sessionDir}/tests/${test.id}.md (tutti i testi in italiano).
    Sei libero di organizzare il report come preferisci (tabelle, griglie, sezioni, ecc.), ma deve contenere almeno:
    - Executive Summary: stato generale del test
    - Test Scenario: configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
@@ -850,12 +898,14 @@ Regole:
    - Viewport: dimensioni della finestra del browser (${viewport})
    Regole per il Markdown:
    - Gli screenshot vanno linkati inline con percorso relativo: ![descrizione](../screenshots/${test.id}-001.png)
-   - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo).
+   - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo),
+     "**Location:**" (dove si verifica: PDP, cart, preview, etc.), "**Description:**", "**Steps to Reproduce:**",
+     "**Expected:**", "**Actual:**", "**Impact:**" e "**Screenshot:**" (inline se disponibile).
    - Lo status deve riflettere l'esito REALE della verifica: se la condizione richiesta dal test NON e' soddisfatta, lo status e' FAIL
      (es. se il test chiede di verificare la presenza di una voce nel menu e la voce non c'e', lo status e' FAIL).
    - Questo report e' la fonte visuale per la dashboard dei report: scrivilo con cura, con un layout curato
      (tabelle, titoli, screenshot inline nel punto giusto).
-8. Alla fine crea ANCHE i metadati JSON TEMPORANEI ${sessionDir}/metadata/${test.id}.json con ESATTAMENTE questo schema (JSON valido, nessun testo extra):
+14. Alla fine crea ANCHE i metadati JSON TEMPORANEI ${sessionDir}/metadata/${test.id}.json con ESATTAMENTE questo schema (JSON valido, nessun testo extra):
    {
      "id": "${test.id}",
      "name": "${test.name}",
@@ -873,11 +923,11 @@ Regole:
    }
    Regole per i metadati:
    - Il file DEVE essere ${sessionDir}/metadata/${test.id}.json (un file per test, NON metadata.json).
-   - "status" deve corrispondere all'esito REALE del test (stesso criterio del punto 7).
+   - "status" deve corrispondere all'esito REALE del test (stesso criterio del punto 13).
    - "bugs" contiene i conteggi REALI dei bug per severita' trovati nel test (0 se nessuno).
    - "screenshotPaths" elenca TUTTI gli screenshot salvati (vuoto se nessuno).
    - Sono metadati temporanei: lo script CI li aggrega nel metadata.json di sessione e poi li cancella.
-9. Non chiedere conferma. Non committare. Non modificare i file di test.
+15. Non chiedere conferma. Non committare. Non modificare i file di test.
 
 CHECK FINALE (obbligatorio prima di rispondere con CI_STATUS):
 - Ogni bug nel report ha almeno uno screenshot salvato su disco in ${sessionDir}/screenshots/ e linkato inline nel report?

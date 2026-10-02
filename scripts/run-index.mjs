@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // il file che alimenta la tabella della dashboard Next.js (/reports).
 //
 // Schema di ogni record (allineato a RunSummary in lib/azure-reports.ts e al
-// tipo RunIndexEntry in lib/run-index.ts — vedi AGENTS.e2e.md per la docs):
+// tipo RunIndexEntry in lib/run-index.ts):
 //
 //   {
 //     "run": "2026-09-28_10-07-34",              // id run (= nome cartella report)
