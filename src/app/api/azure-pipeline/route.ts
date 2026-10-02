@@ -210,6 +210,9 @@ export async function POST(request: Request) {
                 templateParameters: {
                     e2eRunConfig: runConfigJson,
                 },
+                // Titolo fisso: rende riconoscibile in Azure DevOps una run
+                // avviata dall'app (al posto del messaggio dell'ultimo commit).
+                buildTitle: `Run avviata dall'app E2E · ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" })}`,
             }),
         });
 
