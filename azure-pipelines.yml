@@ -24,11 +24,13 @@ pool:
 
 variables:
   - group: acmilan-e2e-secrets
-  # Dichiarata perché Azure DevOps applichi l'override queue-time passato
-  # dall'app via REST (/api/azure-pipeline): senza dichiarazione la variabile
-  # non esiste sulla build e la macro $(E2E_RUN_CONFIG) non viene espansa.
-  - name: E2E_RUN_CONFIG
-    value: ''
+  # NOTA: E2E_RUN_CONFIG NON va dichiarata qui. Una variabile dichiarata nel
+  # YAML sovrascrive (a runtime) il valore queue-time passato dall'app via
+  # REST (/api/azure-pipeline), facendo risultare la variabile vuota e
+  # degradando la run a mode=pipeline. Queue-time variables passate nel
+  # payload POST esistono sulla build anche senza dichiarazione YAML, quindi
+  # la macro $(E2E_RUN_CONFIG) nel job resolve_flow viene espansa correttamente.
+  # scripts/resolve-flow.mjs gestisce comunque il caso "macro non espansa".
 
 jobs:
   - job: resolve_flow
