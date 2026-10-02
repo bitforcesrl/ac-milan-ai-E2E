@@ -56,24 +56,23 @@ const E2E_TESTS = [
 ];
 
 // ============================================================================
-// BROWSER & VIEWPORT: unica fonte di verita' per script CI e form Next.js
-// - envKey: variabile d'ambiente letta da run-e2e-ci.mjs (RUN_*)
-// - default: usato quando la variabile non e' presente (locale) e come
-//   default del form in home page
+// BROWSER & VIEWPORT: catalogo unico per script CI, file configs/*.json e
+// form Next.js. Le selezioni per-flusso vivono in configs/ (pipeline, local,
+// mr) o arrivano dal form come configJson inline.
 // ============================================================================
 
-/** @type {{ id: string, envKey: string, default: boolean }[]} */
+/** @type {{ id: string, default: boolean }[]} */
 const BROWSERS = [
-  { id: 'chromium', envKey: 'E2E_RUN_CHROMIUM', default: true },
-  { id: 'firefox', envKey: 'E2E_RUN_FIREFOX', default: false },
-  { id: 'webkit', envKey: 'E2E_RUN_WEBKIT', default: false },
+  { id: 'chromium', default: true },
+  { id: 'firefox', default: false },
+  { id: 'webkit', default: false },
 ];
 
-/** @type {{ id: string, label: string, envKey: string, default: boolean }[]} */
+/** @type {{ id: string, label: string, default: boolean }[]} */
 const VIEWPORTS = [
-  { id: '1280x650', label: 'Desktop', envKey: 'E2E_RUN_DESKTOP', default: true },
-  { id: '768x1024', label: 'Tablet', envKey: 'E2E_RUN_TABLET', default: false },
-  { id: '390x844', label: 'Mobile', envKey: 'E2E_RUN_MOBILE', default: false },
+  { id: '1280x650', label: 'Desktop', default: true },
+  { id: '768x1024', label: 'Tablet', default: false },
+  { id: '390x844', label: 'Mobile', default: false },
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)

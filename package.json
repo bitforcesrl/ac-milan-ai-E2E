@@ -7,11 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "ci:run-e2e": "node scripts/run-e2e.mjs",
+    "ci:run-e2e": "node scripts/run-e2e.mjs --config configs/pipeline.config.json",
+    "ci:run-e2e-pr": "node scripts/run-e2e.mjs --config configs/pr.config.json",
     "ci:upload-reports": "node scripts/upload-reports-to-azure.mjs",
     "ci:send-email": "node scripts/send-email-report.mjs",
 
-    "local:run-e2e": "node scripts/run-e2e.mjs",
+    "local:run-e2e": "node scripts/run-e2e.mjs --config configs/local.config.json",
     "local:download-reports": "node scripts/download-reports-from-azure.mjs",
     "local:clear-azure": "node scripts/clear-azure-storage.mjs"
   },

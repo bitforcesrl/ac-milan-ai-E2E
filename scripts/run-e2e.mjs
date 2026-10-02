@@ -5,7 +5,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const require = createRequire(import.meta.url);
-const { E2E_TESTS, BROWSERS, VIEWPORTS, PATHS } = require('../config.js');
+const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } = require('../config.js');
 import {
   RUN_INDEX_FILE,
   buildRunIndexEntry,
@@ -16,61 +16,124 @@ import {
 } from './run-index.mjs';
 
 // ============================================================================
-// 1. CONFIGURAZIONE & ENV PARSING
+// 1. CONFIGURAZIONE: run config per-flusso (configs/*.config.json)
 // ============================================================================
+//
+// La run config (test, browser, viewport, modello AI, parallelismo, note) NON
+// passa piu' da variabili d'ambiente E2E_*: arriva da un file JSON validato.
+// Sorgente: flag CLI --config <path> (usato da azure-pipelines.yml e
+// package.json); in assenza del flag viene usato configs/local.config.json.
+//
+// Schema identico a src/lib/run-config-schema.ts (Zod), validato qui contro il
+// catalogo in config.js.
 
-function parseBoolEnv(key, fallback) {
-  const raw = process.env[key];
-  if (raw === undefined || raw === '') return fallback;
-  return raw.trim().toLowerCase() === 'true';
+const DEFAULT_CONFIG_PATH = 'configs/local.config.json';
+
+function resolveConfigPath() {
+  const cliIndex = process.argv.indexOf('--config');
+  if (cliIndex !== -1 && process.argv[cliIndex + 1]) {
+    return process.argv[cliIndex + 1];
+  }
+  return DEFAULT_CONFIG_PATH;
 }
 
-function parseNumEnv(key, fallback, min = -Infinity) {
-  const val = Number(process.env[key]);
-  return !Number.isNaN(val) && val >= min ? val : fallback;
+function loadRunConfigFile() {
+  const configPath = resolveConfigPath();
+  if (!existsSync(configPath)) {
+    throw new Error(`Run config non trovata: ${configPath}`);
+  }
+
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    throw new Error(`Run config non e' JSON valido (${configPath}): ${err.message}`);
+  }
+
+  return { configPath, raw };
 }
 
-function testEnvKey(testId) {
-  return `E2E_TEST_${testId.replace(/-/g, '_').toUpperCase()}`;
-}
+/**
+ * Valida la run config grezza contro lo schema (stesso contratto di
+ * src/lib/run-config-schema.ts) e contro il catalogo in config.js.
+ * Ritorna la config normalizzata o solleva un errore descrittivo.
+ */
+function validateRunConfig(raw) {
+  const errors = [];
 
-// Chiave env per la nota per-test passata dalla pipeline (form Next.js),
-// es. 'quickbuy-cart-validation' -> 'E2E_TEST_NOTES_QUICKBUY_CART_VALIDATION'
-function testNotesEnvKey(testId) {
-  return `E2E_TEST_NOTES_${testId.replace(/-/g, '_').toUpperCase()}`;
-}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Run config non valida: atteso un oggetto JSON.');
+  }
 
-// Applica l'override delle note per-test: se la pipeline passa E2E_TEST_NOTES_*,
-// quella nota sostituisce il campo `notes` di config.js per la run corrente
-function applyNotesOverrides(tests) {
-  return tests.map((test) => {
-    const envNotes = process.env[testNotesEnvKey(test.id)]?.trim();
-    return envNotes ? { ...test, notes: envNotes } : test;
-  });
-}
+  // --- tests ---
+  if (!Array.isArray(raw.tests) || raw.tests.length === 0) {
+    errors.push('tests: selezionare almeno un test.');
+  } else {
+    const testIds = new Set(E2E_TESTS.map((t) => t.id));
+    raw.tests.forEach((t, i) => {
+      if (!t || typeof t !== 'object' || typeof t.id !== 'string' || !t.id) {
+        errors.push(`tests[${i}]: id mancante o non valido.`);
+      } else if (!testIds.has(t.id)) {
+        errors.push(`tests[${i}]: test sconosciuto "${t.id}".`);
+      }
+      if (t?.notes !== undefined && typeof t.notes !== 'string') {
+        errors.push(`tests[${i}].notes: deve essere una stringa.`);
+      }
+    });
+  }
 
-function selectTests() {
-  const pipelineFlags = E2E_TESTS.map((test) => ({
-    test,
-    envKey: testEnvKey(test.id),
-  })).filter(({ envKey }) => process.env[envKey] !== undefined);
-
-  if (pipelineFlags.length) {
-    const selected = pipelineFlags
-      .filter(({ envKey }) => parseBoolEnv(envKey, false))
-      .map(({ test }) => test);
-
-    if (!selected.length) {
-      throw new Error('Nessun test selezionato dai parametri della pipeline.');
+  // --- browsers ---
+  if (!Array.isArray(raw.browsers) || raw.browsers.length === 0) {
+    errors.push('browsers: selezionare almeno un browser.');
+  } else {
+    const browserIds = new Set(BROWSERS.map((b) => b.id));
+    for (const b of raw.browsers) {
+      if (!browserIds.has(b)) errors.push(`browsers: browser sconosciuto "${b}".`);
     }
-    return selected;
   }
 
-  const enabled = E2E_TESTS.filter((test) => test.enabled);
-  if (!enabled.length) {
-    throw new Error('Nessun test abilitato: nessun test con enabled: true in config.js.');
+  // --- viewports ---
+  if (!Array.isArray(raw.viewports) || raw.viewports.length === 0) {
+    errors.push('viewports: selezionare almeno un viewport.');
+  } else {
+    const viewportIds = new Set(VIEWPORTS.map((v) => v.id));
+    for (const v of raw.viewports) {
+      if (!viewportIds.has(v)) errors.push(`viewports: viewport sconosciuto "${v}".`);
+    }
   }
-  return enabled;
+
+  // --- aiModel ---
+  if (typeof raw.aiModel !== 'string' || !raw.aiModel) {
+    errors.push('aiModel: mancante o non valido.');
+  } else if (!AI_MODELS.includes(raw.aiModel)) {
+    errors.push(`aiModel: modello non disponibile "${raw.aiModel}".`);
+  }
+
+  // --- maxParallelSessions ---
+  const parallel = Number(raw.maxParallelSessions);
+  if (!MAX_PARALLEL_SESSIONS.options.includes(parallel)) {
+    errors.push(
+      `maxParallelSessions: valore non valido (ammessi: ${MAX_PARALLEL_SESSIONS.options.join(', ')}).`,
+    );
+  }
+
+  if (errors.length) {
+    throw new Error(`Run config non valida: ${errors.join(' ')}`);
+  }
+
+  // Risoluzione dei test selezionati contro il catalogo, con override note
+  const testsById = new Map(E2E_TESTS.map((t) => [t.id, t]));
+  return {
+    tests: raw.tests.map(({ id, notes }) => {
+      const catalogTest = testsById.get(id);
+      const note = notes?.trim();
+      return note ? { ...catalogTest, notes: note } : catalogTest;
+    }),
+    browsers: [...raw.browsers],
+    viewports: [...raw.viewports],
+    model: raw.aiModel,
+    maxParallelSessions: parallel,
+  };
 }
 
 function loadConfig() {
@@ -79,39 +142,21 @@ function loadConfig() {
     throw new Error('OPENROUTER_API_KEY mancante o non valida (verificare Azure secrets).');
   }
 
-  const model = process.env.OPENROUTER_AI_MODEL?.trim();
-  if (!model) {
-    throw new Error('OPENROUTER_AI_MODEL mancante.');
-  }
-
-  // Browser e viewport definiti in config.js (unica fonte di verita')
-  const browsers = BROWSERS.filter((b) => parseBoolEnv(b.envKey, b.default)).map((b) => b.id);
-
-  if (!browsers.length) {
-    throw new Error(
-      `Nessun browser selezionato (${BROWSERS.map((b) => b.envKey).join(' / ')}).`,
-    );
-  }
-
-  const viewports = VIEWPORTS.filter((v) => parseBoolEnv(v.envKey, v.default)).map((v) => v.id);
-
-  if (!viewports.length) {
-    throw new Error(
-      `Nessun viewport selezionato (${VIEWPORTS.map((v) => v.envKey).join(' / ')}).`,
-    );
-  }
+  const { configPath, raw } = loadRunConfigFile();
+  const runConfig = validateRunConfig(raw);
 
   return {
     apiKey,
-    model,
-    maxRetries: parseNumEnv('OPENROUTER_MAX_RETRIES', 5, 1),
+    configPath,
+    maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES) >= 1
+      ? Number(process.env.OPENROUTER_MAX_RETRIES)
+      : 5,
     retryBaseMs: 2000,
-    maxTurns: parseNumEnv('OPENROUTER_MAX_TURNS', 300, 1),
+    maxTurns: Number(process.env.OPENROUTER_MAX_TURNS) >= 1
+      ? Number(process.env.OPENROUTER_MAX_TURNS)
+      : 300,
     mcpToolTimeout: 180000,
-    maxParallelSessions: parseNumEnv('E2E_MAX_PARALLEL_SESSIONS', 1, 1),
-    browsers,
-    viewports,
-    tests: applyNotesOverrides(selectTests()),
+    ...runConfig,
   };
 }
 
@@ -137,6 +182,7 @@ async function main() {
     )
   );
 
+  console.log(`Run config: ${config.configPath}`);
   console.log(`Browsers: ${config.browsers.join(', ')}`);
   console.log(`Viewports: ${config.viewports.join(', ')}`);
   console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);

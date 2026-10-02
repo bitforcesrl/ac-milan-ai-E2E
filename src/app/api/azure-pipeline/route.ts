@@ -1,4 +1,15 @@
 import { NextResponse } from "next/server";
+import {
+    parseRunConfig,
+    RunConfigValidationError,
+} from "@/lib/run-config-schema";
+import {
+    E2E_TEST_LIST,
+    BROWSER_LIST,
+    VIEWPORT_LIST,
+    AI_MODEL_LIST,
+    MAX_PARALLEL_SESSIONS_CONFIG,
+} from "@/lib/e2e-tests";
 
 /**
  * API per triggerare la pipeline E2E su Azure DevOps tramite REST API.
@@ -10,33 +21,20 @@ import { NextResponse } from "next/server";
  * - AZURE_DEVOPS_PAT: Personal Access Token con permesso "Build (Read & Execute)"
  * - AZURE_DEVOPS_BRANCH (opzionale, default: main)
  *
- * Body (opzionale): configurazione della run selezionata dal form in home page.
- * I campi vengono inoltrati come templateParameters alla pipeline
- * (vedi `parameters:` in azure-pipelines.yml).
+ * Body: run config della run selezionata dal form in home page (stesso schema
+ * dei file configs/*.config.json). Viene validata con Zod contro il catalogo in
+ * config.js e passata alla pipeline come build variable E2E_RUN_CONFIG
+ * (queue-time, NON come template parameter). La pipeline la materializza su
+ * file temporaneo e la passa a run-e2e.mjs via --config (vedi azure-pipelines.yml).
  */
 
-type PipelineConfig = {
-    runChromium?: boolean;
-    runFirefox?: boolean;
-    runWebkit?: boolean;
-    runDesktop?: boolean;
-    runTablet?: boolean;
-    runMobile?: boolean;
-    openrouterAiModel?: string;
-    maxParallelSessions?: string;
-    failTest?: boolean;
-    pdp?: boolean;
-    pdpFuzzy?: boolean;
-    quickbuyCombinations?: boolean;
-    quickbuyPersonalization?: boolean;
-    quickbuyCartValidation?: boolean;
-    // Note per-test (override del campo `notes` in config.js per la run corrente)
-    notesFailTest?: string;
-    notesPdp?: string;
-    notesPdpFuzzy?: string;
-    notesQuickbuyCombinations?: string;
-    notesQuickbuyPersonalization?: string;
-    notesQuickbuyCartValidation?: string;
+// Catalogo per la validazione della run config (da config.js via e2e-tests.ts)
+const RUN_CONFIG_CATALOG = {
+    E2E_TESTS: E2E_TEST_LIST,
+    BROWSERS: BROWSER_LIST,
+    VIEWPORTS: VIEWPORT_LIST,
+    AI_MODELS: AI_MODEL_LIST,
+    MAX_PARALLEL_SESSIONS: MAX_PARALLEL_SESSIONS_CONFIG,
 };
 
 /**
@@ -102,6 +100,28 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+    // Run config dal form in home page: validata con Zod contro il catalogo
+    let body: unknown;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json(
+            { error: "Body mancante o non JSON: inviare una run config valida." },
+            { status: 400 },
+        );
+    }
+
+    let runConfigJson: string;
+    try {
+        const runConfig = parseRunConfig(body, RUN_CONFIG_CATALOG);
+        runConfigJson = JSON.stringify(runConfig);
+    } catch (err) {
+        if (err instanceof RunConfigValidationError) {
+            return NextResponse.json({ error: err.message }, { status: 400 });
+        }
+        throw err;
+    }
+
     const org = process.env.AZURE_DEVOPS_ORG;
     const project = process.env.AZURE_DEVOPS_PROJECT;
     const pipelineId = process.env.AZURE_DEVOPS_PIPELINE_ID;
@@ -170,24 +190,6 @@ export async function POST(request: Request) {
         // Ignora errori di rete sul check: il trigger viene tentato comunque
     }
 
-    // Configurazione opzionale dal form in home page
-    let config: PipelineConfig = {};
-    try {
-        const body = await request.json();
-        if (body && typeof body === "object") {
-            config = body as PipelineConfig;
-        }
-    } catch {
-        // Body assente o non JSON: si usa il default dei parametri della pipeline
-    }
-
-    // Costruisce i templateParameters solo con i campi effettivamente presenti
-    const templateParameters: Record<string, string> = {};
-    for (const [key, value] of Object.entries(config)) {
-        if (value === undefined || value === null || value === "") continue;
-        templateParameters[key] = String(value);
-    }
-
     const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?api-version=7.1`;
 
     try {
@@ -200,9 +202,12 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 definition: { id: Number(pipelineId) },
                 sourceBranch: `refs/heads/${branch}`,
-                ...(Object.keys(templateParameters).length > 0
-                    ? { templateParameters }
-                    : {}),
+                // Run config del form come build variable queue-time
+                // (NON template parameter): la pipeline la materializza su
+                // file temporaneo e la passa a run-e2e.mjs via --config
+                variables: {
+                    E2E_RUN_CONFIG: { value: runConfigJson, isSecret: false },
+                },
             }),
         });
 

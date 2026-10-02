@@ -16,10 +16,9 @@ import {
     VIEWPORT_LIST,
     AI_MODEL_LIST,
     MAX_PARALLEL_SESSIONS_CONFIG,
-    testIdToPipelineParam,
-    browserIdToPipelineParam,
-    viewportIdToPipelineParam,
+    buildDefaultRunConfig,
 } from "@/lib/e2e-tests";
+import type { RunConfig } from "@/lib/run-config-schema";
 
 const FIELDSET_LEGEND_CLASS =
     "mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-dark-grey";
@@ -27,76 +26,84 @@ const FIELDSET_LEGEND_CLASS =
 const SECTION_CARD_CLASS =
     "rounded-xl border border-grey bg-white p-6 shadow-card transition-shadow duration-300 hover:shadow-card-hover";
 
-// Chiavi derivate dinamicamente da config.js:
-// - browser/viewport: runChromium, runDesktop, ... (parametri pipeline)
-// - test: quickbuyCartValidation, ... (parametri pipeline)
-type FormState = {
-    [param: string]: boolean | string;
-};
-
-const DEFAULT_FORM: FormState = {
-    // Default browser/viewport = campo `default` in config.js
-    ...Object.fromEntries(
-        BROWSER_LIST.map((b) => [browserIdToPipelineParam(b.id), b.default]),
-    ),
-    ...Object.fromEntries(
-        VIEWPORT_LIST.map((v) => [viewportIdToPipelineParam(v.label), v.default]),
-    ),
-    openrouterAiModel: AI_MODEL_LIST[0],
-    maxParallelSessions: String(MAX_PARALLEL_SESSIONS_CONFIG.default),
-    // Default dei test = campo `enabled` in config.js
-    ...Object.fromEntries(
-        E2E_TEST_LIST.map((t) => [testIdToPipelineParam(t.id), t.enabled]),
-    ),
-    // Default note per-test = campo `notes` in config.js
-    ...Object.fromEntries(
-        E2E_TEST_LIST.map((t) => [notesParamForTest(t.id), t.notes]),
-    ),
-};
-
-// Chiave form/pipeline per la nota di un test, es. 'pdp' -> 'notesPdp'
-function notesParamForTest(id: string): string {
-    return "notes" + testIdToPipelineParam(id).charAt(0).toUpperCase() + testIdToPipelineParam(id).slice(1);
-}
+// Il form produce direttamente la run config (stesso schema dei file
+// configs/*.json), inviata come JSON all'API /api/azure-pipeline.
+const DEFAULT_CONFIG: RunConfig = buildDefaultRunConfig();
 
 const AI_MODELS: string[] = AI_MODEL_LIST;
-const PARALLEL_OPTIONS: string[] = MAX_PARALLEL_SESSIONS_CONFIG.options.map(
-    String,
-);
+const PARALLEL_OPTIONS: number[] = MAX_PARALLEL_SESSIONS_CONFIG.options;
 
-const BROWSERS: { key: string; label: string }[] = BROWSER_LIST.map((b) => ({
-    key: browserIdToPipelineParam(b.id),
+const BROWSERS: { id: string; label: string }[] = BROWSER_LIST.map((b) => ({
+    id: b.id,
     label: b.id.charAt(0).toUpperCase() + b.id.slice(1),
 }));
 
-const VIEWPORTS: { key: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
-    key: viewportIdToPipelineParam(v.label),
+const VIEWPORTS: { id: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
+    id: v.id,
     label: `${v.label} (${v.id})`,
 }));
 
-// Lista test derivata da config.js: label = "<id> (<file>)", chiave = parametro pipeline
-const TESTS: { key: string; label: string; description: string; notesKey: string }[] =
-    E2E_TEST_LIST.map((t) => ({
-        key: testIdToPipelineParam(t.id),
+// Lista test derivata da config.js: label = name, note precompilate dal catalogo
+const TESTS: { id: string; label: string; description: string }[] = E2E_TEST_LIST.map(
+    (t) => ({
+        id: t.id,
         label: t.name,
         description: t.description,
-        notesKey: notesParamForTest(t.id),
-    }));
+    }),
+);
 
 /**
  * Form di configurazione e avvio della pipeline E2E (client component foglia).
  * La pagina (`src/app/page.tsx`) resta un Server Component e delega qui
- * tutta la stato/interattività.
+ * tutta la stato/interattività. Produce una run config JSON (stesso schema dei
+ * file configs/*.json) inviata all'API /api/azure-pipeline.
  */
 export default function PipelineForm() {
     const [state, setState] = useState<
         "idle" | "loading" | "success" | "error"
     >("idle");
-    const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+    const [config, setConfig] = useState<RunConfig>(DEFAULT_CONFIG);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    function setField(key: string, value: boolean | string) {
-        setForm((prev) => ({ ...prev, [key]: value }));
+    function toggleBrowser(id: string, checked: boolean) {
+        setConfig((prev) => ({
+            ...prev,
+            browsers: checked
+                ? [...prev.browsers, id]
+                : prev.browsers.filter((b) => b !== id),
+        }));
+    }
+
+    function toggleViewport(id: string, checked: boolean) {
+        setConfig((prev) => ({
+            ...prev,
+            viewports: checked
+                ? [...prev.viewports, id]
+                : prev.viewports.filter((v) => v !== id),
+        }));
+    }
+
+    function toggleTest(id: string, checked: boolean) {
+        setConfig((prev) => ({
+            ...prev,
+            tests: checked
+                ? [
+                    ...prev.tests,
+                    {
+                        id,
+                        notes:
+                            E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? "",
+                    },
+                ]
+                : prev.tests.filter((t) => t.id !== id),
+        }));
+    }
+
+    function setTestNotes(id: string, notes: string) {
+        setConfig((prev) => ({
+            ...prev,
+            tests: prev.tests.map((t) => (t.id === id ? { ...t, notes } : t)),
+        }));
     }
 
     async function triggerPipeline() {
@@ -107,7 +114,7 @@ export default function PipelineForm() {
             const res = await fetch("/api/azure-pipeline", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(form),
+                body: JSON.stringify(config),
             });
             const data = await res.json().catch(() => null);
 
@@ -143,16 +150,18 @@ export default function PipelineForm() {
                             <Monitor size={14} aria-hidden="true" />
                             Browser
                         </legend>
-                        {BROWSERS.map(({ key, label }) => (
+                        {BROWSERS.map(({ id, label }) => (
                             <label
-                                key={key}
+                                key={id}
                                 className="flex items-center gap-3 text-sm text-black"
                             >
                                 <input
                                     type="checkbox"
                                     className={CHECKBOX_CLASS}
-                                    checked={form[key] as boolean}
-                                    onChange={(e) => setField(key, e.target.checked as never)}
+                                    checked={config.browsers.includes(id)}
+                                    onChange={(e) =>
+                                        toggleBrowser(id, e.target.checked)
+                                    }
                                 />
                                 {label}
                             </label>
@@ -164,16 +173,18 @@ export default function PipelineForm() {
                             <Layers size={14} aria-hidden="true" />
                             Viewport
                         </legend>
-                        {VIEWPORTS.map(({ key, label }) => (
+                        {VIEWPORTS.map(({ id, label }) => (
                             <label
-                                key={key}
+                                key={id}
                                 className="flex items-center gap-3 text-sm text-black"
                             >
                                 <input
                                     type="checkbox"
                                     className={CHECKBOX_CLASS}
-                                    checked={form[key] as boolean}
-                                    onChange={(e) => setField(key, e.target.checked as never)}
+                                    checked={config.viewports.includes(id)}
+                                    onChange={(e) =>
+                                        toggleViewport(id, e.target.checked)
+                                    }
                                 />
                                 {label}
                             </label>
@@ -186,8 +197,13 @@ export default function PipelineForm() {
                             </legend>
                             <select
                                 className={SELECT_CLASS}
-                                value={form.openrouterAiModel as string}
-                                onChange={(e) => setField("openrouterAiModel", e.target.value)}
+                                value={config.aiModel}
+                                onChange={(e) =>
+                                    setConfig((prev) => ({
+                                        ...prev,
+                                        aiModel: e.target.value,
+                                    }))
+                                }
                             >
                                 {AI_MODELS.map((m) => (
                                     <option key={m} value={m}>
@@ -201,19 +217,22 @@ export default function PipelineForm() {
                             <legend className={FIELDSET_LEGEND_CLASS}>
                                 Sessioni in parallelo
                             </legend>
-                        <select
-                            className={SELECT_CLASS}
-                            value={form.maxParallelSessions as string}
-                            onChange={(e) =>
-                                setField("maxParallelSessions", e.target.value)
-                            }
-                        >
-                            {PARALLEL_OPTIONS.map((o) => (
-                                <option key={o} value={o}>
-                                    {o}
-                                </option>
-                            ))}
-                        </select>
+                            <select
+                                className={SELECT_CLASS}
+                                value={String(config.maxParallelSessions)}
+                                onChange={(e) =>
+                                    setConfig((prev) => ({
+                                        ...prev,
+                                        maxParallelSessions: Number(e.target.value),
+                                    }))
+                                }
+                            >
+                                {PARALLEL_OPTIONS.map((o) => (
+                                    <option key={o} value={o}>
+                                        {o}
+                                    </option>
+                                ))}
+                            </select>
                         </fieldset>
                     </div>
                 </div>
@@ -226,40 +245,49 @@ export default function PipelineForm() {
                         <Cpu size={14} aria-hidden="true" />
                         Test E2E
                     </legend>
-                    {TESTS.map(({ key, label, description, notesKey }) => (
-                        <div
-                            key={key}
-                            className="flex flex-col gap-2 rounded-lg border border-grey bg-grey/40 px-4 py-3.5 transition-colors duration-200 hover:border-dark-grey/40 hover:bg-grey/70"
-                        >
-                            <label className="flex items-start gap-3">
-                                <input
-                                    type="checkbox"
-                                    className={`${CHECKBOX_CLASS} mt-0.5`}
-                                    checked={form[key] as boolean}
-                                    onChange={(e) => setField(key, e.target.checked as never)}
-                                />
-                                <span className="text-sm font-semibold leading-6 text-black">
-                                    {label}
-                                </span>
-                            </label>
-                            {description && (
-                                <p className="pl-7 text-xs leading-5 text-dark-grey">
-                                    {description}
-                                </p>
-                            )}
-                            {Boolean(form[key]) && (
-                                <label className="flex flex-col gap-1 pl-7 text-xs text-dark-grey">
-                                    Eventuali note per l{"'"}agente AI (opzionale)
-                                    <textarea
-                                        className={TEXTAREA_CLASS}
-                                        rows={3}
-                                        value={form[notesKey] as string}
-                                        onChange={(e) => setField(notesKey, e.target.value)}
+                    {TESTS.map(({ id, label, description }) => {
+                        const selected = config.tests.some((t) => t.id === id);
+                        const notes =
+                            config.tests.find((t) => t.id === id)?.notes ?? "";
+                        return (
+                            <div
+                                key={id}
+                                className="flex flex-col gap-2 rounded-lg border border-grey bg-grey/40 px-4 py-3.5 transition-colors duration-200 hover:border-dark-grey/40 hover:bg-grey/70"
+                            >
+                                <label className="flex items-start gap-3">
+                                    <input
+                                        type="checkbox"
+                                        className={`${CHECKBOX_CLASS} mt-0.5`}
+                                        checked={selected}
+                                        onChange={(e) =>
+                                            toggleTest(id, e.target.checked)
+                                        }
                                     />
+                                    <span className="text-sm font-semibold leading-6 text-black">
+                                        {label}
+                                    </span>
                                 </label>
-                            )}
-                        </div>
-                    ))}
+                                {description && (
+                                    <p className="pl-7 text-xs leading-5 text-dark-grey">
+                                        {description}
+                                    </p>
+                                )}
+                                {selected && (
+                                    <label className="flex flex-col gap-1 pl-7 text-xs text-dark-grey">
+                                        Eventuali note per l{"'"}agente AI (opzionale)
+                                        <textarea
+                                            className={TEXTAREA_CLASS}
+                                            rows={3}
+                                            value={notes}
+                                            onChange={(e) =>
+                                                setTestNotes(id, e.target.value)
+                                            }
+                                        />
+                                    </label>
+                                )}
+                            </div>
+                        );
+                    })}
                 </fieldset>
             </section>
 
