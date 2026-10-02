@@ -86,9 +86,9 @@ export default function PageHeader({
     const effectiveBackLabel = backLink?.label ?? backLabel;
 
     return (
-        <header className="border-b border-black/10 bg-grey shadow-card">
+        <header className="sticky top-0 z-30 border-b border-black/10 bg-grey/90 shadow-card backdrop-blur-sm">
             {/* ── Barra utility sticky: back · logo · titolo · azioni ─────── */}
-            <div className="sticky top-0 z-30 border-b border-black/5 bg-grey/90 backdrop-blur-sm">
+            <div>
                 <div
                     className={`${CONTAINER_CLASS} flex h-14 items-center gap-3 sm:gap-4 animate-fade-in`}
                 >

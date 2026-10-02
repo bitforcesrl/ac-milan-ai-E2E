@@ -78,7 +78,7 @@ export default async function TestDetailPage({
                 backLink={{ href: backHref, label: 'Torna indietro' }}
             />
             <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-12 px-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-                <aside className="self-start pt-8 lg:sticky lg:top-0 lg:max-h-screen lg:overflow-y-auto">
+                <aside className="self-start pt-8 lg:sticky lg:top-[3.5rem] lg:max-h-screen lg:overflow-y-auto">
                     <div className="border-b border-grey pb-5">
                         {detail.status && (
                             <p className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${isPass ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-700'}`}>
