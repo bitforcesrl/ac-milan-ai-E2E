@@ -32,10 +32,10 @@ jobs:
     steps:
       - checkout: self
 
-      - task: NodeTool@0
+      - task: UseNodeV1
         displayName: Use Node 22
         inputs:
-          versionSpec: '22.x'
+          version: '22.x'
 
       - script: node scripts/resolve-flow.mjs
         displayName: Resolve flow mode, config and email policy
@@ -61,10 +61,10 @@ jobs:
     steps:
       - checkout: self
 
-      - task: NodeTool@0
+      - task: UseNodeV1
         displayName: Use Node 22
         inputs:
-          versionSpec: '22.x'
+          version: '22.x'
 
       - script: |
           npm ci
