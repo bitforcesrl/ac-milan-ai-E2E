@@ -61,10 +61,10 @@ jobs:
     steps:
       - checkout: self
 
-      - task: UseNodeV1
+      - task: NodeTool@0
         displayName: Use Node 22
         inputs:
-          version: '22.x'
+          versionSpec: '22.x'
 
       - script: |
           npm ci
