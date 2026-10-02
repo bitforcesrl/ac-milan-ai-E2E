@@ -21,11 +21,10 @@ export type SessionMeta = {
     duration?: string;
     status?: string;
     summary?: string;
-    tests?: Array<{ id?: string; name?: string; status?: string; report?: string }>;
+    tests?: Array<{ id?: string; name?: string; status?: string }>;
     bugs?: { high?: number; medium?: number; low?: number };
     /** Costo AI della sessione in USD (somma dei costi OpenRouter). */
     cost?: number;
-    reportPaths?: string[];
     screenshotPaths?: string[];
 };
 

@@ -7,6 +7,7 @@ import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
 const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } = await jiti.import('../configs/index.ts');
+
 import {
   RUN_INDEX_FILE,
   buildRunIndexEntry,
@@ -599,7 +600,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // script ne genera uno minimo usando lo status osservato dalla CI.
   if (!meta) {
     const testsMeta = [];
-    const reportPaths = [];
     const screenshotPaths = [];
     for (const { test, status } of results) {
       const reportPath = `${sessionDir}/tests/${test.id}.md`;
@@ -625,14 +625,12 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
         console.warn(`[report] Report mancante per ${test.id}: generato fallback in ${reportPath}`);
       }
 
-      reportPaths.push(reportPath);
-
       // Screenshot della sessione: file in screenshots/ prefissati con "<test-id>-"
       const shotsDir = `${sessionDir}/screenshots`;
       if (existsSync(shotsDir)) {
         for (const f of readdirSync(shotsDir)) {
           if (f.startsWith(`${test.id}-`)) {
-            screenshotPaths.push(`${shotsDir}/${f}`);
+            screenshotPaths.push(toBlobPath(`${shotsDir}/${f}`));
           }
         }
       }
@@ -641,7 +639,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
         id: test.id,
         name: test.name,
         status,
-        report: reportPath,
       });
     }
 
@@ -655,7 +652,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
       summary: 'Metadati generati dalla CI: report/metadata non generati dall\'agente.',
       tests: testsMeta,
       bugs: { high: 0, medium: 0, low: 0 },
-      reportPaths,
       screenshotPaths,
     };
     writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
@@ -665,31 +661,26 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // NB: in CI ogni test e' una sessione agent separata che scrive lo STESSO
   // metadata.json di sessione: il file sopravvissuto contiene solo l'ULTIMO
   // test eseguito per questa combo. La lista dei test va quindi SEMPRE
-  // ricostruita dai risultati osservati dalla CI, arricchendo con i report
-  // dichiarati dall'agente quando disponibili.
-  const agentTestsById = new Map((meta.tests ?? []).map((t) => [t.id, t]));
+  // ricostruita dai risultati osservati dalla CI.
   const testsMeta = results.map(({ test, status }) => {
-    const agentTest = agentTestsById.get(test.id);
-    const reportPath = agentTest?.report ?? `${sessionDir}/tests/${test.id}.md`;
     return {
       id: test.id,
       name: test.name,
       // Lo status osservato dalla CI (CI_STATUS) ha la priorita' su quello dichiarato dall'agente
       status,
-      report: reportPath,
     };
   });
-
-  const reportPaths = testsMeta.map((t) => t.report);
 
   // Screenshot: unione tra quelli dichiarati nei metadata sopravvissuti e
   // quelli effettivamente presenti su disco (prefissati "<test-id>-").
   const shotsDir = `${sessionDir}/screenshots`;
-  const screenshotPaths = Array.isArray(meta.screenshotPaths) ? [...meta.screenshotPaths] : [];
+  const screenshotPaths = Array.isArray(meta.screenshotPaths)
+    ? meta.screenshotPaths.map(toBlobPath)
+    : [];
   if (existsSync(shotsDir)) {
     for (const f of readdirSync(shotsDir)) {
       if (results.some(({ test }) => f.startsWith(`${test.id}-`))) {
-        const p = `${shotsDir}/${f}`;
+        const p = toBlobPath(`${shotsDir}/${f}`);
         if (!screenshotPaths.includes(p)) screenshotPaths.push(p);
       }
     }
@@ -764,7 +755,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     tests: testsMeta,
     bugs,
     cost: roundCost(sessionCost),
-    reportPaths,
     screenshotPaths,
   };
 
@@ -832,6 +822,15 @@ function writeRunMetadata(stamp, config, hasFailures, sessionMetas = []) {
 // ============================================================================
 // 7. UTILITIES & PROMPT BUILDER
 // ============================================================================
+
+/**
+ * Converte un path locale (relativo alla root del repo, es. "reports/<stamp>/...")
+ * nel path relativo alla radice del container blob (es. "<stamp>/..."), che e'
+ * il formato usato nei metadata salvati su Azure.
+ */
+function toBlobPath(p) {
+  return p.replace(new RegExp(`^${PATHS.reports}/`), '');
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
