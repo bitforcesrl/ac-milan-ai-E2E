@@ -8,9 +8,6 @@ parameters:
   - name: e2eRunConfig
     type: string
     default: ''
-  # Titolo della build quando la run è avviata dall'app: usato dal name
-  # condizionale qui sotto (i template parameters sono l'unico canale
-  # affidabile: buildTitle via REST viene ignorato da Azure DevOps).
   - name: e2eRunTitle
     type: string
     default: ''
