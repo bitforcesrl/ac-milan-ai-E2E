@@ -1,9 +1,9 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
+import { createJiti } from 'jiti';
 
-const require = createRequire(import.meta.url);
-const { PATHS } = require('../config.js');
+const jiti = createJiti(import.meta.url);
+const { PATHS } = await jiti.import('../config.ts');
 import { parseRunIndex, readRunIndexFile } from './run-index.mjs';
 
 // ============================================================================

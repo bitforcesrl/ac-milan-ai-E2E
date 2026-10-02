@@ -1,48 +1,30 @@
-// Wrapper tipizzato per config.js: unica fonte di verità per la lista dei test E2E,
+// Re-export tipizzato di config.ts: unica fonte di verità per la lista dei test E2E,
 // browser, viewport e modelli AI, condivisa tra gli script Node (run-e2e.mjs, ecc.)
 // e l'app Next.js (form home page).
 
 import {
-    E2E_TESTS,
-    BROWSERS,
-    VIEWPORTS,
     AI_MODELS,
+    BROWSERS,
+    E2E_TESTS,
     MAX_PARALLEL_SESSIONS,
+    VIEWPORTS,
+    type BrowserConfig,
+    type E2ETest,
+    type MaxParallelSessions,
+    type ViewportConfig,
 } from "../../config";
 
-export type E2ETest = {
-    id: string;
-    name: string;
-    description: string;
-    file: string;
-    url: string;
-    enabled: boolean;
-    notes: string;
-};
+export type { BrowserConfig, E2ETest, MaxParallelSessions, ViewportConfig };
 
-export type BrowserConfig = {
-    id: string;
-    default: boolean;
-};
-
-export type ViewportConfig = {
-    id: string;
-    label: string;
-    default: boolean;
-};
-
-export const E2E_TEST_LIST: E2ETest[] = E2E_TESTS as E2ETest[];
-export const BROWSER_LIST: BrowserConfig[] = BROWSERS as BrowserConfig[];
-export const VIEWPORT_LIST: ViewportConfig[] = VIEWPORTS as ViewportConfig[];
-export const AI_MODEL_LIST: string[] = AI_MODELS as string[];
-export const MAX_PARALLEL_SESSIONS_CONFIG: {
-    default: number;
-    options: number[];
-} = MAX_PARALLEL_SESSIONS;
+export const E2E_TEST_LIST: E2ETest[] = E2E_TESTS;
+export const BROWSER_LIST: BrowserConfig[] = BROWSERS;
+export const VIEWPORT_LIST: ViewportConfig[] = VIEWPORTS;
+export const AI_MODEL_LIST: string[] = AI_MODELS;
+export const MAX_PARALLEL_SESSIONS_CONFIG: MaxParallelSessions = MAX_PARALLEL_SESSIONS;
 
 /**
  * Run config di default per il form home page: deriva dai campi `enabled` e
- * `default` del catalogo in config.js. Lo stesso shape viene usato dai file
+ * `default` del catalogo in config.ts. Lo stesso shape viene usato dai file
  * configs/*.json (vedi configs/README.md) e validato da run-config-schema.ts.
  */
 export function buildDefaultRunConfig() {

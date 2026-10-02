@@ -1,0 +1,124 @@
+// Unica fonte di verità per la lista dei test E2E, browser, viewport, modelli AI
+// e path condivisi. Consumata da:
+// - l'app Next.js (src/lib/e2e-tests.ts, form home page)
+// - gli script Node (scripts/*.mjs) tramite jiti (Node non carica .ts nativamente)
+
+export type E2ETest = {
+    id: string;
+    name: string;
+    description: string;
+    file: string;
+    url: string;
+    enabled: boolean;
+    notes: string;
+};
+
+export type BrowserConfig = {
+    id: string;
+    default: boolean;
+};
+
+export type ViewportConfig = {
+    id: string;
+    label: string;
+    default: boolean;
+};
+
+export type MaxParallelSessions = {
+    default: number;
+    options: number[];
+};
+
+export const E2E_TESTS: E2ETest[] = [
+    {
+        id: 'fail-test',
+        name: 'Fail Test',
+        description: 'Test di smoke che fallisce sempre, utile per verificare la pipeline e i report.',
+        file: 'fail.test.md',
+        url: 'https://store.acmilan.com',
+        enabled: true,
+        notes: '',
+    },
+    {
+        id: 'pdp',
+        name: 'PDP Personalization Flow',
+        description: 'Verifica il flusso completo di personalizzazione della maglia sulla pagina prodotto.',
+        file: 'pdp/pdp.test.md',
+        url: 'https://store.acmilan.com/products/acm-home-authentic-jersey',
+        enabled: false,
+        notes: '',
+    },
+    {
+        id: 'pdp-fuzzy',
+        name: 'PDP Fuzzy Input Validation',
+        description: 'Valida i campi di personalizzazione con input fuzzy/estremi per individuare bug.',
+        file: 'pdp/pdp-fuzzy.test.md',
+        url: 'https://store.acmilan.com/products/acm-home-authentic-jersey',
+        enabled: false,
+        notes: '',
+    },
+    {
+        id: 'quickbuy-combinations',
+        name: 'Quick-Buy Combinations',
+        description: 'Testa le combinazioni di taglie e varianti nel flusso quick-buy.',
+        file: 'quickbuy/quickbuy-combinations.test.md',
+        url: 'https://store.acmilan.com/',
+        enabled: false,
+        notes: '',
+    },
+    {
+        id: 'quickbuy-personalization',
+        name: 'Quick-Buy Personalization',
+        description: 'Verifica la personalizzazione della maglia direttamente dal flusso quick-buy.',
+        file: 'quickbuy/quickbuy-personalization.test.md',
+        url: 'https://store.acmilan.com/',
+        enabled: false,
+        notes: '',
+    },
+    {
+        id: 'quickbuy-cart-validation',
+        name: 'Quick-Buy Cart Validation',
+        description: 'Valida prezzi, quantità e contenuti del carrello nel flusso quick-buy.',
+        file: 'quickbuy/quickbuy-cart-validation.test.md',
+        url: 'https://store.acmilan.com/',
+        enabled: true,
+        notes: '',
+    },
+];
+
+// ============================================================================
+// BROWSER & VIEWPORT: catalogo unico per script CI, file configs/*.json e
+// form Next.js. Le selezioni per-flusso vivono in configs/ (pipeline, local,
+// mr) o arrivano dal form come configJson inline.
+// ============================================================================
+
+export const BROWSERS: BrowserConfig[] = [
+    { id: 'chromium', default: true },
+    { id: 'firefox', default: false },
+    { id: 'webkit', default: false },
+];
+
+export const VIEWPORTS: ViewportConfig[] = [
+    { id: '1280x650', label: 'Desktop', default: true },
+    { id: '768x1024', label: 'Tablet', default: false },
+    { id: '390x844', label: 'Mobile', default: false },
+];
+
+// Modelli AI OpenRouter disponibili (primo = default)
+export const AI_MODELS: string[] = ['qwen/qwen3.7-plus'];
+
+// Sessioni in parallelo
+export const MAX_PARALLEL_SESSIONS: MaxParallelSessions = {
+    default: 3,
+    options: [1, 2, 3],
+};
+
+// ============================================================================
+// PATH & COSTANTI CONDIVISE tra gli script (run-e2e-ci, render-reports, upload-reports, email-report)
+// ============================================================================
+
+export const PATHS = {
+    // reports/: report JSON strutturati + screenshot + metadata generati dall'AI (run-e2e-ci.mjs),
+    // pubblicati come artifact di pipeline e caricati su Azure Blob da sync-history.mjs
+    reports: 'reports',
+} as const;

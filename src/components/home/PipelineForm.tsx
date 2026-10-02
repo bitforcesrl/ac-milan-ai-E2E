@@ -43,7 +43,7 @@ const VIEWPORTS: { id: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
     label: `${v.label} (${v.id})`,
 }));
 
-// Lista test derivata da config.js: label = name, note precompilate dal catalogo
+// Lista test derivata da config.ts: label = name, note precompilate dal catalogo
 const TESTS: { id: string; label: string; description: string }[] = E2E_TEST_LIST.map(
     (t) => ({
         id: t.id,
