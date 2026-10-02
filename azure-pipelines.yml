@@ -32,10 +32,10 @@ jobs:
     steps:
       - checkout: self
 
-      - task: UseNodeV1
+      - task: NodeTool@0
         displayName: Use Node 22
         inputs:
-          version: '22.x'
+          versionSpec: '22.x'
 
       - script: node scripts/resolve-flow.mjs
         displayName: Resolve flow mode, config and email policy
