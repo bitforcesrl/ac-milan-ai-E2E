@@ -23,7 +23,7 @@ pool:
     - jdk -equals 21
 
 variables:
-  - group: ai-e2e-secrets
+  - group: acmilan-e2e-secrets
 
 jobs:
   - job: resolve_flow
