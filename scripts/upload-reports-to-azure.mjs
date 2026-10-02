@@ -6,7 +6,7 @@ import { createJiti } from 'jiti';
 import { getStorageContext } from './azure-storage-context.mjs';
 
 const jiti = createJiti(import.meta.url);
-const { PATHS } = await jiti.import('../config.ts');
+const { PATHS } = await jiti.import('../configs/index.ts');
 import {
   RUN_INDEX_FILE,
   mergeRunIndex,

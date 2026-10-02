@@ -1,13 +1,12 @@
 import 'dotenv/config';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
-const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } = await jiti.import('../config.ts');
+const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } = await jiti.import('../configs/index.ts');
 import {
   RUN_INDEX_FILE,
   buildRunIndexEntry,
@@ -27,7 +26,7 @@ import {
 // package.json); in assenza del flag viene usato configs/local.config.json.
 //
 // Schema identico a src/lib/run-config-schema.ts (Zod), validato qui contro il
-// catalogo in config.ts.
+// catalogo in configs/index.ts.
 
 const DEFAULT_CONFIG_PATH = 'configs/local.config.json';
 
@@ -57,7 +56,7 @@ function loadRunConfigFile() {
 
 /**
  * Valida la run config grezza contro lo schema (stesso contratto di
- * src/lib/run-config-schema.ts) e contro il catalogo in config.ts.
+ * src/lib/run-config-schema.ts) e contro il catalogo in configs/index.ts.
  * Ritorna la config normalizzata o solleva un errore descrittivo.
  */
 function validateRunConfig(raw) {
@@ -909,7 +908,7 @@ Regole:
    - Traccia il tempo di esecuzione del test e includilo nel report (sezione Execution Time).
    - A fine test: chiudi il browser MCP e cancella il contenuto della cartella .playwright-mcp (se esiste).
      Tutte le operazioni di cleanup e creazione cartelle sono AUTOMATICHE, senza chiedere conferma.
-8. Il test di questa run e' UNO SOLO (definizioni in config.ts). NON eseguire altri test.
+8. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 9. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
 10. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).

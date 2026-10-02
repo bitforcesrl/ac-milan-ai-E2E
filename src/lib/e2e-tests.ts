@@ -1,4 +1,4 @@
-// Re-export tipizzato di config.ts: unica fonte di verità per la lista dei test E2E,
+// Re-export tipizzato di configs/index.ts: unica fonte di verità per la lista dei test E2E,
 // browser, viewport e modelli AI, condivisa tra gli script Node (run-e2e.mjs, ecc.)
 // e l'app Next.js (form home page).
 
@@ -12,7 +12,7 @@ import {
     type E2ETest,
     type MaxParallelSessions,
     type ViewportConfig,
-} from "../../config";
+} from "../../configs";
 
 export type { BrowserConfig, E2ETest, MaxParallelSessions, ViewportConfig };
 
@@ -24,12 +24,12 @@ export const MAX_PARALLEL_SESSIONS_CONFIG: MaxParallelSessions = MAX_PARALLEL_SE
 
 /**
  * Run config di default per il form home page: deriva dai campi `enabled` e
- * `default` del catalogo in config.ts. Lo stesso shape viene usato dai file
+ * `default` del catalogo in configs/index.ts. Lo stesso shape viene usato dai file
  * configs/*.json (vedi configs/README.md) e validato da run-config-schema.ts.
  */
 export function buildDefaultRunConfig() {
     return {
-        tests: E2E_TEST_LIST.filter((t) => t.enabled).map((t) => ({
+        tests: E2E_TEST_LIST.filter((t) => t.default).map((t) => ({
             id: t.id,
             notes: t.notes,
         })),

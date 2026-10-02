@@ -6,7 +6,7 @@ import { createJiti } from 'jiti';
 import { getStorageContext } from './azure-storage-context.mjs';
 
 const jiti = createJiti(import.meta.url);
-const { PATHS } = await jiti.import('../config.ts');
+const { PATHS } = await jiti.import('../configs/index.ts');
 
 // Scarica l'intero storico dei report da Azure Blob in reports/.
 // Utile per ispezioni locali o consumer offline; NON e' necessario per la

@@ -35,7 +35,7 @@ const PARALLEL_OPTIONS: number[] = MAX_PARALLEL_SESSIONS_CONFIG.options;
 
 const BROWSERS: { id: string; label: string }[] = BROWSER_LIST.map((b) => ({
     id: b.id,
-    label: b.id.charAt(0).toUpperCase() + b.id.slice(1),
+    label: b.label,
 }));
 
 const VIEWPORTS: { id: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
@@ -43,7 +43,7 @@ const VIEWPORTS: { id: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
     label: `${v.label} (${v.id})`,
 }));
 
-// Lista test derivata da config.ts: label = name, note precompilate dal catalogo
+// Lista test derivata da configs/index.ts: label = name, note precompilate dal catalogo
 const TESTS: { id: string; label: string; description: string }[] = E2E_TEST_LIST.map(
     (t) => ({
         id: t.id,
@@ -193,7 +193,7 @@ export default function PipelineForm() {
                     <div className="flex flex-col gap-6">
                         <fieldset className="flex flex-col gap-3">
                             <legend className={FIELDSET_LEGEND_CLASS}>
-                                AI Model (OpenRouter)
+                                AI Model
                             </legend>
                             <select
                                 className={SELECT_CLASS}

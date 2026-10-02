@@ -2,7 +2,7 @@
 // - i file configs/*.json (pipeline, local, mr)
 // - il form Next.js (PipelineForm) e l'API /api/azure-pipeline
 // Gli id di test/browser/viewport/aiModel vengono validati contro il catalogo
-// in config.ts (vedi validateRunConfigAgainstCatalog).
+// in configs/index.ts (vedi validateRunConfigAgainstCatalog).
 
 import { z } from "zod";
 
@@ -14,7 +14,7 @@ export const RUN_CONFIG_FILE_NAMES = [
 
 export const runConfigSchema = z.object({
     // Test selezionati: id obbligatorio, note opzionali (override del campo
-    // `notes` del catalogo in config.ts per la run corrente)
+    // `notes` del catalogo in configs/index.ts per la run corrente)
     tests: z
         .array(
             z.object({
@@ -42,7 +42,7 @@ export class RunConfigValidationError extends Error {
 
 /**
  * Valida una run config (da form o file JSON) contro lo schema Zod e contro il
- * catalogo in config.ts: solleva RunConfigValidationError con un messaggio
+ * catalogo in configs/index.ts: solleva RunConfigValidationError con un messaggio
  * aggregato in caso di errore.
  */
 export function parseRunConfig(

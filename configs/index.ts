@@ -1,33 +1,16 @@
-// Unica fonte di verità per la lista dei test E2E, browser, viewport, modelli AI
-// e path condivisi. Consumata da:
-// - l'app Next.js (src/lib/e2e-tests.ts, form home page)
-// - gli script Node (scripts/*.mjs) tramite jiti (Node non carica .ts nativamente)
+import type {
+    BrowserConfig,
+    E2ETest,
+    MaxParallelSessions,
+    ViewportConfig,
+} from "../src/types/config";
 
-export type E2ETest = {
-    id: string;
-    name: string;
-    description: string;
-    file: string;
-    url: string;
-    enabled: boolean;
-    notes: string;
-};
-
-export type BrowserConfig = {
-    id: string;
-    default: boolean;
-};
-
-export type ViewportConfig = {
-    id: string;
-    label: string;
-    default: boolean;
-};
-
-export type MaxParallelSessions = {
-    default: number;
-    options: number[];
-};
+export type {
+    BrowserConfig,
+    E2ETest,
+    MaxParallelSessions,
+    ViewportConfig,
+} from "../src/types/config";
 
 export const E2E_TESTS: E2ETest[] = [
     {
@@ -36,8 +19,7 @@ export const E2E_TESTS: E2ETest[] = [
         description: 'Test di smoke che fallisce sempre, utile per verificare la pipeline e i report.',
         file: 'fail.test.md',
         url: 'https://store.acmilan.com',
-        enabled: true,
-        notes: '',
+        default: true
     },
     {
         id: 'pdp',
@@ -45,8 +27,7 @@ export const E2E_TESTS: E2ETest[] = [
         description: 'Verifica il flusso completo di personalizzazione della maglia sulla pagina prodotto.',
         file: 'pdp/pdp.test.md',
         url: 'https://store.acmilan.com/products/acm-home-authentic-jersey',
-        enabled: false,
-        notes: '',
+        default: false
     },
     {
         id: 'pdp-fuzzy',
@@ -54,8 +35,7 @@ export const E2E_TESTS: E2ETest[] = [
         description: 'Valida i campi di personalizzazione con input fuzzy/estremi per individuare bug.',
         file: 'pdp/pdp-fuzzy.test.md',
         url: 'https://store.acmilan.com/products/acm-home-authentic-jersey',
-        enabled: false,
-        notes: '',
+        default: false
     },
     {
         id: 'quickbuy-combinations',
@@ -63,8 +43,7 @@ export const E2E_TESTS: E2ETest[] = [
         description: 'Testa le combinazioni di taglie e varianti nel flusso quick-buy.',
         file: 'quickbuy/quickbuy-combinations.test.md',
         url: 'https://store.acmilan.com/',
-        enabled: false,
-        notes: '',
+        default: false
     },
     {
         id: 'quickbuy-personalization',
@@ -72,8 +51,7 @@ export const E2E_TESTS: E2ETest[] = [
         description: 'Verifica la personalizzazione della maglia direttamente dal flusso quick-buy.',
         file: 'quickbuy/quickbuy-personalization.test.md',
         url: 'https://store.acmilan.com/',
-        enabled: false,
-        notes: '',
+        default: false
     },
     {
         id: 'quickbuy-cart-validation',
@@ -81,8 +59,7 @@ export const E2E_TESTS: E2ETest[] = [
         description: 'Valida prezzi, quantità e contenuti del carrello nel flusso quick-buy.',
         file: 'quickbuy/quickbuy-cart-validation.test.md',
         url: 'https://store.acmilan.com/',
-        enabled: true,
-        notes: '',
+        default: true
     },
 ];
 
@@ -93,9 +70,9 @@ export const E2E_TESTS: E2ETest[] = [
 // ============================================================================
 
 export const BROWSERS: BrowserConfig[] = [
-    { id: 'chromium', default: true },
-    { id: 'firefox', default: false },
-    { id: 'webkit', default: false },
+    { id: 'chromium', label: 'Chromium', default: true },
+    { id: 'firefox', label: 'Firefox', default: false },
+    { id: 'webkit', label: 'WebKit (Safari)', default: false },
 ];
 
 export const VIEWPORTS: ViewportConfig[] = [

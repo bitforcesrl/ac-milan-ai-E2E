@@ -22,13 +22,13 @@ import {
  * - AZURE_DEVOPS_BRANCH (opzionale, default: main)
  *
  * Body: run config della run selezionata dal form in home page (stesso schema
- * dei file configs/*.config.tson). Viene validata con Zod contro il catalogo in
- * config.ts e passata alla pipeline come build variable E2E_RUN_CONFIG
+ * dei file configs/*.config.json). Viene validata con Zod contro il catalogo in
+ * configs/index.ts e passata alla pipeline come build variable E2E_RUN_CONFIG
  * (queue-time, NON come template parameter). La pipeline la materializza su
  * file temporaneo e la passa a run-e2e.mjs via --config (vedi azure-pipelines.yml).
  */
 
-// Catalogo per la validazione della run config (da config.ts via e2e-tests.ts)
+// Catalogo per la validazione della run config (da configs/index.ts via e2e-tests.ts)
 const RUN_CONFIG_CATALOG = {
     E2E_TESTS: E2E_TEST_LIST,
     BROWSERS: BROWSER_LIST,

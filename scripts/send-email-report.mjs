@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
-const { PATHS } = await jiti.import('../config.ts');
+const { PATHS } = await jiti.import('../configs/index.ts');
 import { parseRunIndex, readRunIndexFile } from './run-index.mjs';
 
 // ============================================================================

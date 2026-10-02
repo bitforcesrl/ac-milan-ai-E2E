@@ -12,7 +12,7 @@ import { getTest } from "@/lib/azure-reports";
  *               (lo si ottiene da GET /api/reports o GET /api/reports/{runId})
  * - `browser`:  id del browser della sessione, es. "chromium" | "firefox" | "webkit"
  * - `viewport`: id del viewport della sessione, es. "1280x650" | "768x1024" | "390x844"
- * - `testId`:   id del test come definito in config.ts, es. "quickbuy-cart-validation"
+ * - `testId`:   id del test come definito in configs/index.ts, es. "quickbuy-cart-validation"
  *               (uguale al campo `id` in sessions[].tests[] del dettaglio run)
  *
  * Esempio di chiamata:
