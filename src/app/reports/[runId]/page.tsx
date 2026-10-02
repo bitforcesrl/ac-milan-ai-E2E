@@ -70,7 +70,6 @@ export default async function RunDetailPage({
         <div className="min-h-screen bg-white text-black antialiased">
             <PageHeader
                 title={formattedDate || run.runId}
-                description={run.runId}
                 backLink={{ href: '/reports', label: 'Tutte le esecuzioni' }}
             />
 

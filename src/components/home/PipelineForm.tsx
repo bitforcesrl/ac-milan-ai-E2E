@@ -137,7 +137,7 @@ export default function PipelineForm() {
                 <h2 className="text-xl font-semibold text-black">
                     Configurazione run
                 </h2>
-                <div className="mt-4 grid gap-6 sm:grid-cols-2">
+                <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     <fieldset className="flex flex-col gap-3">
                         <legend className={FIELDSET_LEGEND_CLASS}>
                             <Monitor size={14} aria-hidden="true" />
@@ -179,32 +179,28 @@ export default function PipelineForm() {
                             </label>
                         ))}
                     </fieldset>
-                </div>
-            </section>
+                    <div className="flex flex-col gap-6">
+                        <fieldset className="flex flex-col gap-3">
+                            <legend className={FIELDSET_LEGEND_CLASS}>
+                                AI Model (OpenRouter)
+                            </legend>
+                            <select
+                                className={SELECT_CLASS}
+                                value={form.openrouterAiModel as string}
+                                onChange={(e) => setField("openrouterAiModel", e.target.value)}
+                            >
+                                {AI_MODELS.map((m) => (
+                                    <option key={m} value={m}>
+                                        {m}
+                                    </option>
+                                ))}
+                            </select>
+                        </fieldset>
 
-            {/* Esecuzione: modello AI + sessioni parallele */}
-            <section className={`${SECTION_CARD_CLASS} animate-fade-up`} style={{ animationDelay: "80ms" }}>
-                <fieldset className="flex flex-col gap-4 sm:flex-row sm:gap-8">
-                    <legend className={FIELDSET_LEGEND_CLASS}>
-                        <Play size={14} aria-hidden="true" />
-                        Esecuzione
-                    </legend>
-                    <label className="flex flex-col gap-2 text-sm font-medium text-black">
-                        AI Model (OpenRouter)
-                        <select
-                            className={SELECT_CLASS}
-                            value={form.openrouterAiModel as string}
-                            onChange={(e) => setField("openrouterAiModel", e.target.value)}
-                        >
-                            {AI_MODELS.map((m) => (
-                                <option key={m} value={m}>
-                                    {m}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                    <label className="flex flex-col gap-2 text-sm font-medium text-black">
-                        Sessioni in parallelo
+                        <fieldset className="flex flex-col gap-3">
+                            <legend className={FIELDSET_LEGEND_CLASS}>
+                                Sessioni in parallelo
+                            </legend>
                         <select
                             className={SELECT_CLASS}
                             value={form.maxParallelSessions as string}
@@ -218,8 +214,9 @@ export default function PipelineForm() {
                                 </option>
                             ))}
                         </select>
-                    </label>
-                </fieldset>
+                        </fieldset>
+                    </div>
+                </div>
             </section>
 
             {/* Test E2E */}
@@ -280,36 +277,40 @@ export default function PipelineForm() {
                 </button>
             </div>
 
-            {state === "success" && (
-                <div
-                    role="status"
-                    className="flex flex-wrap items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 shadow-card animate-fade-up"
-                >
-                    <CheckCircle size={18} aria-hidden="true" className="shrink-0" />
-                    <span className="font-medium">
-                        Pipeline avviata con la configurazione selezionata, è in corso.
-                    </span>
-                    <Link
-                        href="/reports"
-                        className="font-semibold text-green-800 underline underline-offset-2 transition-colors hover:text-green-900"
+            {
+                state === "success" && (
+                    <div
+                        role="status"
+                        className="flex flex-wrap items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 shadow-card animate-fade-up"
                     >
-                        Vai ai report →
-                    </Link>
-                </div>
-            )}
-            {state === "error" && (
-                <div
-                    role="alert"
-                    className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-card animate-fade-up"
-                >
-                    <XCircle size={18} aria-hidden="true" className="shrink-0 text-red-600" />
-                    <span>
-                        Errore: la pipeline non è stata avviata.
-                        {errorMessage ? ` (${errorMessage})` : ""}
-                    </span>
-                </div>
-            )}
-        </form>
+                        <CheckCircle size={18} aria-hidden="true" className="shrink-0" />
+                        <span className="font-medium">
+                            Pipeline avviata con la configurazione selezionata, è in corso.
+                        </span>
+                        <Link
+                            href="/reports"
+                            className="font-semibold text-green-800 underline underline-offset-2 transition-colors hover:text-green-900"
+                        >
+                            Vai ai report →
+                        </Link>
+                    </div>
+                )
+            }
+            {
+                state === "error" && (
+                    <div
+                        role="alert"
+                        className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-card animate-fade-up"
+                    >
+                        <XCircle size={18} aria-hidden="true" className="shrink-0 text-red-600" />
+                        <span>
+                            Errore: la pipeline non è stata avviata.
+                            {errorMessage ? ` (${errorMessage})` : ""}
+                        </span>
+                    </div>
+                )
+            }
+        </form >
     );
 }
 
@@ -320,4 +321,4 @@ const TEXTAREA_CLASS =
     "w-full rounded-md border border-grey bg-white px-3 py-2 text-sm text-black placeholder:text-dark-grey focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary";
 
 const SELECT_CLASS =
-    "h-10 rounded-md border border-grey bg-white px-3 text-sm text-black focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary cursor-pointer";
+    "select-chevron h-10 rounded-md border border-grey bg-white px-3 pr-10 text-sm text-black focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary cursor-pointer";

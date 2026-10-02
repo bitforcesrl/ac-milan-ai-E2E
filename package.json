@@ -1,5 +1,5 @@
 {
-  "name": "acmilan-quickbuy-tests",
+  "name": "ai-e2e-tests-harness",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -18,7 +18,6 @@
   "keywords": [
     "playwright",
     "testing",
-    "acmilan",
     "ecommerce"
   ],
   "author": "",
