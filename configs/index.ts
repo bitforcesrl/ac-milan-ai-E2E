@@ -84,6 +84,15 @@ export const VIEWPORTS: ViewportConfig[] = [
 // Modelli AI OpenRouter disponibili (primo = default)
 export const AI_MODELS: string[] = ['qwen/qwen3.7-plus'];
 
+// ============================================================================
+// EMAIL: destinatari di default precompilati nel form Next.js quando la run
+// viene avviata dall'app. La mail in quel caso viene inviata SEMPRE (pass o
+// fail). Per run trigger/schedule si usa EMAIL_SCHEDULED_RECIPIENTS (invio solo
+// su FAIL), per
+// PR il destinatario e' l'autore della pull request (invio solo su FAIL).
+// ============================================================================
+export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
+
 // Sessioni in parallelo
 export const MAX_PARALLEL_SESSIONS: MaxParallelSessions = {
     default: 3,

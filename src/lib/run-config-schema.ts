@@ -27,6 +27,13 @@ export const runConfigSchema = z.object({
     viewports: z.array(z.string().min(1)).min(1, "Selezionare almeno un viewport."),
     aiModel: z.string().min(1),
     maxParallelSessions: z.number().int().min(1),
+    // Destinatari email del report (run avviate dall'app Next.js): la mail in
+    // questo caso viene inviata SEMPRE (pass o fail). Opzionale: se assente
+    // lo script email fa skip con log.
+    emailRecipients: z
+        .array(z.string().email("Indirizzo email non valido."))
+        .max(20, "Massimo 20 destinatari email.")
+        .optional(),
 });
 
 export type RunConfig = z.infer<typeof runConfigSchema>;

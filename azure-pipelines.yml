@@ -1,21 +1,9 @@
-# Config della run (test, browser, viewport, modello AI, parallelismo, note)
-# NON passa da parametri/env E2E_*: vive in configs/*.config.json per-flusso
-# (vedi configs/README.md).
-#
-# Selezione config nello step "Run AI E2E":
-# - PullRequest -> npm run ci:run-e2e-pr (configs/pr.config.json)
-# - build variable E2E_RUN_CONFIG presente (run triggerata dall'app Next.js,
-#   passata a queue-time da /api/azure-pipeline) -> materializzata su file
-#   temporaneo e passata a run-e2e.mjs via --config
-# - altrimenti (lancio manuale/schedule su main) -> npm run ci:run-e2e
-#   (configs/pipeline.config.json)
-
+ 
 trigger:
   branches:
     include:
       - main
 
-# Flusso merge request: usa configs/pr.config.json (gestito nello step di run)
 pr:
   branches:
     include:
@@ -30,7 +18,7 @@ schedules:
     always: true
 
 pool:
-  name: 'Internal Linux with Docker' 
+  name: 'Internal Linux with Docker'
   demands:
     - jdk -equals 21
 
@@ -38,9 +26,38 @@ variables:
   - group: ai-e2e-secrets
 
 jobs:
+  - job: resolve_flow
+    displayName: Resolve run flow
+    timeoutInMinutes: 5
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 22
+        inputs:
+          versionSpec: '22.x'
+
+      - script: node scripts/resolve-flow.mjs
+        displayName: Resolve flow mode, config and email policy
+        env:
+          # Variabili predefinite Azure DevOps
+          BUILD_REASON: $(Build.Reason)
+          BUILD_REQUESTED_FOR_EMAIL: $(Build.RequestedForEmail)
+          AGENT_TEMPDIRECTORY: $(Agent.TempDirectory)
+          # Build variable passata a queue-time da /api/azure-pipeline
+          E2E_RUN_CONFIG: $(E2E_RUN_CONFIG)
+          # Destinatari per run trigger/schedule/manuale su main (invio solo su FAIL)
+          EMAIL_SCHEDULED_RECIPIENTS: $(EMAIL_SCHEDULED_RECIPIENTS)
+
   - job: e2e
     displayName: AI E2E tests
+    dependsOn: resolve_flow
     timeoutInMinutes: 20
+    variables:
+      RUN_MODE: $[ dependencies.resolve_flow.outputs['resolve_flow.RUN_MODE'] ]
+      E2E_CONFIG_FILE: $[ dependencies.resolve_flow.outputs['resolve_flow.E2E_CONFIG_FILE'] ]
+      EMAIL_RECIPIENTS: $[ dependencies.resolve_flow.outputs['resolve_flow.EMAIL_RECIPIENTS'] ]
+      EMAIL_SEND_POLICY: $[ dependencies.resolve_flow.outputs['resolve_flow.EMAIL_SEND_POLICY'] ]
     steps:
       - checkout: self
 
@@ -54,23 +71,11 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
         displayName: Install dependencies and browsers
 
-      - script: |
-          if [ "$(Build.Reason)" = "PullRequest" ]; then
-            npm run ci:run-e2e-pr
-          elif [ -n "$E2E_RUN_CONFIG" ]; then
-            CONFIG="$(Agent.TempDirectory)/run-config.json"
-            echo "$E2E_RUN_CONFIG" > "$CONFIG"
-            echo "Run config inline dall'app Next.js"
-            node scripts/run-e2e.mjs --config "$CONFIG"
-          else
-            npm run ci:run-e2e
-          fi
+      - script: node scripts/run-e2e.mjs --config "$(E2E_CONFIG_FILE)"
         displayName: Run AI E2E
         continueOnError: true
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
-          # Build variable passata a queue-time da /api/azure-pipeline
-          E2E_RUN_CONFIG: $(E2E_RUN_CONFIG)
 
       - script: npm run ci:upload-reports
         displayName: Upload reports to Azure Blob
@@ -85,6 +90,7 @@ jobs:
         env:
           EMAIL_SENDGRID_API_KEY: $(SENDGRID_API_KEY)
           EMAIL_FROM: $(EMAIL_FROM)
-          EMAIL_TO: $(EMAIL_TO)
+          EMAIL_RECIPIENTS: $(EMAIL_RECIPIENTS)
+          EMAIL_SEND_POLICY: $(EMAIL_SEND_POLICY)
           EMAIL_REPORT_HTML_URL: $(EMAIL_REPORT_HTML_URL)
           NEXT_PUBLIC_CLIENT_NAME: $(NEXT_PUBLIC_CLIENT_NAME)

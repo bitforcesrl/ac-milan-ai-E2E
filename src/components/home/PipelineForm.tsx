@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 import Link from "next/link";
 import {
     Play,
@@ -9,6 +9,10 @@ import {
     Monitor,
     Layers,
     Cpu,
+    Columns,
+    List,
+    Mail,
+    X,
 } from "@deemlol/next-icons";
 import {
     E2E_TEST_LIST,
@@ -58,12 +62,16 @@ const TESTS: { id: string; label: string; description: string }[] = E2E_TEST_LIS
  * tutta la stato/interattività. Produce una run config JSON (stesso schema dei
  * file configs/*.json) inviata all'API /api/azure-pipeline.
  */
+const EMAIL_REGEX = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+
 export default function PipelineForm() {
     const [state, setState] = useState<
         "idle" | "loading" | "success" | "error"
     >("idle");
     const [config, setConfig] = useState<RunConfig>(DEFAULT_CONFIG);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [emailInput, setEmailInput] = useState("");
+    const [emailError, setEmailError] = useState<string | null>(null);
 
     function toggleBrowser(id: string, checked: boolean) {
         setConfig((prev) => ({
@@ -104,6 +112,53 @@ export default function PipelineForm() {
             ...prev,
             tests: prev.tests.map((t) => (t.id === id ? { ...t, notes } : t)),
         }));
+    }
+
+    function addEmailRecipient(raw: string) {
+        const email = raw.trim().toLowerCase();
+        if (!email) return;
+
+        if (!EMAIL_REGEX.test(email)) {
+            setEmailError(`"${email}" non è un indirizzo email valido.`);
+            return;
+        }
+        if (config.emailRecipients?.includes(email)) {
+            setEmailError(`"${email}" è già tra i destinatari.`);
+            return;
+        }
+        if ((config.emailRecipients?.length ?? 0) >= 20) {
+            setEmailError("Massimo 20 destinatari email.");
+            return;
+        }
+
+        setEmailError(null);
+        setEmailInput("");
+        setConfig((prev) => ({
+            ...prev,
+            emailRecipients: [...(prev.emailRecipients ?? []), email],
+        }));
+    }
+
+    function removeEmailRecipient(email: string) {
+        setEmailError(null);
+        setConfig((prev) => ({
+            ...prev,
+            emailRecipients: (prev.emailRecipients ?? []).filter(
+                (r) => r !== email,
+            ),
+        }));
+    }
+
+    function handleEmailInputKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+        if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
+            if (e.key !== "Tab" || emailInput.trim()) {
+                e.preventDefault();
+                addEmailRecipient(emailInput);
+            }
+        } else if (e.key === "Backspace" && !emailInput) {
+            const last = config.emailRecipients?.at(-1);
+            if (last) removeEmailRecipient(last);
+        }
     }
 
     async function triggerPipeline() {
@@ -193,6 +248,7 @@ export default function PipelineForm() {
                     <div className="flex flex-col gap-6">
                         <fieldset className="flex flex-col gap-3">
                             <legend className={FIELDSET_LEGEND_CLASS}>
+                                <Cpu size={14} aria-hidden="true" />
                                 AI Model
                             </legend>
                             <select
@@ -215,6 +271,7 @@ export default function PipelineForm() {
 
                         <fieldset className="flex flex-col gap-3">
                             <legend className={FIELDSET_LEGEND_CLASS}>
+                                <Columns size={14} aria-hidden="true" />
                                 Sessioni in parallelo
                             </legend>
                             <select
@@ -236,13 +293,68 @@ export default function PipelineForm() {
                         </fieldset>
                     </div>
                 </div>
+
+                <fieldset className="flex flex-col gap-3">
+                    <legend className={FIELDSET_LEGEND_CLASS}>
+                        <Mail size={14} aria-hidden="true" />
+                        Destinatari email
+                    </legend>
+                    <div
+                        className="flex min-h-11 flex-wrap items-center gap-2 rounded-md border border-grey bg-white px-3 py-2 focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary"
+                        onClick={(e) => {
+                            const input = e.currentTarget.querySelector("input");
+                            input?.focus();
+                        }}
+                    >
+                        {(config.emailRecipients ?? []).map((email) => (
+                            <span
+                                key={email}
+                                className="flex items-center gap-1.5 rounded-full bg-grey px-3 py-1 text-xs font-medium text-black"
+                            >
+                                {email}
+                                <button
+                                    type="button"
+                                    aria-label={`Rimuovi ${email}`}
+                                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-dark-grey transition-colors hover:bg-dark-grey/20 hover:text-black cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                                    onClick={() => removeEmailRecipient(email)}
+                                >
+                                    <X size={10} aria-hidden="true" />
+                                </button>
+                            </span>
+                        ))}
+                        <input
+                            type="text"
+                            inputMode="email"
+                            className="min-w-40 flex-1 border-0 bg-transparent text-sm text-black placeholder:text-dark-grey focus:outline-none focus:ring-0"
+                            placeholder={
+                                (config.emailRecipients?.length ?? 0) === 0
+                                    ? "es. team@azienda.com"
+                                    : "Aggiungi altro…"
+                            }
+                            value={emailInput}
+                            onChange={(e) => {
+                                setEmailInput(e.target.value);
+                                setEmailError(null);
+                            }}
+                            onKeyDown={handleEmailInputKeyDown}
+                            onBlur={() => {
+                                if (emailInput.trim()) addEmailRecipient(emailInput);
+                            }}
+                        />
+                    </div>
+                    {emailError && (
+                        <p role="alert" className="text-xs text-red-600">
+                            {emailError}
+                        </p>
+                    )}
+                </fieldset>
             </section>
 
             {/* Test E2E */}
             <section className={`${SECTION_CARD_CLASS} animate-fade-up`} style={{ animationDelay: "160ms" }}>
                 <fieldset className="flex flex-col gap-4">
                     <legend className={FIELDSET_LEGEND_CLASS}>
-                        <Cpu size={14} aria-hidden="true" />
+                        <List size={14} aria-hidden="true" />
                         Test E2E
                     </legend>
                     {TESTS.map(({ id, label, description }) => {
