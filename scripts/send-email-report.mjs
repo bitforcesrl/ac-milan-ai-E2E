@@ -1,14 +1,23 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { createRequire } from 'node:module';
+import { createJiti } from 'jiti';
 
-const require = createRequire(import.meta.url);
-const { PATHS } = require('../config.js');
+const jiti = createJiti(import.meta.url);
+const { PATHS } = await jiti.import('../configs/index.ts');
 import { parseRunIndex, readRunIndexFile } from './run-index.mjs';
 
 // ============================================================================
 // 1. CONFIGURAZIONE & VALIDAZIONE AMBIENTE
 // ============================================================================
+//
+// La logica di flusso (chi riceve la mail e quando) NON vive qui: e' risolta
+// una sola volta dal job "resolve_flow" in azure-pipelines.yml, che passa:
+// - EMAIL_RECIPIENTS: destinatari gia' risolti (virgola-separati, formato
+//   SendGrid), qualunque sia il flusso (PR, app, pipeline)
+// - EMAIL_SEND_POLICY: "always" (invia sempre) | "on-fail" (invia solo su FAIL)
+// Questo script si occupa SOLO dell'invio.
+
+const EMAIL_REGEX = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 function getCleanEnv(key) {
   const val = process.env[key]?.trim();
@@ -20,7 +29,7 @@ function parseRecipients(mailTo) {
   return mailTo
     .split(',')
     .map((email) => ({ email: email.trim() }))
-    .filter((item) => item.email);
+    .filter((item) => item.email && EMAIL_REGEX.test(item.email));
 }
 
 function parseFrom(value) {
@@ -28,7 +37,7 @@ function parseFrom(value) {
   const email = (named ? named[2] : value).trim().replace(/^["']|["']$/g, '');
   const name = named ? named[1].trim().replace(/^["']|["']$/g, '') : '';
 
-  if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) {
+  if (!EMAIL_REGEX.test(email)) {
     return null;
   }
   return name ? { email, name } : { email };
@@ -37,7 +46,8 @@ function parseFrom(value) {
 function loadConfig() {
   const apiKey = getCleanEnv('EMAIL_SENDGRID_API_KEY');
   const mailFromRaw = getCleanEnv('EMAIL_FROM');
-  const mailToRaw = getCleanEnv('EMAIL_TO');
+  const mailToRaw = getCleanEnv('EMAIL_RECIPIENTS');
+  const sendPolicy = getCleanEnv('EMAIL_SEND_POLICY') || 'on-fail';
   const reportUrl = getCleanEnv('EMAIL_REPORT_HTML_URL');
   const clientName = getCleanEnv('NEXT_PUBLIC_CLIENT_NAME');
 
@@ -45,8 +55,8 @@ function loadConfig() {
     return { disabled: true, reason: 'EMAIL_SENDGRID_API_KEY non configurata' };
   }
 
-  if (!mailFromRaw || !mailToRaw) {
-    throw new Error('EMAIL_FROM e EMAIL_TO sono obbligatori quando EMAIL_SENDGRID_API_KEY e\' valorizzata.');
+  if (!mailFromRaw) {
+    throw new Error('EMAIL_FROM e\' obbligatorio quando EMAIL_SENDGRID_API_KEY e\' valorizzata.');
   }
 
   const from = parseFrom(mailFromRaw);
@@ -60,11 +70,20 @@ function loadConfig() {
     throw new Error('EMAIL_REPORT_HTML_URL mancante. Caricare i report nello storage prima di eseguire il dispatch email.');
   }
 
+  if (sendPolicy !== 'always' && sendPolicy !== 'on-fail') {
+    throw new Error(
+      `EMAIL_SEND_POLICY non valida: "${sendPolicy}". Valori ammessi: always, on-fail.`
+    );
+  }
+
+  const to = parseRecipients(mailToRaw);
+
   return {
     disabled: false,
     apiKey,
     from,
-    to: parseRecipients(mailToRaw),
+    to,
+    sendPolicy,
     reportUrl,
     clientName,
   };
@@ -88,11 +107,23 @@ async function main() {
     process.exit(0);
   }
 
-  // La run corrente e' l'ultima generata da run-e2e-ci.mjs nello step
+  // La run corrente e' l'ultima generata da run-e2e.mjs nello step
   // "Run AI E2E" della pipeline: reports/{stamp}/{browser}/{viewport}/metadata.json
   const run = collectCurrentRun(PATHS.reports);
   if (!run) {
     console.log('[mail] Nessuna run trovata: skip invio email.');
+    process.exit(0);
+  }
+
+  // Policy di invio risolta dal job resolve_flow: "always" invia sempre,
+  // "on-fail" solo se i test vanno in errore.
+  if (!config.to.length) {
+    console.log('[mail] Nessun destinatario valido (EMAIL_RECIPIENTS vuota): skip invio email.');
+    process.exit(0);
+  }
+
+  if (config.sendPolicy === 'on-fail' && run.status !== 'FAIL') {
+    console.log(`[mail] Run ${run.run} PASS e policy "on-fail": skip invio email.`);
     process.exit(0);
   }
 
@@ -102,7 +133,7 @@ async function main() {
 
   try {
     await sendSendgridEmail(config, subject, textContent, htmlContent);
-    console.log(`[mail] Email inviata con successo a: ${config.to.map((item) => item.email).join(', ')}`);
+    console.log(`[mail] Email inviata con successo (policy: ${config.sendPolicy}) a: ${config.to.map((item) => item.email).join(', ')}`);
   } catch (err) {
     console.error(`[mail ERROR] ${err.message}`);
     process.exit(1);

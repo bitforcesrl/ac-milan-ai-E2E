@@ -32,8 +32,7 @@ export default async function ReportsPage() {
     return (
         <div className="min-h-screen bg-white text-black antialiased">
             <PageHeader
-                title={`${process.env.NEXT_PUBLIC_CLIENT_NAME ?? "Client"} — Reports E2E`}
-                description="Resoconto esecuzioni della pipeline, dettaglio test eseguiti, bug riscontrati e screenshot"
+                title="Reports E2E"
                 backLink={{ href: '/', label: 'Home' }}
             />
             <main className="mx-auto max-w-7xl px-6 pt-8 pb-24">

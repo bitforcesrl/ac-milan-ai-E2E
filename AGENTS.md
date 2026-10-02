@@ -1,7 +1,4 @@
 
-> Questo file contiene le istruzioni per lo sviluppo dell'app Next.js
-> Se ti viene richiesto di eseguire test E2E manuali, segui le istruzioni nel file [`AGENTS.e2e.md`](AGENTS.e2e.md), e non seguire altre guide o documentazioni.
-
 # AGENT.md - Guidelines for Next.js App Router Project
 
 ## 🎯 Role & Objective

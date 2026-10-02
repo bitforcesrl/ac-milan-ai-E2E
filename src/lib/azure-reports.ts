@@ -299,7 +299,7 @@ export async function getRun(runIdRaw: string): Promise<RunDetail | null> {
 
         const testRows = [];
         for (const t of meta.tests ?? []) {
-            const testId = t.id || (t.report ? (t.report.split('/').pop() ?? '').replace(/\.md$/, '') : '');
+            const testId = t.id ?? '';
             testRows.push({
                 id: testId,
                 name: t.name || testId,

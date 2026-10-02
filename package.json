@@ -1,5 +1,5 @@
 {
-  "name": "acmilan-quickbuy-tests",
+  "name": "ai-e2e-tests-harness",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -7,18 +7,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "ci:run-e2e": "node scripts/run-e2e.mjs",
+    "ci:resolve-flow": "node scripts/resolve-flow.mjs",
+    "ci:run-e2e": "node scripts/run-e2e.mjs --config configs/pipeline.config.json",
+    "ci:run-e2e-pr": "node scripts/run-e2e.mjs --config configs/pr.config.json",
     "ci:upload-reports": "node scripts/upload-reports-to-azure.mjs",
     "ci:send-email": "node scripts/send-email-report.mjs",
-
-    "local:run-e2e": "node scripts/run-e2e.mjs",
+    "local:run-e2e": "node scripts/run-e2e.mjs --config configs/local.config.json",
     "local:download-reports": "node scripts/download-reports-from-azure.mjs",
     "local:clear-azure": "node scripts/clear-azure-storage.mjs"
   },
   "keywords": [
     "playwright",
     "testing",
-    "acmilan",
     "ecommerce"
   ],
   "author": "",
@@ -31,6 +31,7 @@
     "@tanstack/react-query": "^5.104.0",
     "dotenv": "^17.4.2",
     "geist": "^1.7.2",
+    "jiti": "^2.7.0",
     "marked": "^18.0.13",
     "next": "16.3.5",
     "react": "19.2.8",

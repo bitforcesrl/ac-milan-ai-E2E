@@ -1,6 +1,6 @@
 // Schema condiviso di reports/index.json — il file che alimenta la tabella
 // della dashboard /reports. Tipi usati sia da lib/run-index.ts (parsing) sia
-// da lib/azure-reports.ts (lettura) e documentati in AGENTS.e2e.md.
+// da lib/azure-reports.ts (lettura).
 //
 // Percorsi / variabili d'ambiente:
 // - Locale:      <repo>/reports/index.json

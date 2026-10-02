@@ -1,11 +1,13 @@
 import 'dotenv/config';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const require = createRequire(import.meta.url);
-const { E2E_TESTS, BROWSERS, VIEWPORTS, PATHS } = require('../config.js');
+import { createJiti } from 'jiti';
+
+const jiti = createJiti(import.meta.url);
+const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } = await jiti.import('../configs/index.ts');
+
 import {
   RUN_INDEX_FILE,
   buildRunIndexEntry,
@@ -16,61 +18,124 @@ import {
 } from './run-index.mjs';
 
 // ============================================================================
-// 1. CONFIGURAZIONE & ENV PARSING
+// 1. CONFIGURAZIONE: run config per-flusso (configs/*.config.json)
 // ============================================================================
+//
+// La run config (test, browser, viewport, modello AI, parallelismo, note) NON
+// passa piu' da variabili d'ambiente E2E_*: arriva da un file JSON validato.
+// Sorgente: flag CLI --config <path> (usato da azure-pipelines.yml e
+// package.json); in assenza del flag viene usato configs/local.config.json.
+//
+// Schema identico a src/lib/run-config-schema.ts (Zod), validato qui contro il
+// catalogo in configs/index.ts.
 
-function parseBoolEnv(key, fallback) {
-  const raw = process.env[key];
-  if (raw === undefined || raw === '') return fallback;
-  return raw.trim().toLowerCase() === 'true';
+const DEFAULT_CONFIG_PATH = 'configs/local.config.json';
+
+function resolveConfigPath() {
+  const cliIndex = process.argv.indexOf('--config');
+  if (cliIndex !== -1 && process.argv[cliIndex + 1]) {
+    return process.argv[cliIndex + 1];
+  }
+  return DEFAULT_CONFIG_PATH;
 }
 
-function parseNumEnv(key, fallback, min = -Infinity) {
-  const val = Number(process.env[key]);
-  return !Number.isNaN(val) && val >= min ? val : fallback;
+function loadRunConfigFile() {
+  const configPath = resolveConfigPath();
+  if (!existsSync(configPath)) {
+    throw new Error(`Run config non trovata: ${configPath}`);
+  }
+
+  let raw;
+  try {
+    raw = JSON.parse(readFileSync(configPath, 'utf8'));
+  } catch (err) {
+    throw new Error(`Run config non e' JSON valido (${configPath}): ${err.message}`);
+  }
+
+  return { configPath, raw };
 }
 
-function testEnvKey(testId) {
-  return `E2E_TEST_${testId.replace(/-/g, '_').toUpperCase()}`;
-}
+/**
+ * Valida la run config grezza contro lo schema (stesso contratto di
+ * src/lib/run-config-schema.ts) e contro il catalogo in configs/index.ts.
+ * Ritorna la config normalizzata o solleva un errore descrittivo.
+ */
+function validateRunConfig(raw) {
+  const errors = [];
 
-// Chiave env per la nota per-test passata dalla pipeline (form Next.js),
-// es. 'quickbuy-cart-validation' -> 'E2E_TEST_NOTES_QUICKBUY_CART_VALIDATION'
-function testNotesEnvKey(testId) {
-  return `E2E_TEST_NOTES_${testId.replace(/-/g, '_').toUpperCase()}`;
-}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Run config non valida: atteso un oggetto JSON.');
+  }
 
-// Applica l'override delle note per-test: se la pipeline passa E2E_TEST_NOTES_*,
-// quella nota sostituisce il campo `notes` di config.js per la run corrente
-function applyNotesOverrides(tests) {
-  return tests.map((test) => {
-    const envNotes = process.env[testNotesEnvKey(test.id)]?.trim();
-    return envNotes ? { ...test, notes: envNotes } : test;
-  });
-}
+  // --- tests ---
+  if (!Array.isArray(raw.tests) || raw.tests.length === 0) {
+    errors.push('tests: selezionare almeno un test.');
+  } else {
+    const testIds = new Set(E2E_TESTS.map((t) => t.id));
+    raw.tests.forEach((t, i) => {
+      if (!t || typeof t !== 'object' || typeof t.id !== 'string' || !t.id) {
+        errors.push(`tests[${i}]: id mancante o non valido.`);
+      } else if (!testIds.has(t.id)) {
+        errors.push(`tests[${i}]: test sconosciuto "${t.id}".`);
+      }
+      if (t?.notes !== undefined && typeof t.notes !== 'string') {
+        errors.push(`tests[${i}].notes: deve essere una stringa.`);
+      }
+    });
+  }
 
-function selectTests() {
-  const pipelineFlags = E2E_TESTS.map((test) => ({
-    test,
-    envKey: testEnvKey(test.id),
-  })).filter(({ envKey }) => process.env[envKey] !== undefined);
-
-  if (pipelineFlags.length) {
-    const selected = pipelineFlags
-      .filter(({ envKey }) => parseBoolEnv(envKey, false))
-      .map(({ test }) => test);
-
-    if (!selected.length) {
-      throw new Error('Nessun test selezionato dai parametri della pipeline.');
+  // --- browsers ---
+  if (!Array.isArray(raw.browsers) || raw.browsers.length === 0) {
+    errors.push('browsers: selezionare almeno un browser.');
+  } else {
+    const browserIds = new Set(BROWSERS.map((b) => b.id));
+    for (const b of raw.browsers) {
+      if (!browserIds.has(b)) errors.push(`browsers: browser sconosciuto "${b}".`);
     }
-    return selected;
   }
 
-  const enabled = E2E_TESTS.filter((test) => test.enabled);
-  if (!enabled.length) {
-    throw new Error('Nessun test abilitato: nessun test con enabled: true in config.js.');
+  // --- viewports ---
+  if (!Array.isArray(raw.viewports) || raw.viewports.length === 0) {
+    errors.push('viewports: selezionare almeno un viewport.');
+  } else {
+    const viewportIds = new Set(VIEWPORTS.map((v) => v.id));
+    for (const v of raw.viewports) {
+      if (!viewportIds.has(v)) errors.push(`viewports: viewport sconosciuto "${v}".`);
+    }
   }
-  return enabled;
+
+  // --- aiModel ---
+  if (typeof raw.aiModel !== 'string' || !raw.aiModel) {
+    errors.push('aiModel: mancante o non valido.');
+  } else if (!AI_MODELS.includes(raw.aiModel)) {
+    errors.push(`aiModel: modello non disponibile "${raw.aiModel}".`);
+  }
+
+  // --- maxParallelSessions ---
+  const parallel = Number(raw.maxParallelSessions);
+  if (!MAX_PARALLEL_SESSIONS.options.includes(parallel)) {
+    errors.push(
+      `maxParallelSessions: valore non valido (ammessi: ${MAX_PARALLEL_SESSIONS.options.join(', ')}).`,
+    );
+  }
+
+  if (errors.length) {
+    throw new Error(`Run config non valida: ${errors.join(' ')}`);
+  }
+
+  // Risoluzione dei test selezionati contro il catalogo, con override note
+  const testsById = new Map(E2E_TESTS.map((t) => [t.id, t]));
+  return {
+    tests: raw.tests.map(({ id, notes }) => {
+      const catalogTest = testsById.get(id);
+      const note = notes?.trim();
+      return note ? { ...catalogTest, notes: note } : catalogTest;
+    }),
+    browsers: [...raw.browsers],
+    viewports: [...raw.viewports],
+    model: raw.aiModel,
+    maxParallelSessions: parallel,
+  };
 }
 
 function loadConfig() {
@@ -79,39 +144,21 @@ function loadConfig() {
     throw new Error('OPENROUTER_API_KEY mancante o non valida (verificare Azure secrets).');
   }
 
-  const model = process.env.OPENROUTER_AI_MODEL?.trim();
-  if (!model) {
-    throw new Error('OPENROUTER_AI_MODEL mancante.');
-  }
-
-  // Browser e viewport definiti in config.js (unica fonte di verita')
-  const browsers = BROWSERS.filter((b) => parseBoolEnv(b.envKey, b.default)).map((b) => b.id);
-
-  if (!browsers.length) {
-    throw new Error(
-      `Nessun browser selezionato (${BROWSERS.map((b) => b.envKey).join(' / ')}).`,
-    );
-  }
-
-  const viewports = VIEWPORTS.filter((v) => parseBoolEnv(v.envKey, v.default)).map((v) => v.id);
-
-  if (!viewports.length) {
-    throw new Error(
-      `Nessun viewport selezionato (${VIEWPORTS.map((v) => v.envKey).join(' / ')}).`,
-    );
-  }
+  const { configPath, raw } = loadRunConfigFile();
+  const runConfig = validateRunConfig(raw);
 
   return {
     apiKey,
-    model,
-    maxRetries: parseNumEnv('OPENROUTER_MAX_RETRIES', 5, 1),
+    configPath,
+    maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES) >= 1
+      ? Number(process.env.OPENROUTER_MAX_RETRIES)
+      : 5,
     retryBaseMs: 2000,
-    maxTurns: parseNumEnv('OPENROUTER_MAX_TURNS', 300, 1),
+    maxTurns: Number(process.env.OPENROUTER_MAX_TURNS) >= 1
+      ? Number(process.env.OPENROUTER_MAX_TURNS)
+      : 300,
     mcpToolTimeout: 180000,
-    maxParallelSessions: parseNumEnv('E2E_MAX_PARALLEL_SESSIONS', 1, 1),
-    browsers,
-    viewports,
-    tests: applyNotesOverrides(selectTests()),
+    ...runConfig,
   };
 }
 
@@ -137,6 +184,7 @@ async function main() {
     )
   );
 
+  console.log(`Run config: ${config.configPath}`);
   console.log(`Browsers: ${config.browsers.join(', ')}`);
   console.log(`Viewports: ${config.viewports.join(', ')}`);
   console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);
@@ -552,7 +600,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // script ne genera uno minimo usando lo status osservato dalla CI.
   if (!meta) {
     const testsMeta = [];
-    const reportPaths = [];
     const screenshotPaths = [];
     for (const { test, status } of results) {
       const reportPath = `${sessionDir}/tests/${test.id}.md`;
@@ -578,14 +625,12 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
         console.warn(`[report] Report mancante per ${test.id}: generato fallback in ${reportPath}`);
       }
 
-      reportPaths.push(reportPath);
-
       // Screenshot della sessione: file in screenshots/ prefissati con "<test-id>-"
       const shotsDir = `${sessionDir}/screenshots`;
       if (existsSync(shotsDir)) {
         for (const f of readdirSync(shotsDir)) {
           if (f.startsWith(`${test.id}-`)) {
-            screenshotPaths.push(`${shotsDir}/${f}`);
+            screenshotPaths.push(toBlobPath(`${shotsDir}/${f}`));
           }
         }
       }
@@ -594,7 +639,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
         id: test.id,
         name: test.name,
         status,
-        report: reportPath,
       });
     }
 
@@ -608,7 +652,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
       summary: 'Metadati generati dalla CI: report/metadata non generati dall\'agente.',
       tests: testsMeta,
       bugs: { high: 0, medium: 0, low: 0 },
-      reportPaths,
       screenshotPaths,
     };
     writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
@@ -618,31 +661,26 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // NB: in CI ogni test e' una sessione agent separata che scrive lo STESSO
   // metadata.json di sessione: il file sopravvissuto contiene solo l'ULTIMO
   // test eseguito per questa combo. La lista dei test va quindi SEMPRE
-  // ricostruita dai risultati osservati dalla CI, arricchendo con i report
-  // dichiarati dall'agente quando disponibili.
-  const agentTestsById = new Map((meta.tests ?? []).map((t) => [t.id, t]));
+  // ricostruita dai risultati osservati dalla CI.
   const testsMeta = results.map(({ test, status }) => {
-    const agentTest = agentTestsById.get(test.id);
-    const reportPath = agentTest?.report ?? `${sessionDir}/tests/${test.id}.md`;
     return {
       id: test.id,
       name: test.name,
       // Lo status osservato dalla CI (CI_STATUS) ha la priorita' su quello dichiarato dall'agente
       status,
-      report: reportPath,
     };
   });
-
-  const reportPaths = testsMeta.map((t) => t.report);
 
   // Screenshot: unione tra quelli dichiarati nei metadata sopravvissuti e
   // quelli effettivamente presenti su disco (prefissati "<test-id>-").
   const shotsDir = `${sessionDir}/screenshots`;
-  const screenshotPaths = Array.isArray(meta.screenshotPaths) ? [...meta.screenshotPaths] : [];
+  const screenshotPaths = Array.isArray(meta.screenshotPaths)
+    ? meta.screenshotPaths.map(toBlobPath)
+    : [];
   if (existsSync(shotsDir)) {
     for (const f of readdirSync(shotsDir)) {
       if (results.some(({ test }) => f.startsWith(`${test.id}-`))) {
-        const p = `${shotsDir}/${f}`;
+        const p = toBlobPath(`${shotsDir}/${f}`);
         if (!screenshotPaths.includes(p)) screenshotPaths.push(p);
       }
     }
@@ -664,11 +702,11 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   }
 
   // Coerenza bug/screenshot: ogni bug dichiarato deve avere almeno uno screenshot
-  // (regola di AGENTS.e2e.md). Se non c'e', l'agente non ha documentato i bug: warning.
+  // (regola del prompt di run). Se non c'e', l'agente non ha documentato i bug: warning.
   if ((bugs.high + bugs.medium + bugs.low) > 0 && screenshotPaths.length === 0) {
     console.warn(
       `[report] ATTENZIONE: ${bugs.high + bugs.medium + bugs.low} bug dichiarati ma nessuno screenshot salvato ` +
-      `in ${shotsDir} (l'agente ha violato la regola screenshot-su-bug di AGENTS.e2e.md).`
+      `in ${shotsDir} (l'agente ha violato la regola screenshot-su-bug del prompt di run).`
     );
   }
 
@@ -717,7 +755,6 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     tests: testsMeta,
     bugs,
     cost: roundCost(sessionCost),
-    reportPaths,
     screenshotPaths,
   };
 
@@ -786,6 +823,15 @@ function writeRunMetadata(stamp, config, hasFailures, sessionMetas = []) {
 // 7. UTILITIES & PROMPT BUILDER
 // ============================================================================
 
+/**
+ * Converte un path locale (relativo alla root del repo, es. "reports/<stamp>/...")
+ * nel path relativo alla radice del container blob (es. "<stamp>/..."), che e'
+ * il formato usato nei metadata salvati su Azure.
+ */
+function toBlobPath(p) {
+  return p.replace(new RegExp(`^${PATHS.reports}/`), '');
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -811,19 +857,67 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 - playwright__: automazione browser ${browser} (snapshot, click, type, screenshot, ecc.)
 
 Regole:
-1. Leggi AGENTS.e2e.md con un tool filesystem e rispettane tutte le regole (report, screenshot solo sui bug, italiano, cleanup).
-2. Il test di questa run e' UNO SOLO (definizioni in config.js). NON eseguire altri test.
+1. Comportamento generale (obbligatorio):
+   - Usa il browser come un utente REALE: testa tutti i flussi di personalizzazione disponibili, verifica la coerenza
+     tra cio' che l'utente seleziona e cio' che finisce nel carrello, leggi prezzi e costi DINAMICAMENTE dalla pagina
+     (mai valori hardcoded).
+   - NON scrivere test Playwright automatizzati, NON usare codegen, NON creare file di test automatizzati,
+     NON modificare codice sorgente, NON testare backend/API/logica server-side.
+2. Preparazione browser (PRIMA di navigare all'url del test):
+   - Avvia il browser in modalita' incognito/profilo isolato per simulare un utente reale senza cookie/cache preesistenti.
+   - Ridimensiona il browser al viewport richiesto dalla run con browser_resize PRIMA di navigare
+     (es. browser_resize({ width: 1280, height: 650 })) e rispettalo per tutta la run.
+   - Attendi che la pagina sia completamente caricata prima di iniziare il test.
+   - Chiudi banner e popup: cerca e chiudi eventuali consensi cookie, banner pubblicitari, popup di newsletter o altri
+     overlay che ostruiscono la vista (clicca "Accetta", "Rifiuta", "Chiudi", "X" o simili).
+   - Overlay di upsell nel carrello: quando si naviga al carrello dopo aver aggiunto un prodotto si apre AUTOMATICAMENTE
+     un overlay di upsell. NON e' un errore: comportamento atteso, chiudilo con la "X" in alto a destra prima di
+     procedere. NON documentarlo come bug.
+3. Gestione viewport durante il test:
+   - Prima di ogni interazione o verifica visiva, assicurati che l'elemento/sezione da testare sia COMPLETAMENTE visibile
+     nel viewport: se e' parzialmente visibile o fuori vista, scrolla fino a renderlo completamente visibile prima di
+     procedere (fondamentale per permettere all'operatore umano di monitorare il test in tempo reale).
+4. Vision vs DOM:
+   - Usa screenshot (playwright__browser_take_screenshot) per verifiche VISIVE: coerenza di layout/allineamenti/spacing,
+     colori/font/dimensioni, hover e focus states, rendering di immagini/anteprime/overlay, elementi sovrapposti o tagliati,
+     anteprime sfocate o distorte, testi troncati o formattazione inconsistente.
+   - Usa snapshot (playwright__browser_snapshot) per contenuti e funzionalita': leggere prezzi/quantita'/nomi, verificare
+     presenza e cliccabilita' di pulsanti/campi/messaggi, compilare form, selezionare opzioni, navigare tra elementi.
+   - In dubbio: vision per aspetti UI/UX, DOM per aspetti funzionali/di contenuto.
+5. Aspetti UI da verificare indipendentemente dal test (segnala anomalie nel report):
+   - Layout e rendering: il componente React si renderizza senza errori visibili; layout coerente con il resto della pagina
+     Shopify; nessun elemento sovrapposto o tagliato; immagini anteprima di buona qualita'; pulsanti di personalizzazione
+     ben distinguibili (attivo vs non attivo).
+   - Feedback visivo: hover state sui pulsanti; focus state visibile per accessibilita' keyboard.
+   - Tipografia e colori: font leggibili e coerenti; contrasto sufficiente; colori coerenti col brand; dimensioni testo appropriate.
+6. Cosa monitorare (segnala anomalie nel report):
+   - Errori tecnici: errori console JavaScript; richieste HTTP 4xx/5xx; React warnings/errors; elementi non cliccabili che
+     dovrebbero esserlo; pulsanti senza effetto; pagine bianche o blank states; loop di navigazione o re-rendering infiniti.
+   - Problemi UX: prezzi non aggiornati correttamente; anteprime non funzionanti o non aggiornate; form che si resettano
+     inaspettatamente; elementi aggiunti al carrello senza selezione utente; messaggi di errore mancanti o poco chiari;
+     feedback visivo assente dopo azioni; stato del personalizzatore perso durante la navigazione.
+7. Note specifiche:
+   - Massima attenzione ai caratteri testuali: errori di battitura, caratteri speciali errati, formattazione inconsistente,
+     testo troncato o illeggibile.
+   - NON segnalare come bug: il nome del giocatore visualizzato in MAIUSCOLO (comportamento corretto e desiderato); taglie
+     che non compaiono affatto (dipendono dalla configurazione del prodotto, alcune possono non esserci); l'overlay di upsell
+     nel carrello (comportamento atteso, si chiude con la "X").
+   - Documenta ogni anomalia, anche se sembra minore. Presta attenzione a problemi React (state management, re-rendering,
+     lifecycle). Verifica che l'anteprima si aggiorni in tempo reale.
+   - Traccia il tempo di esecuzione del test e includilo nel report (sezione Execution Time).
+   - A fine test: chiudi il browser MCP e cancella il contenuto della cartella .playwright-mcp (se esiste).
+     Tutte le operazioni di cleanup e creazione cartelle sono AUTOMATICHE, senza chiedere conferma.
+8. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
-3. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-4. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
-5. Chiudi cookie banner / popup / overlay upsell come da istruzioni.
-6. L'unico file Markdown di reportistica e' il report del test del punto 7; i metadati JSON del punto 8
+9. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
+10. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
+11. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
    ${sessionDir}/
      screenshots/             (screenshot della sessione, prefissati con "${test.id}-", es. screenshots/${test.id}-001.png)
-     tests/${test.id}.md      (report Markdown del test, creato solo alla fine, punto 7)
-     metadata/${test.id}.json  (metadati JSON TEMPORANEI del test, generati da te, punto 8)
+     tests/${test.id}.md      (report Markdown del test, creato solo alla fine, punto 13)
+     metadata/${test.id}.json  (metadati JSON TEMPORANEI del test, generati da te, punto 14)
    SCREENSHOT (REGOLA STRETTA): salva screenshot ESCLUSIVAMENTE per documentare bug/anomalie trovate
    (per ogni bug uno o piu' screenshot, quelli necessari a mostrare il problema), prefissati con "${test.id}-". VIETATI screenshot
    "di documentazione", "di stato iniziale" o di pagine che funzionano correttamente. Se il test e' PASS e
@@ -837,7 +931,7 @@ Regole:
    3. Verifica con un tool filesystem/shell che il file esista; se non esiste, riprova.
    4. Linkalo inline nel report Markdown: ![descrizione](../screenshots/${test.id}-001.png)
       e aggiungi il percorso in "screenshotPaths" nei metadati.
-7. Alla fine crea il report Markdown ${sessionDir}/tests/${test.id}.md (tutti i testi in italiano).
+13. Alla fine crea il report Markdown ${sessionDir}/tests/${test.id}.md (tutti i testi in italiano).
    Sei libero di organizzare il report come preferisci (tabelle, griglie, sezioni, ecc.), ma deve contenere almeno:
    - Executive Summary: stato generale del test
    - Test Scenario: configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
@@ -850,12 +944,14 @@ Regole:
    - Viewport: dimensioni della finestra del browser (${viewport})
    Regole per il Markdown:
    - Gli screenshot vanno linkati inline con percorso relativo: ![descrizione](../screenshots/${test.id}-001.png)
-   - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo).
+   - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo),
+     "**Location:**" (dove si verifica: PDP, cart, preview, etc.), "**Description:**", "**Steps to Reproduce:**",
+     "**Expected:**", "**Actual:**", "**Impact:**" e "**Screenshot:**" (inline se disponibile).
    - Lo status deve riflettere l'esito REALE della verifica: se la condizione richiesta dal test NON e' soddisfatta, lo status e' FAIL
      (es. se il test chiede di verificare la presenza di una voce nel menu e la voce non c'e', lo status e' FAIL).
    - Questo report e' la fonte visuale per la dashboard dei report: scrivilo con cura, con un layout curato
      (tabelle, titoli, screenshot inline nel punto giusto).
-8. Alla fine crea ANCHE i metadati JSON TEMPORANEI ${sessionDir}/metadata/${test.id}.json con ESATTAMENTE questo schema (JSON valido, nessun testo extra):
+14. Alla fine crea ANCHE i metadati JSON TEMPORANEI ${sessionDir}/metadata/${test.id}.json con ESATTAMENTE questo schema (JSON valido, nessun testo extra):
    {
      "id": "${test.id}",
      "name": "${test.name}",
@@ -873,11 +969,11 @@ Regole:
    }
    Regole per i metadati:
    - Il file DEVE essere ${sessionDir}/metadata/${test.id}.json (un file per test, NON metadata.json).
-   - "status" deve corrispondere all'esito REALE del test (stesso criterio del punto 7).
+   - "status" deve corrispondere all'esito REALE del test (stesso criterio del punto 13).
    - "bugs" contiene i conteggi REALI dei bug per severita' trovati nel test (0 se nessuno).
    - "screenshotPaths" elenca TUTTI gli screenshot salvati (vuoto se nessuno).
    - Sono metadati temporanei: lo script CI li aggrega nel metadata.json di sessione e poi li cancella.
-9. Non chiedere conferma. Non committare. Non modificare i file di test.
+15. Non chiedere conferma. Non committare. Non modificare i file di test.
 
 CHECK FINALE (obbligatorio prima di rispondere con CI_STATUS):
 - Ogni bug nel report ha almeno uno screenshot salvato su disco in ${sessionDir}/screenshots/ e linkato inline nel report?

@@ -2,8 +2,11 @@ import 'dotenv/config';
 
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { createJiti } from 'jiti';
 import { getStorageContext } from './azure-storage-context.mjs';
-import { PATHS } from '../config.js';
+
+const jiti = createJiti(import.meta.url);
+const { PATHS } = await jiti.import('../configs/index.ts');
 
 // Scarica l'intero storico dei report da Azure Blob in reports/.
 // Utile per ispezioni locali o consumer offline; NON e' necessario per la

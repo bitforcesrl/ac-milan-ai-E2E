@@ -1,0 +1,10 @@
+{
+  "tests": [
+    { "id": "fail-test" },
+    { "id": "quickbuy-cart-validation" }
+  ],
+  "browsers": ["chromium"],
+  "viewports": ["1280x650"],
+  "aiModel": "qwen/qwen3.7-plus",
+  "maxParallelSessions": 3
+}

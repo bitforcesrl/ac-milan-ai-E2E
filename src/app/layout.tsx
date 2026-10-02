@@ -13,8 +13,8 @@ const clientName = process.env.NEXT_PUBLIC_CLIENT_NAME ?? "Client";
 
 export const metadata: Metadata = {
   title: {
-    default: `${clientName} — AI E2E Tests`,
-    template: `%s | ${clientName} — AI E2E Tests`,
+    default: `${clientName} — AI E2E TESTS`,
+    template: `%s | ${clientName} — AI E2E TESTS`,
   },
   description:
     "Dashboard per lanciare e monitorare test E2E eseguiti da agenti AI: configurazione run, report delle esecuzioni, bug rilevati e screenshot.",

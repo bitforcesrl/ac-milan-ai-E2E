@@ -2,8 +2,11 @@ import 'dotenv/config';
 
 import { createReadStream, existsSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
+import { createJiti } from 'jiti';
 import { getStorageContext } from './azure-storage-context.mjs';
-import { PATHS } from '../config.js';
+
+const jiti = createJiti(import.meta.url);
+const { PATHS } = await jiti.import('../configs/index.ts');
 import {
   RUN_INDEX_FILE,
   mergeRunIndex,

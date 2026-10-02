@@ -1,102 +1,13 @@
-parameters:
-  - name: runChromium
-    displayName: Browser Chromium
-    type: boolean
-    default: true
-  - name: runFirefox
-    displayName: Browser Firefox
-    type: boolean
-    default: false
-  - name: runWebkit
-    displayName: Browser WebKit (Safari)
-    type: boolean
-    default: false
-  - name: runDesktop
-    displayName: Viewport desktop (1280x650)
-    type: boolean
-    default: true
-  - name: runTablet
-    displayName: Viewport tablet (768x1024)
-    type: boolean
-    default: false
-  - name: runMobile
-    displayName: Viewport mobile (390x844)
-    type: boolean
-    default: false
-  - name: openrouterAiModel
-    displayName: AI Model (OpenRouter)
-    type: string
-    default: qwen/qwen3.7-plus
-    values:
-      - qwen/qwen3.7-plus
-  - name: maxParallelSessions
-    displayName: Sessioni in parallelo
-    type: string
-    default: '3'
-    values:
-      - '1'
-      - '2'
-      - '3'
-  # ---- Test E2E disponibili (definiti in config.js) ----
-  - name: failTest
-    displayName: Test fail-test (fail.test.md)
-    type: boolean
-    default: false
-  - name: pdp
-    displayName: Test pdp (pdp/pdp.test.md)
-    type: boolean
-    default: false
-  - name: pdpFuzzy
-    displayName: Test pdp-fuzzy (pdp/pdp-fuzzy.test.md)
-    type: boolean
-    default: false
-  - name: quickbuyCombinations
-    displayName: Test quickbuy-combinations (quickbuy/quickbuy-combinations.test.md)
-    type: boolean
-    default: false
-  - name: quickbuyPersonalization
-    displayName: Test quickbuy-personalization (quickbuy/quickbuy-personalization.test.md)
-    type: boolean
-    default: false
-  - name: quickbuyCartValidation
-    displayName: Test quickbuy-cart-validation (quickbuy/quickbuy-cart-validation.test.md)
-    type: boolean
-    default: false
-  # ---- Note per-test (override del campo `notes` in config.js, dal form Next.js) ----
-  # NOTA: default ' ' (spazio) e non '' perche' Azure DevOps marca come "Required"
-  # i parametri stringa con default vuoto. run-e2e-ci.mjs fa il trim e ignora
-  # le note vuote/solo spazi, quindi lo spazio viene trattato come "nessuna nota".
-  - name: notesFailTest
-    displayName: Note per test fail-test
-    type: string
-    default: ' '
-  - name: notesPdp
-    displayName: Note per test pdp
-    type: string
-    default: ' '
-  - name: notesPdpFuzzy
-    displayName: Note per test pdp-fuzzy
-    type: string
-    default: ' '
-  - name: notesQuickbuyCombinations
-    displayName: Note per test quickbuy-combinations
-    type: string
-    default: ' '
-  - name: notesQuickbuyPersonalization
-    displayName: Note per test quickbuy-personalization
-    type: string
-    default: ' '
-  - name: notesQuickbuyCartValidation
-    displayName: Note per test quickbuy-cart-validation
-    type: string
-    default: ' '
-
+ 
 trigger:
   branches:
     include:
       - main
 
-pr: none
+pr:
+  branches:
+    include:
+      - main
 
 schedules:
   - cron: '0 6 * * *'
@@ -107,17 +18,46 @@ schedules:
     always: true
 
 pool:
-  name: 'Internal Linux with Docker' 
+  name: 'Internal Linux with Docker'
   demands:
     - jdk -equals 21
 
 variables:
-  - group: acmilan-e2e-secrets
+  - group: ai-e2e-secrets
 
 jobs:
+  - job: resolve_flow
+    displayName: Resolve run flow
+    timeoutInMinutes: 5
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 22
+        inputs:
+          versionSpec: '22.x'
+
+      - script: node scripts/resolve-flow.mjs
+        displayName: Resolve flow mode, config and email policy
+        env:
+          # Variabili predefinite Azure DevOps
+          BUILD_REASON: $(Build.Reason)
+          BUILD_REQUESTED_FOR_EMAIL: $(Build.RequestedForEmail)
+          AGENT_TEMPDIRECTORY: $(Agent.TempDirectory)
+          # Build variable passata a queue-time da /api/azure-pipeline
+          E2E_RUN_CONFIG: $(E2E_RUN_CONFIG)
+          # Destinatari per run trigger/schedule/manuale su main (invio solo su FAIL)
+          EMAIL_SCHEDULED_RECIPIENTS: $(EMAIL_SCHEDULED_RECIPIENTS)
+
   - job: e2e
     displayName: AI E2E tests
+    dependsOn: resolve_flow
     timeoutInMinutes: 20
+    variables:
+      RUN_MODE: $[ dependencies.resolve_flow.outputs['resolve_flow.RUN_MODE'] ]
+      E2E_CONFIG_FILE: $[ dependencies.resolve_flow.outputs['resolve_flow.E2E_CONFIG_FILE'] ]
+      EMAIL_RECIPIENTS: $[ dependencies.resolve_flow.outputs['resolve_flow.EMAIL_RECIPIENTS'] ]
+      EMAIL_SEND_POLICY: $[ dependencies.resolve_flow.outputs['resolve_flow.EMAIL_SEND_POLICY'] ]
     steps:
       - checkout: self
 
@@ -131,31 +71,11 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
         displayName: Install dependencies and browsers
 
-      - script: npm run ci:run-e2e
+      - script: node scripts/run-e2e.mjs --config "$(E2E_CONFIG_FILE)"
         displayName: Run AI E2E
         continueOnError: true
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
-          OPENROUTER_AI_MODEL: ${{ parameters.openrouterAiModel }}
-          E2E_RUN_CHROMIUM: ${{ parameters.runChromium }}
-          E2E_RUN_FIREFOX: ${{ parameters.runFirefox }}
-          E2E_RUN_WEBKIT: ${{ parameters.runWebkit }}
-          E2E_RUN_DESKTOP: ${{ parameters.runDesktop }}
-          E2E_RUN_TABLET: ${{ parameters.runTablet }}
-          E2E_RUN_MOBILE: ${{ parameters.runMobile }}
-          E2E_MAX_PARALLEL_SESSIONS: ${{ parameters.maxParallelSessions }}
-          E2E_TEST_FAIL_TEST: ${{ parameters.failTest }}
-          E2E_TEST_PDP: ${{ parameters.pdp }}
-          E2E_TEST_PDP_FUZZY: ${{ parameters.pdpFuzzy }}
-          E2E_TEST_QUICKBUY_COMBINATIONS: ${{ parameters.quickbuyCombinations }}
-          E2E_TEST_QUICKBUY_PERSONALIZATION: ${{ parameters.quickbuyPersonalization }}
-          E2E_TEST_QUICKBUY_CART_VALIDATION: ${{ parameters.quickbuyCartValidation }}
-          E2E_TEST_NOTES_FAIL_TEST: ${{ parameters.notesFailTest }}
-          E2E_TEST_NOTES_PDP: ${{ parameters.notesPdp }}
-          E2E_TEST_NOTES_PDP_FUZZY: ${{ parameters.notesPdpFuzzy }}
-          E2E_TEST_NOTES_QUICKBUY_COMBINATIONS: ${{ parameters.notesQuickbuyCombinations }}
-          E2E_TEST_NOTES_QUICKBUY_PERSONALIZATION: ${{ parameters.notesQuickbuyPersonalization }}
-          E2E_TEST_NOTES_QUICKBUY_CART_VALIDATION: ${{ parameters.notesQuickbuyCartValidation }}
 
       - script: npm run ci:upload-reports
         displayName: Upload reports to Azure Blob
@@ -170,8 +90,7 @@ jobs:
         env:
           EMAIL_SENDGRID_API_KEY: $(SENDGRID_API_KEY)
           EMAIL_FROM: $(EMAIL_FROM)
-          EMAIL_TO: $(EMAIL_TO)
+          EMAIL_RECIPIENTS: $(EMAIL_RECIPIENTS)
+          EMAIL_SEND_POLICY: $(EMAIL_SEND_POLICY)
           EMAIL_REPORT_HTML_URL: $(EMAIL_REPORT_HTML_URL)
           NEXT_PUBLIC_CLIENT_NAME: $(NEXT_PUBLIC_CLIENT_NAME)
-
-
