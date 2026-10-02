@@ -23,7 +23,12 @@ pool:
     - jdk -equals 21
 
 variables:
-  - group: acmilan-e2e-secrets
+  - group: ai-e2e-secrets
+  # Dichiarata perché Azure DevOps applichi l'override queue-time passato
+  # dall'app via REST (/api/azure-pipeline): senza dichiarazione la variabile
+  # non esiste sulla build e la macro $(E2E_RUN_CONFIG) non viene espansa.
+  - name: E2E_RUN_CONFIG
+    value: ''
 
 jobs:
   - job: resolve_flow

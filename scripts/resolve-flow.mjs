@@ -61,6 +61,10 @@ function resolveFlow() {
       console.warn(
         '[flow DEBUG] E2E_RUN_CONFIG contiene la macro $(E2E_RUN_CONFIG) non espansa: la variabile non esiste sulla build (queue-time variable mancante).'
       );
+    } else if (rawRunConfig.trim().length === 0) {
+      console.warn(
+        '[flow DEBUG] E2E_RUN_CONFIG presente ma vuota: la build è stata queueata senza override (o con valore vuoto) per la variabile.'
+      );
     } else {
       console.warn(
         `[flow DEBUG] E2E_RUN_CONFIG valorizzata ma scartata (lunghezza ${rawRunConfig.length}): JSON probabilmente non valido.`
