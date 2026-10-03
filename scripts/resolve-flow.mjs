@@ -54,8 +54,10 @@ function resolveFlow() {
   // con il logging command ##vso[build.updatebuildnumber]: gira sull'agente,
   // senza REST API né permessi aggiuntivi.
   if (buildReason === 'Schedule') {
-    const runDate = new Date().toISOString().slice(0, 10);
-    console.log(`##vso[build.updatebuildnumber]Scheduled E2E - ${runDate}`);
+    const runDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    console.log(
+      `##vso[build.updatebuildnumber]Scheduled E2E - ${runDateTime}`
+    );
   }
 
   if (buildReason === 'PullRequest') {
