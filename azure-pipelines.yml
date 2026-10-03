@@ -72,8 +72,8 @@ jobs:
 
         #script per rinominare la build schedulata
       - script: |
-          if [ "$(BUILD_REASON)" != "Schedule" ]; then
-            echo "Run non schedulata (reason=$(BUILD_REASON)): nessuna rinomina."
+          if [ "$BUILD_REASON" != "Schedule" ]; then
+            echo "Run non schedulata (reason=$BUILD_REASON): nessuna rinomina."
             exit 0
           fi
           RUN_DATE=$(date -u +%Y-%m-%d)
