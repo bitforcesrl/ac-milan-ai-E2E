@@ -95,6 +95,7 @@ jobs:
         continueOnError: true
         env:
           OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
+          AGENT_TEMPDIRECTORY: $(Agent.TempDirectory)
 
       - script: npm run ci:upload-reports
         displayName: Upload reports to Azure Blob
@@ -113,3 +114,18 @@ jobs:
           EMAIL_SEND_POLICY: $(EMAIL_SEND_POLICY)
           EMAIL_REPORT_HTML_URL: $(EMAIL_REPORT_HTML_URL)
           NEXT_PUBLIC_CLIENT_NAME: $(NEXT_PUBLIC_CLIENT_NAME)
+
+      # La pipeline deve fallire se i test falliscono, ma SOLO in modalità
+      # pull-request (per app/pipeline la run è informativa: report + email).
+      # run-e2e.mjs gira con continueOnError=true (upload/email devono partire
+      # comunque) e scrive un marker file in caso di failure: questo step
+      # finale lo legge e fallisce la build dopo che report ed email sono
+      # stati inviati.
+      - script: |
+          if [ "$(RUN_MODE)" = "pull-request" ] && [ -f "$(Agent.TempDirectory)/e2e-failed" ]; then
+            echo "##vso[task.logissue type=error]Test E2E falliti in modalità pull-request: pipeline marcata come failed."
+            exit 1
+          fi
+          echo "Nessun failure da propagare (mode=$(RUN_MODE))."
+        displayName: Fail pipeline on test failures (PR only)
+        condition: succeededOrFailed()

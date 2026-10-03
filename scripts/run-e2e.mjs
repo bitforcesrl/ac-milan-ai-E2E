@@ -239,6 +239,17 @@ async function main() {
 
   if (hasFailures) {
     console.error('\n[CI FAIL] Uno o più test/browser hanno fallito.');
+    // Marker file per la pipeline Azure DevOps: il job e2e gira con
+    // continueOnError=true (upload report + email devono partire comunque),
+    // quindi lo step finale "fail-pipeline" legge questo file per capire se
+    // far fallire la build (solo in modalità pull-request).
+    const markerPath = `${process.env.AGENT_TEMPDIRECTORY || '/tmp'}/e2e-failed`;
+    try {
+      writeFileSync(markerPath, 'fail', 'utf8');
+      console.log(`[CI] Marker failure scritto su ${markerPath}`);
+    } catch (err) {
+      console.error(`[CI ERROR] Impossibile scrivere il marker failure: ${err.message}`);
+    }
   } else {
     console.log('\n[CI SUCCESS] Tutti i test sono terminati con successo.');
   }
