@@ -202,11 +202,6 @@ export async function POST(request: Request) {
             body: JSON.stringify({
                 definition: { id: Number(pipelineId) },
                 sourceBranch: `refs/heads/${branch}`,
-                // Run config del form come TEMPLATE PARAMETER: le queue-time
-                // variables via REST venivano scartate silenziosamente da
-                // Azure DevOps (permessi "Set build variables"). Il parameter
-                // viene espanso a compile-time nel YAML (parameters.e2eRunConfig)
-                // e materializzato su file temporaneo da resolve-flow.mjs.
                 templateParameters: {
                     e2eRunConfig: runConfigJson,
                     // Titolo fisso della run: usato dal name condizionale nel
