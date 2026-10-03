@@ -219,7 +219,8 @@ export async function POST(request: Request) {
                             dateStyle: "short",
                             timeStyle: "short",
                         })
-                        .replaceAll(":", ".")}`,
+                        .replaceAll(":", ".")
+                        .replaceAll("/", "-")}`,
                 },
             }),
         });
