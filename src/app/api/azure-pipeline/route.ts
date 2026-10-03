@@ -211,7 +211,15 @@ export async function POST(request: Request) {
                     e2eRunConfig: runConfigJson,
                     // Titolo fisso della run: usato dal name condizionale nel
                     // YAML (buildTitle via REST viene ignorato da ADO).
-                    e2eRunTitle: `Run avviata dall'app E2E · ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome", dateStyle: "short", timeStyle: "short" })}`,
+                    // NB: il titolo diventa build number, quindi non deve
+                    // contenere caratteri vietati (":", "/", "\"", ecc.).
+                    e2eRunTitle: `Run avviata dall'app E2E · ${new Date()
+                        .toLocaleString("it-IT", {
+                            timeZone: "Europe/Rome",
+                            dateStyle: "short",
+                            timeStyle: "short",
+                        })
+                        .replaceAll(":", ".")}`,
                 },
             }),
         });
