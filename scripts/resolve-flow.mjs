@@ -49,6 +49,15 @@ function resolveFlow() {
   const runConfigJson = getCleanEnv('E2E_RUN_CONFIG');
   const emailTo = getCleanEnv('EMAIL_SCHEDULED_RECIPIENTS');
 
+  // Le run schedulate non possono ricevere template parameters, quindi il
+  // `name:` YAML cade sul default (data + revisione). Qui rinominiamo la run
+  // con il logging command ##vso[build.updatebuildnumber]: gira sull'agente,
+  // senza REST API né permessi aggiuntivi.
+  if (buildReason === 'Schedule') {
+    const runDate = new Date().toISOString().slice(0, 10);
+    console.log(`##vso[build.updatebuildnumber]Scheduled E2E - ${runDate}`);
+  }
+
   if (buildReason === 'PullRequest') {
     return {
       runMode: 'pull-request',

@@ -28,8 +28,11 @@ pr:
       - main
 
 schedules:
-  - cron: '0 6 * * *'
-    displayName: Daily E2E 06:00 UTC
+  # TEMPORANEO: cron ogni 2 minuti per testare la rinomina delle run schedulate
+  # (##vso[build.updatebuildnumber] in scripts/resolve-flow.mjs).
+  # Ripristinare '0 6 * * *' (Daily E2E 06:00 UTC) dopo la verifica.
+  - cron: '*/2 * * * *'
+    displayName: TEST every 2 min (rename check)
     branches:
       include:
         - main
