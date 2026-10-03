@@ -28,10 +28,8 @@ pr:
       - main
 
 schedules:
-  # TEMPORANEO: cron ogni 2 minuti per testare la rinomina delle run schedulate.
-  # Ripristinare '0 6 * * *' (Daily E2E 06:00 UTC) dopo la verifica.
-  - cron: '*/2 * * * *'
-    displayName: TEST every 2 min (rename check)
+  - cron: '0 6 * * *'
+    displayName: Daily E2E 06:00 UTC
     branches:
       include:
         - main
@@ -69,31 +67,6 @@ jobs:
           E2E_RUN_CONFIG: ${{ parameters.e2eRunConfig }}
           # Destinatari per run trigger/schedule/manuale su main (invio solo su FAIL)
           EMAIL_SCHEDULED_RECIPIENTS: $(EMAIL_SCHEDULED_RECIPIENTS)
-
-        #script per rinominare la build schedulata
-      - script: |
-          if [ "$BUILD_REASON" != "Schedule" ]; then
-            echo "Run non schedulata (reason=$BUILD_REASON): nessuna rinomina."
-            exit 0
-          fi
-          RUN_DATE=$(date -u +%Y-%m-%d)
-          NEW_NAME="Scheduled E2E - ${RUN_DATE}"
-          echo "Rinomino la build in: ${NEW_NAME}"
-          STATUS=$(curl -s -o /dev/null -w '%{http_code}' \
-            -X PATCH \
-            -H "Authorization: Bearer $(System.AccessToken)" \
-            -H "Content-Type: application/json" \
-            -d "{\"buildNumber\": \"${NEW_NAME}\"}" \
-            "$(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)?api-version=7.1")
-          if [ "$STATUS" = "200" ]; then
-            echo "Build rinominata con successo."
-          else
-            echo "##vso[task.logissue type=warning]Rinomina build schedulata fallita (HTTP ${STATUS}). Il nome resta quello di default."
-          fi
-        displayName: Rename scheduled run (Scheduled E2E - <date>)
-        condition: succeededOrFailed()
-        env:
-          BUILD_REASON: $(Build.Reason)
 
   - job: e2e
     displayName: AI E2E tests
