@@ -54,7 +54,13 @@ function resolveFlow() {
   // con il logging command ##vso[build.updatebuildnumber]: gira sull'agente,
   // senza REST API né permessi aggiuntivi.
   if (buildReason === 'Schedule') {
-    const runDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // Il build number non ammette i caratteri ':' '<' '>' '"' '/' '\' '|' '?' '@' '*'
+    // (TF209010): l'ora usa '-' al posto di ':'.
+    const runDateTime = new Date()
+      .toISOString()
+      .slice(0, 16)
+      .replace('T', ' ')
+      .replace(':', '-');
     console.log(
       `##vso[build.updatebuildnumber]Scheduled E2E - ${runDateTime}`
     );
