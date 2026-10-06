@@ -69,8 +69,6 @@ jobs:
           # Template parameter passato da /api/azure-pipeline (espanso a
           # compile-time, quindi sempre valorizzato se presente nel payload)
           E2E_RUN_CONFIG: ${{ parameters.e2eRunConfig }}
-          # Destinatari per run trigger/schedule/manuale su main (invio solo su FAIL)
-          EMAIL_SCHEDULED_RECIPIENTS: $(EMAIL_SCHEDULED_RECIPIENTS)
 
 
       - script: |
