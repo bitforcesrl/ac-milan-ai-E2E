@@ -44,9 +44,9 @@ variables:
   - group: acmilan-e2e-secrets
 
 jobs:
-  - job: resolve_flow
-    displayName: Resolve run flow
-    timeoutInMinutes: 5
+  - job: e2e
+    displayName: AI E2E tests
+    timeoutInMinutes: 20
     steps:
       - checkout: self
 
@@ -55,11 +55,9 @@ jobs:
         inputs:
           versionSpec: '22.x'
 
-      # Il name esplicito è obbligatorio: le variabili d'output impostate con
-      # ##vso[task.setvariable isOutput=true] sono scoped allo STEP, e i job
-      # successivi le leggono come dependencies.resolve_flow.outputs
-      # ['resolve_flow.<stepName>.<VAR>']. Senza name il riferimento cross-job
-      # restituisce stringa vuota.
+      # Risolve il flusso e imposta le variabili job-scoped RUN_MODE,
+      # E2E_CONFIG_FILE, EMAIL_RECIPIENTS, EMAIL_SEND_POLICY (leggibili dagli
+      # step successivi di QUESTO job via macro $(NOME)).
       - script: node scripts/resolve-flow.mjs
         name: resolveFlow
         displayName: Resolve flow mode, config and email policy
@@ -74,24 +72,7 @@ jobs:
           # Destinatari per run trigger/schedule/manuale su main (invio solo su FAIL)
           EMAIL_SCHEDULED_RECIPIENTS: $(EMAIL_SCHEDULED_RECIPIENTS)
 
-  - job: e2e
-    displayName: AI E2E tests
-    dependsOn: resolve_flow
-    timeoutInMinutes: 20
-    variables:
-      RUN_MODE: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.RUN_MODE'] ]
-      E2E_CONFIG_FILE: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.E2E_CONFIG_FILE'] ]
-      EMAIL_RECIPIENTS: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.EMAIL_RECIPIENTS'] ]
-      EMAIL_SEND_POLICY: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.EMAIL_SEND_POLICY'] ]
-    steps:
-      - checkout: self
-
-      - task: NodeTool@0
-        displayName: Use Node 22
-        inputs:
-          versionSpec: '22.x'
-
-      # Diagnostica: rende visibili nel log le variabili propagate da resolve_flow
+      # Diagnostica: rende visibili nel log le variabili risolte
       - script: |
           echo "[debug] RUN_MODE=$(RUN_MODE)"
           echo "[debug] E2E_CONFIG_FILE=$(E2E_CONFIG_FILE)"
