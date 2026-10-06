@@ -72,13 +72,6 @@ jobs:
           # Destinatari per run trigger/schedule/manuale su main (invio solo su FAIL)
           EMAIL_SCHEDULED_RECIPIENTS: $(EMAIL_SCHEDULED_RECIPIENTS)
 
-      # Diagnostica: rende visibili nel log le variabili risolte
-      - script: |
-          echo "[debug] RUN_MODE=$(RUN_MODE)"
-          echo "[debug] E2E_CONFIG_FILE=$(E2E_CONFIG_FILE)"
-          echo "[debug] EMAIL_SEND_POLICY=$(EMAIL_SEND_POLICY)"
-          echo "[debug] EMAIL_RECIPIENTS=$(EMAIL_RECIPIENTS)"
-        displayName: Debug resolved flow variables
 
       - script: |
           npm ci
