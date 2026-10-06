@@ -11,13 +11,16 @@
 //                   env E2E_RUN_CONFIG nel job): destinatari = emailRecipients
 //                   nel JSON, invio SEMPRE (pass o fail)
 // - pipeline     -> lancio manuale/schedule su main: configs/pipeline.config.json,
-//                   destinatari = EMAIL_SCHEDULED_RECIPIENTS, invio solo su FAIL
+//                   destinatari = emailRecipients nel file di config,
+//                   invio solo su FAIL
 //
 // Output variables:
 // - RUN_MODE:         pull-request | app | pipeline
 // - E2E_CONFIG_FILE:  path del file di config per run-e2e.mjs
 // - EMAIL_RECIPIENTS: destinatari email (virgola-separati, formato SendGrid)
 // - EMAIL_SEND_POLICY: always | on-fail
+
+import { readFileSync } from 'node:fs';
 
 const EMAIL_REGEX = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
@@ -43,11 +46,25 @@ function extractRunConfigRecipients(runConfigJson) {
   }
 }
 
+function readPipelineConfigRecipients() {
+  try {
+    const config = JSON.parse(readFileSync('configs/pipeline.config.json', 'utf8'));
+    if (!Array.isArray(config.emailRecipients)) return '';
+    return config.emailRecipients
+      .map((e) => String(e).trim().toLowerCase())
+      .filter((e) => EMAIL_REGEX.test(e))
+      .join(',');
+  } catch (err) {
+    console.error(`[flow] configs/pipeline.config.json non valido: ${err.message}`);
+    return '';
+  }
+}
+
 function resolveFlow() {
   const buildReason = getCleanEnv('BUILD_REASON');
   const requestedForEmail = getCleanEnv('BUILD_REQUESTED_FOR_EMAIL');
   const runConfigJson = getCleanEnv('E2E_RUN_CONFIG');
-  const emailTo = getCleanEnv('EMAIL_SCHEDULED_RECIPIENTS');
+  const emailTo = readPipelineConfigRecipients();
 
   // Le run schedulate non possono ricevere template parameters, quindi il
   // `name:` YAML cade sul default (data + revisione). Qui rinominiamo la run
@@ -95,7 +112,7 @@ function resolveFlow() {
     policy: 'on-fail',
     warn: emailTo
       ? null
-      : 'EMAIL_SCHEDULED_RECIPIENTS non configurata: nessun destinatario per run trigger/schedule.',
+      : 'emailRecipients vuoto in configs/pipeline.config.json: nessun destinatario per run trigger/schedule.',
   };
 }
 

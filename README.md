@@ -46,7 +46,6 @@ cp .env.template .env
 | `AZURE_DEVOPS_BRANCH` | Branch su cui eseguire la pipeline (default `main`) |
 | `EMAIL_SENDGRID_API_KEY` | API key SendGrid |
 | `EMAIL_FROM` | Mittente della mail di report |
-| `EMAIL_SCHEDULED_RECIPIENTS` | Destinatari per run trigger/schedule/manuale su `main` (separati da virgola; invio solo su FAIL) |
 | `EMAIL_REPORT_HTML_URL` | URL della pagina HTML del report da includere nella mail |
 
 ### 2. Configurazione dei test (`configs/`)
