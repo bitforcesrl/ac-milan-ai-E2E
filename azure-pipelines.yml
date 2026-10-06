@@ -28,8 +28,8 @@ pr:
       - main
 
 schedules:
-  - cron: '0 6 * * *'
-    displayName: Daily E2E 06:00 UTC
+  - cron: '*/2 * * * *'
+    displayName: Daily E2E every 2 minutes
     branches:
       include:
         - main
