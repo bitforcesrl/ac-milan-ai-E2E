@@ -14,7 +14,8 @@
     "ci:send-email": "node scripts/send-email-report.mjs",
     "local:run-e2e": "node scripts/run-e2e.mjs --config configs/local.config.json",
     "local:download-reports": "node scripts/download-reports-from-azure.mjs",
-    "local:clear-azure": "node scripts/clear-azure-storage.mjs"
+    "local:clear-azure": "node scripts/clear-azure-storage.mjs",
+    "postinstall": "playwright install --with-deps chromium firefox webkit"
   },
   "keywords": [
     "playwright",

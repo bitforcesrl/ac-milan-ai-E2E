@@ -55,7 +55,13 @@ jobs:
         inputs:
           versionSpec: '22.x'
 
+      # Il name esplicito è obbligatorio: le variabili d'output impostate con
+      # ##vso[task.setvariable isOutput=true] sono scoped allo STEP, e i job
+      # successivi le leggono come dependencies.resolve_flow.outputs
+      # ['resolve_flow.<stepName>.<VAR>']. Senza name il riferimento cross-job
+      # restituisce stringa vuota.
       - script: node scripts/resolve-flow.mjs
+        name: resolveFlow
         displayName: Resolve flow mode, config and email policy
         env:
           # Variabili predefinite Azure DevOps
@@ -73,10 +79,10 @@ jobs:
     dependsOn: resolve_flow
     timeoutInMinutes: 20
     variables:
-      RUN_MODE: $[ dependencies.resolve_flow.outputs['resolve_flow.RUN_MODE'] ]
-      E2E_CONFIG_FILE: $[ dependencies.resolve_flow.outputs['resolve_flow.E2E_CONFIG_FILE'] ]
-      EMAIL_RECIPIENTS: $[ dependencies.resolve_flow.outputs['resolve_flow.EMAIL_RECIPIENTS'] ]
-      EMAIL_SEND_POLICY: $[ dependencies.resolve_flow.outputs['resolve_flow.EMAIL_SEND_POLICY'] ]
+      RUN_MODE: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.RUN_MODE'] ]
+      E2E_CONFIG_FILE: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.E2E_CONFIG_FILE'] ]
+      EMAIL_RECIPIENTS: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.EMAIL_RECIPIENTS'] ]
+      EMAIL_SEND_POLICY: $[ dependencies.resolve_flow.outputs['resolve_flow.resolveFlow.EMAIL_SEND_POLICY'] ]
     steps:
       - checkout: self
 
