@@ -1,7 +1,7 @@
 // Risolve UNA sola volta il flusso di esecuzione della pipeline E2E e stampa
-// le variabili di output per Azure DevOps (comandi ##vso[task.setvariable]).
-// Chiamato dal job "resolve_flow" in azure-pipelines.yml: le variabili vengono
-// propagate ai job successivi via dependencies.*.outputs.
+// le variabili job-scoped per Azure DevOps (comandi ##vso[task.setvariable]).
+// Chiamato come PRIMO STEP del job "e2e" in azure-pipelines.yml: le variabili
+// sono leggibili dagli step successivi dello stesso job via macro $(NOME).
 //
 // Flussi:
 // - pull-request -> PR su main: config configs/pr.config.json, destinatario =
@@ -120,8 +120,10 @@ if (flow.runMode === 'app') {
   }
 }
 
-// Variabili di output per Azure DevOps (lette dai job successivi via
-// dependencies.resolve_flow.outputs['resolve_flow.<NOME>'])
+// Variabili job-scoped per Azure DevOps: senza isOutput=true diventano
+// variabili del job correnti, leggibili dagli step successivi STESSO job via
+// macro $(NOME). Lo script gira come primo step del job e2e in
+// azure-pipelines.yml (niente più propagazione cross-job).
 const outputs = {
   RUN_MODE: flow.runMode,
   E2E_CONFIG_FILE: flow.config,
@@ -130,7 +132,7 @@ const outputs = {
 };
 
 for (const [name, value] of Object.entries(outputs)) {
-  console.log(`##vso[task.setvariable variable=${name};isOutput=true]${value}`);
+  console.log(`##vso[task.setvariable variable=${name}]${value}`);
 }
 
 console.log(
