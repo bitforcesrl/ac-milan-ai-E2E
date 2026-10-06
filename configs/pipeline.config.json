@@ -7,5 +7,5 @@
   "viewports": ["1280x650"],
   "aiModel": "qwen/qwen3.7-plus",
   "maxParallelSessions": 3,
-  "emailRecipients": []
+  "emailRecipients": ["t.rossi@sintraconsulting.eu", "r.gai@sintraconsulting.eu", "f.todino@sintraconsulting.eu", "m.rosi@sintraconsulting.eu"]
 }
