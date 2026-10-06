@@ -15,6 +15,9 @@
     "local:run-e2e": "node scripts/run-e2e.mjs --config configs/local.config.json",
     "local:download-reports": "node scripts/download-reports-from-azure.mjs",
     "local:clear-azure": "node scripts/clear-azure-storage.mjs",
+    "sync:pull": "git fetch upstream && git merge upstream/main",
+    "sync:status": "git fetch upstream && git log HEAD..upstream/main --oneline",
+    "sync:pr": "git push upstream HEAD && echo 'Apri la PR su Azure DevOps (repo harness)'",
     "postinstall": "playwright install --with-deps chromium firefox webkit"
   },
   "keywords": [

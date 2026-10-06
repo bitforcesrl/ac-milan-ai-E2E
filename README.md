@@ -1,129 +1,128 @@
 # AI E2E Tests Harness
 
-Harness per test E2E basati su AI (Playwright + OpenRouter) con dashboard Next.js per l'avvio delle run e la consultazione dei report, e pipeline Azure DevOps per l'esecuzione in CI.
+Harness per test E2E basati su AI (Playwright + OpenRouter) con dashboard Next.js e pipeline Azure DevOps.
 
-## Stack
+## Creazione nuovo progetto client — step by step
 
-- **Next.js 16 (App Router)** + React 19 + TypeScript strict
-- **Tailwind CSS 4** + Sass
-- **React Query** (`@tanstack/react-query`) per lo stato server-side
-- **React Hook Form + Zod** per form e validazione
-- **Playwright** (`@playwright/test`) per i browser
-- **Azure Blob Storage** per lo storage dei report
-- **Azure DevOps REST API** per il trigger delle pipeline
-- **SendGrid** per l'invio dei report via email
-- **OpenRouter** come provider dei modelli AI
-
-## Requisiti
-
-- Node.js 22.x
-- npm
-- Un agent Azure DevOps con Docker (pool `Internal Linux with Docker`, JDK 21) per la CI
-
-## Configurazione
-
-### 1. Variabili d'ambiente
-
-Copia il template e compila i valori:
+### 1. Repo
 
 ```bash
+# clona l'harness
+git clone git@ssh.dev.azure.com:v3/sintraconsulting/Bitforce/AI%20E2E%20tests%20-%20harness <client>-ai-e2e-tests
+cd <client>-ai-e2e-tests
+
+# crea il repo client su Azure DevOps, poi:
+git remote set-url origin git@ssh.dev.azure.com:v3/sintraconsulting/<Progetto>/<Client>%20-%20AI%20E2E%20-%20tests
+git remote add upstream git@ssh.dev.azure.com:v3/sintraconsulting/Bitforce/AI%20E2E%20tests%20-%20harness
+git push -u origin main
+
+# opzionale, mirror GitHub:
+git remote add github git@github.com:bitforcesrl/<client>-ai-e2e.git
+git push github main
+```
+
+### 2. Dipendenze
+
+```bash
+npm install          # installa anche i browser Playwright (postinstall)
 cp .env.template .env
 ```
 
-| Variabile | Descrizione |
-|---|---|
-| `NEXT_PUBLIC_CLIENT_NAME` | Nome del client mostrato nella dashboard (branding) |
-| `OPENROUTER_API_KEY` | API key OpenRouter per i modelli AI usati nei test |
-| `OPENROUTER_MAX_RETRIES` / `OPENROUTER_RETRY_BASE_MS` / `OPENROUTER_MAX_TURNS` | Tuning delle retry e del numero massimo di turni AI |
-| `APP_PASSWORD` | Password per accedere alla dashboard Next.js |
-| `APP_SESSION_SECRET` | Segreto per firmare il cookie di sessione (es. `openssl rand -hex 32`) |
-| `APP_SESSION_TTL_HOURS` | Durata sessione in ore (default `168` = 7 giorni) |
-| `AZURE_STORAGE_CONNECTION_STRING` | Connection string Azure Blob (usata dalla dashboard `/reports` e dagli script di upload/download) |
-| `AZURE_STORAGE_CONTAINER` | Container dei report (default `e2e-reports`) |
-| `AZURE_DEVOPS_ORG` / `AZURE_DEVOPS_PROJECT` | Organizzazione e progetto Azure DevOps |
-| `AZURE_DEVOPS_PIPELINE_ID` | ID della definizione di build da eseguire |
-| `AZURE_DEVOPS_PAT` | Personal Access Token con permesso **Build (Read & Execute)** |
-| `AZURE_DEVOPS_BRANCH` | Branch su cui eseguire la pipeline (default `main`) |
-| `EMAIL_SENDGRID_API_KEY` | API key SendGrid |
-| `EMAIL_FROM` | Mittente della mail di report |
-| `EMAIL_REPORT_HTML_URL` | URL della pagina HTML del report da includere nella mail |
+vedi `.env.template` per l'elenco completo delle variabili richieste.
 
-### 2. Configurazione dei test (`configs/`)
+### 3. Configurazione test
 
-Il catalogo dei test, browser, viewport e modelli AI disponibili è definito in [`configs/index.ts`](configs/index.ts:15):
+#### 3a. Scrivere i test — `tests/*.test.md`
 
-- `E2E_TESTS`: elenco dei flussi di test (id, nome, file `.test.md`, URL target, flag `default`)
-- `BROWSERS`: `chromium`, `firefox`, `webkit`
-- `VIEWPORTS`: `1280x650` (Desktop), `768x1024` (Tablet), `390x844` (Mobile)
-- `AI_MODELS`: modelli OpenRouter disponibili (il primo è il default)
-- `DEFAULT_EMAIL_RECIPIENTS`: destinatari precompilati nel form della dashboard
-- `MAX_PARALLEL_SESSIONS`: sessioni Playwright in parallelo (default `3`, opzioni `1–3`)
+I test si scrivono in **linguaggio naturale, in Markdown** (`.test.md`): non c'è codice Playwright. A ogni run un agente AI legge il file e segue le istruzioni per navigare il sito e verificare il flusso.
 
-Le combinazioni effettive per ambiente sono nei file JSON:
+Regole pratiche:
 
-- [`configs/pipeline.config.json`](configs/pipeline.config.json) — run su `main` (trigger/schedule/manuale)
-- [`configs/pr.config.json`](configs/pr.config.json) — run su pull request (solo smoke)
-- [`configs/local.config.json`](configs/local.config.json) — run locale (1 sessione parallela)
+- Un file = un flusso di test, organizzati in sottocartelle per area (es. `tests/pdp/`, `tests/quickbuy/`).
+- Descrivi **obiettivo, passi attesi e cosa considerare bug/pass**: più sono precisi, più il test è deterministico.
+- Il file viene letto dall'agente a runtime: non serve compilare nulla, basta salvarlo in `tests/`.
 
-Ogni config contiene: `tests` (per id), `browsers`, `viewports`, `aiModel`, `maxParallelSessions`.
+#### 3b. Registrare i test — [`configs/index.ts`](configs/index.ts)
 
-### 3. Azure DevOps
+Ogni test va aggiunto all'array `E2E_TESTS`:
 
-La pipeline è definita in [`azure-pipelines.yml`](azure-pipelines.yml:1):
-
-- **Trigger**: push su `main`, PR su `main`, schedule giornaliero `0 6 * * *` (06:00 UTC, `always: true`)
-- **Pool**: `Internal Linux with Docker` (richiede JDK 21)
-- **Variable group**: `ai-e2e-secrets` — deve contenere tutte le variabili d'ambiente elencate sopra (OpenRouter, Azure Blob, SendGrid, email)
-- **Variabile `E2E_RUN_CONFIG`**: dichiarata vuota perché l'app possa passarne il valore a queue-time via REST (`POST /api/azure-pipeline`); senza dichiarazione la macro non viene espansa
-
-La pipeline esegue due job:
-
-1. `resolve_flow` — [`scripts/resolve-flow.mjs`](scripts/resolve-flow.mjs) determina la modalità (PR / main / run da dashboard), il file di config e la policy di invio email, esportandoli come output variables
-2. `e2e` — installa dipendenze e browser Playwright, esegue [`scripts/run-e2e.mjs`](scripts/run-e2e.mjs), carica i report su Azure Blob e invia la mail via SendGrid (`succeededOrFailed()`)
-
-### 4. Azure Blob Storage
-
-I report HTML delle run vengono caricati su un container Blob (default `e2e-reports`) e consultati dalla dashboard. Serve una connection string con permessi di lettura/scrittura sul container.
-
-## Avvio
-
-```bash
-npm install
-npm run dev        # dashboard su http://localhost:3000
+```ts
+{
+    id: 'quickbuy-cart-validation',   // id univoco, usato nei file di config
+    name: 'Quick-Buy Cart Validation',
+    description: 'Valida prezzi, quantità e contenuti del carrello nel flusso quick-buy.',
+    file: 'quickbuy/quickbuy-cart-validation.test.md',  // path relativo a tests/
+    url: 'https://store.acmilan.com/',  // URL di partenza della run
+    default: true                       // preselezionato nel form della dashboard
+}
 ```
 
-Alla prima apertura viene richiesta la password (`APP_PASSWORD`) su `/login`; la sessione è un cookie firmato HMAC-SHA256 (`app_session`).
+In `configs/index.ts` si definiscono anche: `BROWSERS` (chromium/firefox/webkit), `VIEWPORTS` (desktop/tablet/mobile), `AI_MODELS` (modelli OpenRouter, il primo è il default), `DEFAULT_EMAIL_RECIPIENTS` e `MAX_PARALLEL_SESSIONS`.
 
-## Script disponibili
+#### 3c. Config per ambiente — `configs/*.json`
+
+Tre file che selezionano **quali test eseguire e con quali combinazioni** per ogni contesto. Ogni file contiene:
+
+| Campo | Significato |
+|---|---|
+| `tests` | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`) |
+| `browsers` | Browser su cui eseguire (`chromium`, `firefox`, `webkit`) |
+| `viewports` | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
+| `aiModel` | Modello OpenRouter usato dall'agente |
+| `maxParallelSessions` | Sessioni Playwright in parallelo (1–3) |
+| `emailRecipients` | (solo pipeline) destinatari della mail di report |
+
+- [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
+- [`configs/pr.config.json`](configs/pr.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
+- [`configs/local.config.json`](configs/local.config.json) — run locale (`npm run local:run-e2e`): 1 sessione parallela, nessuna mail.
+
+Le run avviate dalla **dashboard** non usano questi file: la config arriva inline dal form (`E2E_RUN_CONFIG`).
+
+### 4. Azure DevOps
+
+1. Variable group `ai-e2e-secrets` (puoi modificare il nome nella [`azure-pipelines.yml`](azure-pipelines.yml)) con queste variabili (usate dalla pipeline per eseguire i test e inviare i report):
+
+   ```
+   AZURE_STORAGE_CONNECTION_STRING
+   AZURE_STORAGE_CONTAINER
+   EMAIL_FROM
+   EMAIL_REPORT_HTML_URL
+   NEXT_PUBLIC_CLIENT_NAME
+   OPENROUTER_API_KEY
+   SENDGRID_API_KEY
+   ```
+
+2. Nuova pipeline → seleziona il repo client → [`azure-pipelines.yml`](azure-pipelines.yml).
+3. Annota l'ID della pipeline → `AZURE_DEVOPS_PIPELINE_ID` in `.env` e variable group.
+4. Verifica pool agent: `Internal Linux with Docker` (JDK 21).
+5. Verifica che la variabile `E2E_RUN_CONFIG` sia dichiarata (vuota) nella pipeline.
+
+> Le altre variabili di `.env` (password dashboard, session secret, credenziali Azure DevOps, ecc.) non servono alla pipeline: servono quando si rilascia l'app Next.js (la dashboard), ad esempio su Vercel — vanno inserite nelle Environment Variables del progetto.
+
+### 5. Azure Blob Storage
+
+1. Storage account + container per i report (il nome non è fisso: qualunque nome va bene, va impostato in `AZURE_STORAGE_CONTAINER` nel variable group — default `e2e-reports`).
+2. Connection string → variable group (`AZURE_STORAGE_CONNECTION_STRING`).
+
+### 6. Verifica
+
+```bash
+npm run dev              # dashboard su http://localhost:3000
+npm run local:run-e2e    # run locale
+```
+
+Poi triggera una run dalla dashboard o manualmente dalla pipeline.
+
+## Sincronizzazione con l'harness
+
+Utility npm:
 
 | Comando | Descrizione |
 |---|---|
-| `npm run dev` / `build` / `start` | Dashboard Next.js |
-| `npm run lint` | ESLint |
-| `npm run ci:resolve-flow` | Risolve modalità/config/email policy (usato in CI) |
-| `npm run ci:run-e2e` | Esegue i test con `configs/pipeline.config.json` |
-| `npm run ci:run-e2e-pr` | Esegue i test con `configs/pr.config.json` |
-| `npm run ci:upload-reports` | Carica i report su Azure Blob |
-| `npm run ci:send-email` | Invia il report via SendGrid |
-| `npm run local:run-e2e` | Esegue i test con `configs/local.config.json` |
-| `npm run local:download-reports` | Scarica i report da Azure Blob in locale |
-| `npm run local:clear-azure` | Svuota il container Azure Blob |
+| `npm run sync:status` | Mostra i commit dell'harness non ancora merged (nessuna modifica) |
+| `npm run sync:pull` | Fetch + merge da `upstream` |
+| `npm run sync:pr` | Pusha il branch corrente sull'`upstream` per contribuire una modifica all'harness (poi apri la PR su Azure DevOps) |
 
-## Come funziona
 
-1. **Trigger di una run**: dalla dashboard (form in home) oppure automaticamente (push/PR/schedule su `main`). Il form invia una config JSON inline che viene passata alla pipeline come variabile `E2E_RUN_CONFIG` tramite `POST /api/azure-pipeline`.
-2. **Esecuzione**: la pipeline risolve il flusso, esegue i test Playwright guidati dall'AI (OpenRouter) in parallelo sulle combinazioni browser × viewport selezionate.
-3. **Report**: gli HTML vengono caricati su Azure Blob e sono consultabili nella dashboard su `/reports` (elenco run → dettaglio per browser/viewport/test).
-4. **Email**: invio via SendGrid secondo policy — sempre per run avviate dalla dashboard, solo su FAIL per trigger/schedule e PR (destinatario: autore della PR).
+Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.yml`, `package.json`, `configs/index.ts`): il client tocca solo `configs/*.json`, `tests/`, `.env`.
 
-## Struttura del progetto
-
-```
-configs/            # Catalogo test/browser/viewport + config per ambiente
-scripts/            # Script CI/locali (run, upload/download, email, resolve-flow)
-src/app/            # Dashboard Next.js (login, home, reports) + API routes
-src/components/     # Componenti UI della dashboard
-src/lib/            # Auth, client Azure DevOps/Blob, query, schema run config
-src/types/          # Tipi TypeScript condivisi
-azure-pipelines.yml # Pipeline Azure DevOps
-```
