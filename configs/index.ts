@@ -82,7 +82,7 @@ export const VIEWPORTS: ViewportConfig[] = [
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)
-export const AI_MODELS: string[] = ['qwen/qwen3.7-plus'];
+export const AI_MODELS: string[] = ['qwen/qwen3.7-plus', 'z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash'];
 
 // ============================================================================
 // EMAIL: destinatari di default precompilati nel form Next.js quando la run
