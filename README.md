@@ -54,11 +54,11 @@ Ogni test va aggiunto all'array `E2E_TESTS` in [`configs/index.ts`](configs/inde
 
 ```ts
 {
-    id: 'quickbuy-cart-validation',   // id univoco, usato nei file di config
-    name: 'Quick-Buy Cart Validation',
-    description: 'Valida prezzi, quantità e contenuti del carrello nel flusso quick-buy.',
-    file: 'quickbuy/quickbuy-cart-validation.test.md',  // path relativo a tests/
-    url: 'https://store.acmilan.com/',  // URL di partenza della run
+    id: 'my-test',                      // id univoco, usato nei file di config
+    name: 'My Test',
+    description: 'Descrizione del test.',
+    file: 'my-test.test.md',            // path relativo a tests/
+    url: 'https://example.com',         // URL di partenza della run
     default: true                       // preselezionato nel form della dashboard
 }
 ```

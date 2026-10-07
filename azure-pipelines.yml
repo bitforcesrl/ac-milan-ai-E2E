@@ -41,7 +41,7 @@ pool:
     - jdk -equals 21
 
 variables:
-  - group: acmilan-e2e-secrets
+  - group: ai-e2e-secrets
 
 jobs:
   - job: e2e
