@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "setup": "test -d configs || cp -R configs.template configs",
     "ci:resolve-flow": "node scripts/resolve-flow.mjs",
     "ci:run-e2e": "node scripts/run-e2e.mjs --config configs/pipeline.config.json",
     "ci:run-e2e-pr": "node scripts/run-e2e.mjs --config configs/pr.config.json",
@@ -18,7 +19,7 @@
     "sync:pull": "git fetch upstream && git merge upstream/main",
     "sync:status": "git fetch upstream && git log HEAD..upstream/main --oneline",
     "sync:pr": "git push upstream HEAD && echo 'Apri la PR su Azure DevOps (repo harness)'",
-    "postinstall": "playwright install --with-deps chromium firefox webkit"
+    "postinstall": "npm run setup && playwright install --with-deps chromium firefox webkit"
   },
   "keywords": [
     "playwright",
