@@ -1,0 +1,11 @@
+{
+  "tests": [
+    { "id": "fail-test" },
+    { "id": "quickbuy-cart-validation" }
+  ],
+  "browsers": ["chromium"],
+  "viewports": ["1280x650"],
+  "aiModel": "qwen/qwen3.7-plus",
+  "maxParallelSessions": 3,
+  "emailRecipients": ["t.rossi@sintraconsulting.eu", "r.gai@sintraconsulting.eu", "f.todino@sintraconsulting.eu", "m.rosi@sintraconsulting.eu"]
+}
