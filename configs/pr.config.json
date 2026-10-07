@@ -1,6 +1,5 @@
 {
   "tests": [
-    { "id": "fail-test" }
   ],
   "browsers": ["chromium"],
   "viewports": ["1280x650"],
