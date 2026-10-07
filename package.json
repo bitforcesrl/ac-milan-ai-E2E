@@ -19,7 +19,7 @@
     "sync:pull": "git fetch upstream && git merge upstream/main",
     "sync:status": "git fetch upstream && git log HEAD..upstream/main --oneline",
     "sync:pr": "git push upstream HEAD && echo 'Apri la PR su Azure DevOps (repo harness)'",
-    "postinstall": "npm run setup && playwright install --with-deps chromium firefox webkit"
+    "postinstall": "node scripts/postinstall.mjs"
   },
   "keywords": [
     "playwright",
