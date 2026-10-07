@@ -61,6 +61,7 @@ export default function RunningRow({ build, style }: { build: RunningBuild; styl
                     <div className="h-full w-1/2 rounded-full bg-primary/60 animate-shimmer-slide" />
                 </div>
             </td>
+            <td className="border-b border-grey px-3.5 py-2.5 align-middle text-dark-grey">—</td>
             <td className="border-b border-grey px-3.5 py-2.5 align-middle text-dark-grey">0</td>
         </tr>
     );
