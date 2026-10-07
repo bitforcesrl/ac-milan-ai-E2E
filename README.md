@@ -26,9 +26,12 @@ git push github main
 ```bash
 npm install          # installa anche i browser Playwright (postinstall)
 cp .env.template .env
+npm run setup        # copia configs.template/ → configs/ (solo se assente)
 ```
 
 vedi `.env.template` per l'elenco completo delle variabili richieste.
+
+> `npm run setup` viene eseguito automaticamente anche dal `postinstall`, ma puoi rilanciarlo manualmente per ripristinare `configs/` dal template senza sovrascrivere eventuali personalizzazioni.
 
 ### 3. Configurazione test
 
@@ -41,10 +44,13 @@ Regole pratiche:
 - Un file = un flusso di test, organizzati in sottocartelle per area (es. `tests/pdp/`, `tests/quickbuy/`).
 - Descrivi **obiettivo, passi attesi e cosa considerare bug/pass**: più sono precisi, più il test è deterministico.
 - Il file viene letto dall'agente a runtime: non serve compilare nulla, basta salvarlo in `tests/`.
+- L'harness include alcuni test di esempio (es. ACM): **sostituiscili o rimuovili** con i test del tuo progetto.
 
-#### 3b. Registrare i test — [`configs/index.ts`](configs/index.ts)
+#### 3b. Registrare i test — `configs/index.ts`
 
-Ogni test va aggiunto all'array `E2E_TESTS`:
+Il template dei file di configurazione vive in [`configs.template/`](configs.template). Dopo `npm run setup` (o `npm install`) trovi la tua copia in `configs/` — **modifica sempre `configs/`, mai `configs.template/`**.
+
+Ogni test va aggiunto all'array `E2E_TESTS` in [`configs/index.ts`](configs/index.ts):
 
 ```ts
 {
@@ -97,7 +103,25 @@ Le run avviate dalla **dashboard** non usano questi file: la config arriva inlin
 4. Verifica pool agent: `Internal Linux with Docker` (JDK 21).
 5. Verifica che la variabile `E2E_RUN_CONFIG` sia dichiarata (vuota) nella pipeline.
 
-> Le altre variabili di `.env` (password dashboard, session secret, credenziali Azure DevOps, ecc.) non servono alla pipeline: servono quando si rilascia l'app Next.js (la dashboard), ad esempio su Vercel — vanno inserite nelle Environment Variables del progetto.
+> Le altre variabili di `.env` non servono alla pipeline: servono quando si rilascia l'app Next.js (la dashboard), ad esempio su Vercel — vanno inserite nelle Environment Variables del progetto:
+
+```
+APP_PASSWORD
+APP_SESSION_SECRET
+APP_SESSION_TTL_HOURS
+AZURE_STORAGE_CONNECTION_STRING
+AZURE_STORAGE_CONTAINER
+AZURE_DEVOPS_ORG
+AZURE_DEVOPS_PROJECT
+AZURE_DEVOPS_PIPELINE_ID
+AZURE_DEVOPS_PAT
+AZURE_DEVOPS_BRANCH
+NEXT_PUBLIC_CLIENT_NAME
+OPENROUTER_API_KEY
+OPENROUTER_MAX_RETRIES
+OPENROUTER_RETRY_BASE_MS
+OPENROUTER_MAX_TURNS
+```
 
 ### 5. Azure Blob Storage
 
@@ -123,6 +147,20 @@ Utility npm:
 | `npm run sync:pull` | Fetch + merge da `upstream` |
 | `npm run sync:pr` | Pusha il branch corrente sull'`upstream` per contribuire una modifica all'harness (poi apri la PR su Azure DevOps) |
 
+> **Attenzione**: `sync:pr` pusha il tuo branch sull'upstream. Assicurati di non includere `configs/` (non esiste nell'upstream) — se hai modificato solo `configs/`, `tests/` o `.env`, non serve aprire PR.
 
-Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.yml`, `package.json`, `configs/index.ts`): il client tocca solo `configs/*.json`, `tests/`, `.env`.
+### Cosa modifica il client
+
+Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.yml`, `package.json`, `configs.template/`). Il client tocca solo:
+
+- `configs/` — la tua copia (committata nel repo client)
+- `tests/` — i tuoi test
+- `.env` — le tue variabili d'ambiente
+
+### Aggiornamenti dell'harness
+
+Quando fai `npm run sync:pull`, l'harness può aggiornare `configs.template/` (es. nuovi browser/viewport, nuovi campi nei `.config.json`). Queste modifiche **non si propagano automaticamente** alla tua copia `configs/`:
+
+- **`configs/index.ts`**: riporta a mano le aggiunte (es. nuovi `BROWSERS` o `VIEWPORTS`) nel tuo file.
+- **`configs/*.json`**: se l'harness introduce nuovi campi, il codice li tollera con default; puoi rigenerare i file con `npm run setup` (non sovrascrive `configs/` se esiste) o aggiornarli manualmente.
 

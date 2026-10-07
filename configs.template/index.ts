@@ -13,54 +13,15 @@ export type {
 } from "../src/types/config";
 
 export const E2E_TESTS: E2ETest[] = [
-    {
-        id: 'fail-test',
-        name: 'Fail Test',
-        description: 'Test di smoke che fallisce sempre, utile per verificare la pipeline e i report.',
-        file: 'fail.test.md',
-        url: 'https://store.acmilan.com',
-        default: true
-    },
-    {
-        id: 'pdp',
-        name: 'PDP Personalization Flow',
-        description: 'Verifica il flusso completo di personalizzazione della maglia sulla pagina prodotto.',
-        file: 'pdp/pdp.test.md',
-        url: 'https://store.acmilan.com/products/acm-home-authentic-jersey',
-        default: false
-    },
-    {
-        id: 'pdp-fuzzy',
-        name: 'PDP Fuzzy Input Validation',
-        description: 'Valida i campi di personalizzazione con input fuzzy/estremi per individuare bug.',
-        file: 'pdp/pdp-fuzzy.test.md',
-        url: 'https://store.acmilan.com/products/acm-home-authentic-jersey',
-        default: false
-    },
-    {
-        id: 'quickbuy-combinations',
-        name: 'Quick-Buy Combinations',
-        description: 'Testa le combinazioni di taglie e varianti nel flusso quick-buy.',
-        file: 'quickbuy/quickbuy-combinations.test.md',
-        url: 'https://store.acmilan.com/',
-        default: false
-    },
-    {
-        id: 'quickbuy-personalization',
-        name: 'Quick-Buy Personalization',
-        description: 'Verifica la personalizzazione della maglia direttamente dal flusso quick-buy.',
-        file: 'quickbuy/quickbuy-personalization.test.md',
-        url: 'https://store.acmilan.com/',
-        default: false
-    },
-    {
-        id: 'quickbuy-cart-validation',
-        name: 'Quick-Buy Cart Validation',
-        description: 'Valida prezzi, quantità e contenuti del carrello nel flusso quick-buy.',
-        file: 'quickbuy/quickbuy-cart-validation.test.md',
-        url: 'https://store.acmilan.com/',
-        default: true
-    },
+    // Aggiungi qui i test del progetto, esempio:
+    // {
+    //     id: 'my-test',
+    //     name: 'My Test',
+    //     description: 'Descrizione del test.',
+    //     file: 'my-test.test.md',
+    //     url: 'https://example.com',
+    //     default: true
+    // },
 ];
 
 // ============================================================================
