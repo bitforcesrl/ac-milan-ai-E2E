@@ -25,23 +25,41 @@
   --animate-shimmer-slide: shimmerSlide 1.6s ease-in-out infinite;
 
   @keyframes fadeIn {
-    0% { opacity: 0; }
-    100% { opacity: 1; }
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
   }
 
   @keyframes fadeUp {
-    0% { opacity: 0; transform: translateY(12px); }
-    100% { opacity: 1; transform: translateY(0); }
+    0% {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 
   @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
   }
 
   @keyframes shimmerSlide {
-    0% { transform: translateX(-110%); }
-    100% { transform: translateX(220%); }
+    0% {
+      transform: translateX(-110%);
+    }
+    100% {
+      transform: translateX(220%);
+    }
   }
 }
 
@@ -57,51 +75,77 @@ p {
 
 /* Report Markdown renderizzato nella pagina di dettaglio test (/reports/.../<testId>) */
 .report-markdown {
-  @apply rounded-xl border border-grey bg-white p-5 shadow-sm text-[15px] leading-relaxed;
+  @apply border-grey rounded-xl border bg-white p-5 text-[15px] leading-relaxed shadow-sm;
 
-  h1 { @apply mt-0 mb-4 text-2xl font-bold; }
-  h2 { @apply mt-7 mb-3 text-lg font-bold; }
-  h3 { @apply mt-5 mb-2 text-base font-bold; }
-  h4, h5, h6 { @apply mt-4 mb-2 text-sm font-bold; }
+  h1 {
+    @apply mt-0 mb-4 text-2xl font-bold;
+  }
+  h2 {
+    @apply mt-7 mb-3 text-lg font-bold;
+  }
+  h3 {
+    @apply mt-5 mb-2 text-base font-bold;
+  }
+  h4,
+  h5,
+  h6 {
+    @apply mt-4 mb-2 text-sm font-bold;
+  }
 
-  p { @apply my-3 text-[15px] leading-relaxed; }
+  p {
+    @apply my-3 text-[15px] leading-relaxed;
+  }
 
-  ul { @apply my-3 list-disc pl-6; }
-  ol { @apply my-3 list-decimal pl-6; }
-  li { @apply my-1 text-[15px]; }
+  ul {
+    @apply my-3 list-disc pl-6;
+  }
+  ol {
+    @apply my-3 list-decimal pl-6;
+  }
+  li {
+    @apply my-1 text-[15px];
+  }
 
-  a { @apply text-blue-600 underline underline-offset-2; }
+  a {
+    @apply text-blue-600 underline underline-offset-2;
+  }
 
-  strong { @apply font-bold; }
+  strong {
+    @apply font-bold;
+  }
 
   blockquote {
-    @apply my-3 border-l-4 border-grey pl-4 text-dark-grey italic;
+    @apply border-grey text-dark-grey my-3 border-l-4 pl-4 italic;
   }
 
   code {
-    @apply rounded bg-grey px-1.5 py-0.5 font-mono text-[0.82em];
+    @apply bg-grey rounded px-1.5 py-0.5 font-mono text-[0.82em];
   }
 
   pre {
-    @apply my-3 overflow-x-auto rounded-lg bg-grey p-4;
-    code { @apply bg-transparent p-0; }
+    @apply bg-grey my-3 overflow-x-auto rounded-lg p-4;
+    code {
+      @apply bg-transparent p-0;
+    }
   }
 
   table {
     @apply my-4 w-full border-collapse text-sm;
     th {
-      @apply border border-grey bg-grey px-3 py-2 text-left font-bold;
+      @apply border-grey bg-grey border px-3 py-2 text-left font-bold;
     }
     td {
-      @apply border border-grey px-3 py-2 align-top;
+      @apply border-grey border px-3 py-2 align-top;
     }
   }
 
   img {
-    @apply my-4 max-w-full rounded-lg border border-grey shadow-sm;
+    @apply border-grey my-4 max-w-full rounded-lg border shadow-sm;
   }
 
-  hr { @apply my-6 border-grey; }
+  hr {
+    @apply border-grey my-6;
+  }
 }
 
 .select-chevron {

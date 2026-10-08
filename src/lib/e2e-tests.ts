@@ -3,17 +3,17 @@
 // e l'app Next.js (form home page).
 
 import {
-    AI_MODELS,
-    BROWSERS,
-    DEFAULT_EMAIL_RECIPIENTS,
-    E2E_TESTS,
-    MAX_PARALLEL_SESSIONS,
-    VIEWPORTS,
-    type BrowserConfig,
-    type E2ETest,
-    type MaxParallelSessions,
-    type ViewportConfig,
-} from "../../configs";
+  AI_MODELS,
+  BROWSERS,
+  DEFAULT_EMAIL_RECIPIENTS,
+  E2E_TESTS,
+  MAX_PARALLEL_SESSIONS,
+  VIEWPORTS,
+  type BrowserConfig,
+  type E2ETest,
+  type MaxParallelSessions,
+  type ViewportConfig,
+} from '../../configs';
 
 export type { BrowserConfig, E2ETest, MaxParallelSessions, ViewportConfig };
 
@@ -30,15 +30,15 @@ export const DEFAULT_EMAIL_RECIPIENTS_LIST: string[] = DEFAULT_EMAIL_RECIPIENTS;
  * configs/*.json (vedi configs/README.md) e validato da run-config-schema.ts.
  */
 export function buildDefaultRunConfig() {
-    return {
-        tests: E2E_TEST_LIST.filter((t) => t.default).map((t) => ({
-            id: t.id,
-            notes: t.notes,
-        })),
-        browsers: BROWSER_LIST.filter((b) => b.default).map((b) => b.id),
-        viewports: VIEWPORT_LIST.filter((v) => v.default).map((v) => v.id),
-        aiModel: AI_MODEL_LIST[0],
-        maxParallelSessions: MAX_PARALLEL_SESSIONS_CONFIG.default,
-        emailRecipients: DEFAULT_EMAIL_RECIPIENTS_LIST,
-    };
+  return {
+    tests: E2E_TEST_LIST.filter((t) => t.default).map((t) => ({
+      id: t.id,
+      notes: t.notes,
+    })),
+    browsers: BROWSER_LIST.filter((b) => b.default).map((b) => b.id),
+    viewports: VIEWPORT_LIST.filter((v) => v.default).map((v) => v.id),
+    aiModel: AI_MODEL_LIST[0],
+    maxParallelSessions: MAX_PARALLEL_SESSIONS_CONFIG.default,
+    emailRecipients: DEFAULT_EMAIL_RECIPIENTS_LIST,
+  };
 }

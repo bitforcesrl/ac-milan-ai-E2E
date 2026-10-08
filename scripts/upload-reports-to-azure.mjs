@@ -45,7 +45,9 @@ if (existsSync(localIndexPath)) {
   const localEntries = parseRunIndex(readRunIndexFile(PATHS.reports));
   const merged = mergeRunIndex(remoteEntries, localEntries);
   writeFileSync(localIndexPath, JSON.stringify(merged, null, 2), 'utf8');
-  console.log(`Index run merged: ${localIndexPath} (${merged.length} run, remote ${remoteEntries.length})`);
+  console.log(
+    `Index run merged: ${localIndexPath} (${merged.length} run, remote ${remoteEntries.length})`,
+  );
 }
 
 // --- Upload dei report raw della run corrente (merge nello stesso path) ---

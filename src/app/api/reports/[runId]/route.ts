@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getRun } from "@/lib/azure-reports";
+import { NextResponse } from 'next/server';
+import { getRun } from '@/lib/azure-reports';
 
 /**
  * API di dettaglio di una run: GET /api/reports/{runId}
@@ -23,20 +23,17 @@ import { getRun } from "@/lib/azure-reports";
  * Variabili d'ambiente: AZURE_STORAGE_CONNECTION_STRING,
  * AZURE_STORAGE_CONTAINER (default "e2e-reports").
  */
-export async function GET(
-    _req: Request,
-    { params }: { params: Promise<{ runId: string }> },
-) {
-    const { runId } = await params;
-    try {
-        const run = await getRun(runId);
-        if (!run) {
-            return NextResponse.json({ error: `Run '${runId}' non trovata.` }, { status: 404 });
-        }
-        return NextResponse.json({ run });
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[api/reports/${runId}] Errore recupero dettaglio run: ${message}`);
-        return NextResponse.json({ error: message }, { status: 500 });
+export async function GET(_req: Request, { params }: { params: Promise<{ runId: string }> }) {
+  const { runId } = await params;
+  try {
+    const run = await getRun(runId);
+    if (!run) {
+      return NextResponse.json({ error: `Run '${runId}' non trovata.` }, { status: 404 });
     }
+    return NextResponse.json({ run });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[api/reports/${runId}] Errore recupero dettaglio run: ${message}`);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

@@ -1,27 +1,27 @@
 import type {
-    BrowserConfig,
-    E2ETest,
-    MaxParallelSessions,
-    ViewportConfig,
-} from "../src/types/config";
+  BrowserConfig,
+  E2ETest,
+  MaxParallelSessions,
+  ViewportConfig,
+} from '../src/types/config';
 
 export type {
-    BrowserConfig,
-    E2ETest,
-    MaxParallelSessions,
-    ViewportConfig,
-} from "../src/types/config";
+  BrowserConfig,
+  E2ETest,
+  MaxParallelSessions,
+  ViewportConfig,
+} from '../src/types/config';
 
 export const E2E_TESTS: E2ETest[] = [
-    // Aggiungi qui i test del progetto, esempio:
-    // {
-    //     id: 'my-test',
-    //     name: 'My Test',
-    //     description: 'Descrizione del test.',
-    //     file: 'my-test.test.md',
-    //     url: 'https://example.com',
-    //     default: true
-    // },
+  // Aggiungi qui i test del progetto, esempio:
+  // {
+  //     id: 'my-test',
+  //     name: 'My Test',
+  //     description: 'Descrizione del test.',
+  //     file: 'my-test.test.md',
+  //     url: 'https://example.com',
+  //     default: true
+  // },
 ];
 
 // ============================================================================
@@ -31,15 +31,15 @@ export const E2E_TESTS: E2ETest[] = [
 // ============================================================================
 
 export const BROWSERS: BrowserConfig[] = [
-    { id: 'chromium', label: 'Chromium', default: true },
-    { id: 'firefox', label: 'Firefox', default: false },
-    { id: 'webkit', label: 'WebKit (Safari)', default: false },
+  { id: 'chromium', label: 'Chromium', default: true },
+  { id: 'firefox', label: 'Firefox', default: false },
+  { id: 'webkit', label: 'WebKit (Safari)', default: false },
 ];
 
 export const VIEWPORTS: ViewportConfig[] = [
-    { id: '1280x650', label: 'Desktop', default: true },
-    { id: '768x1024', label: 'Tablet', default: false },
-    { id: '390x844', label: 'Mobile', default: false },
+  { id: '1280x650', label: 'Desktop', default: true },
+  { id: '768x1024', label: 'Tablet', default: false },
+  { id: '390x844', label: 'Mobile', default: false },
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)
@@ -56,8 +56,8 @@ export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
 
 // Sessioni in parallelo
 export const MAX_PARALLEL_SESSIONS: MaxParallelSessions = {
-    default: 3,
-    options: [1, 2, 3],
+  default: 3,
+  options: [1, 2, 3],
 };
 
 // ============================================================================
@@ -65,7 +65,7 @@ export const MAX_PARALLEL_SESSIONS: MaxParallelSessions = {
 // ============================================================================
 
 export const PATHS = {
-    // reports/: report JSON strutturati + screenshot + metadata generati dall'AI (run-e2e-ci.mjs),
-    // pubblicati come artifact di pipeline e caricati su Azure Blob da sync-history.mjs
-    reports: 'reports',
+  // reports/: report JSON strutturati + screenshot + metadata generati dall'AI (run-e2e-ci.mjs),
+  // pubblicati come artifact di pipeline e caricati su Azure Blob da sync-history.mjs
+  reports: 'reports',
 } as const;

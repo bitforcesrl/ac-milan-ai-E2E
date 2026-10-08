@@ -6,7 +6,8 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
-const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } = await jiti.import('../configs/index.ts');
+const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } =
+  await jiti.import('../configs/index.ts');
 
 import {
   RUN_INDEX_FILE,
@@ -150,13 +151,15 @@ function loadConfig() {
   return {
     apiKey,
     configPath,
-    maxRetries: Number(process.env.OPENROUTER_MAX_RETRIES) >= 1
-      ? Number(process.env.OPENROUTER_MAX_RETRIES)
-      : 5,
+    maxRetries:
+      Number(process.env.OPENROUTER_MAX_RETRIES) >= 1
+        ? Number(process.env.OPENROUTER_MAX_RETRIES)
+        : 5,
     retryBaseMs: 2000,
-    maxTurns: Number(process.env.OPENROUTER_MAX_TURNS) >= 1
-      ? Number(process.env.OPENROUTER_MAX_TURNS)
-      : 300,
+    maxTurns:
+      Number(process.env.OPENROUTER_MAX_TURNS) >= 1
+        ? Number(process.env.OPENROUTER_MAX_TURNS)
+        : 300,
     mcpToolTimeout: 180000,
     ...runConfig,
   };
@@ -180,8 +183,8 @@ async function main() {
   // Unità di esecuzione: browser x viewport x test
   const units = config.browsers.flatMap((browser) =>
     config.viewports.flatMap((viewport) =>
-      config.tests.map((test) => ({ browser, viewport, test }))
-    )
+      config.tests.map((test) => ({ browser, viewport, test })),
+    ),
   );
 
   console.log(`Run config: ${config.configPath}`);
@@ -202,8 +205,10 @@ async function main() {
       const unit = units[cursor++];
       const comboKey = `${unit.browser}/${unit.viewport}`;
 
-      console.log(`\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`);
-      
+      console.log(
+        `\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`,
+      );
+
       const exitCode = await runSession(unit, config, stamp);
 
       if (!resultsByCombo.has(comboKey)) {
@@ -264,7 +269,9 @@ async function runSession({ browser, viewport, test }, config, stamp) {
   let sessionCost = 0;
   try {
     mcp = await initMcpServers(browser);
-    const messages = [{ role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp) }];
+    const messages = [
+      { role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp) },
+    ];
     let finalText = '';
 
     for (let turn = 0; turn < config.maxTurns; turn++) {
@@ -371,7 +378,12 @@ async function initMcpServers(browser) {
   const toolMap = new Map();
 
   for (const s of serverConfigs) {
-    const transport = new StdioClientTransport({ command: s.command, args: s.args, cwd, env: s.env });
+    const transport = new StdioClientTransport({
+      command: s.command,
+      args: s.args,
+      cwd,
+      env: s.env,
+    });
     const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
 
     console.log(`[mcp] Connessione a ${s.name}...`);
@@ -417,21 +429,19 @@ async function executeToolCall(call, toolMap, timeout) {
     const entry = toolMap.get(name);
     if (!entry) throw new Error(`Tool sconosciuto: ${name}`);
 
-    const res = await entry.client.callTool(
-      { name: entry.mcpName, arguments: args },
-      undefined,
-      { timeout }
-    );
+    const res = await entry.client.callTool({ name: entry.mcpName, arguments: args }, undefined, {
+      timeout,
+    });
 
     const parts = Array.isArray(res.content) ? res.content : [];
-    rawResult = parts
-      .map((p) => {
-        if (p.type === 'text') return p.text;
-        if (p.type === 'image') return '[image content omitted]';
-        return `[${p.type}]`;
-      })
-      .join('\n') || JSON.stringify(res);
-
+    rawResult =
+      parts
+        .map((p) => {
+          if (p.type === 'text') return p.text;
+          if (p.type === 'image') return '[image content omitted]';
+          return `[${p.type}]`;
+        })
+        .join('\n') || JSON.stringify(res);
   } catch (err) {
     const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.error(`[tool] ${name} FALLITO dopo ${duration}s: ${err.message}`);
@@ -483,13 +493,21 @@ async function chatCompletion(messages, tools, config) {
 
       if (!isRetryable) throw lastError;
 
-      console.warn(`[llm] Tentativo ${attempt}/${config.maxRetries} fallito (HTTP ${res.status}), retrying...`);
+      console.warn(
+        `[llm] Tentativo ${attempt}/${config.maxRetries} fallito (HTTP ${res.status}), retrying...`,
+      );
     } catch (err) {
-      if (err.message?.startsWith('OpenRouter API error') && !err.message.includes('429') && !err.message.includes('500')) {
+      if (
+        err.message?.startsWith('OpenRouter API error') &&
+        !err.message.includes('429') &&
+        !err.message.includes('500')
+      ) {
         throw err;
       }
       lastError = err;
-      console.warn(`[llm] Tentativo ${attempt}/${config.maxRetries} fallito (${err.message}), retrying...`);
+      console.warn(
+        `[llm] Tentativo ${attempt}/${config.maxRetries} fallito (${err.message}), retrying...`,
+      );
     }
 
     if (attempt < config.maxRetries) {
@@ -527,7 +545,15 @@ function computeDurationLabel(stamp) {
  * sommare al costo di sessione; text e' null in caso di errore/risposta vuota
  * (il chiamante applica il fallback).
  */
-async function generateAiSessionSummary(browser, viewport, config, stamp, testsMeta, perTestMetas, bugs) {
+async function generateAiSessionSummary(
+  browser,
+  viewport,
+  config,
+  stamp,
+  testsMeta,
+  perTestMetas,
+  bugs,
+) {
   const testsInput = testsMeta
     .map((t) => {
       const pt = perTestMetas.get(t.id);
@@ -536,9 +562,10 @@ async function generateAiSessionSummary(browser, viewport, config, stamp, testsM
     })
     .join('\n');
 
-  const messages = [{
-    role: 'user',
-    content: `Sei un responsabile QA. Scrivi un resoconto conciso (massimo 5 righe, in italiano) di questa sessione di test E2E per la dashboard dei report.
+  const messages = [
+    {
+      role: 'user',
+      content: `Sei un responsabile QA. Scrivi un resoconto conciso (massimo 5 righe, in italiano) di questa sessione di test E2E per la dashboard dei report.
 Dati della sessione:
 - Browser: ${browser} | Viewport: ${viewport} | Run: ${stamp} | Modello: ${config.model}
 - Bug totali: HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}
@@ -546,7 +573,8 @@ Dati della sessione:
 ${testsInput}
 
 Requisiti: evidenzia l'esito complessivo, i problemi piu' gravi trovati (con severita') e un giudizio sintetico sulla qualita' del flusso testato. Solo il resoconto, nessun preambolo ne' elenco strutturale dei test.`,
-  }];
+    },
+  ];
 
   try {
     const res = await chatCompletion(messages, [], config);
@@ -627,8 +655,8 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
           `- **Status:** ${status}`,
           '',
           status === 'PASS'
-            ? 'Test completato con successo, ma il report Markdown non e\' stato generato dall\'agente.'
-            : 'Test fallito e report Markdown non generato dall\'agente: verificare i log della sessione.',
+            ? "Test completato con successo, ma il report Markdown non e' stato generato dall'agente."
+            : "Test fallito e report Markdown non generato dall'agente: verificare i log della sessione.",
           '',
         ].join('\n');
         mkdirSync(`${sessionDir}/tests`, { recursive: true });
@@ -660,7 +688,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
       run: stamp,
       date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
       status: testsMeta.every((t) => t.status === 'PASS') ? 'PASS' : 'FAIL',
-      summary: 'Metadati generati dalla CI: report/metadata non generati dall\'agente.',
+      summary: "Metadati generati dalla CI: report/metadata non generati dall'agente.",
       tests: testsMeta,
       bugs: { high: 0, medium: 0, low: 0 },
       screenshotPaths,
@@ -714,10 +742,10 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
 
   // Coerenza bug/screenshot: ogni bug dichiarato deve avere almeno uno screenshot
   // (regola del prompt di run). Se non c'e', l'agente non ha documentato i bug: warning.
-  if ((bugs.high + bugs.medium + bugs.low) > 0 && screenshotPaths.length === 0) {
+  if (bugs.high + bugs.medium + bugs.low > 0 && screenshotPaths.length === 0) {
     console.warn(
       `[report] ATTENZIONE: ${bugs.high + bugs.medium + bugs.low} bug dichiarati ma nessuno screenshot salvato ` +
-      `in ${shotsDir} (l'agente ha violato la regola screenshot-su-bug del prompt di run).`
+        `in ${shotsDir} (l'agente ha violato la regola screenshot-su-bug del prompt di run).`,
     );
   }
 
@@ -726,24 +754,33 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // Summary di sessione (testo leggibile, equivalente del vecchio summary.md)
   // Summary: resoconto della sessione generato con una chiamata LLM dedicata.
   // Fallback 1: concatenazione dei summary AI per-test. Fallback 2: boilerplate.
-  const { text: aiSummary, cost: aiSummaryCost } = await generateAiSessionSummary(browser, viewport, config, stamp, testsMeta, perTestMetas, bugs);
+  const { text: aiSummary, cost: aiSummaryCost } = await generateAiSessionSummary(
+    browser,
+    viewport,
+    config,
+    stamp,
+    testsMeta,
+    perTestMetas,
+    bugs,
+  );
   const perTestSummaries = testsMeta
     .map((t) => {
       const s = perTestMetas.get(t.id)?.summary?.trim();
       return s ? `- ${t.name} (${t.status}): ${s}` : null;
     })
     .filter(Boolean);
-  const summary = aiSummary
-    ?? (perTestSummaries.length ? perTestSummaries.join('\n') : null)
-    ?? [
-        `Esito complessivo: ${allPass ? 'PASS' : 'FAIL'}`,
-        `Browser: ${browser} | Viewport: ${viewport} | Modello AI: ${config.model}`,
-        `Data: ${stamp.slice(0, 10)} ${stamp.slice(11).replace(/-/g, ':')}`,
-        `Bug: HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}`,
-        '',
-        'Test eseguiti:',
-        testsMeta.map((t) => `- ${t.name}: ${t.status}`).join('\n'),
-      ].join('\n');
+  const summary =
+    aiSummary ??
+    (perTestSummaries.length ? perTestSummaries.join('\n') : null) ??
+    [
+      `Esito complessivo: ${allPass ? 'PASS' : 'FAIL'}`,
+      `Browser: ${browser} | Viewport: ${viewport} | Modello AI: ${config.model}`,
+      `Data: ${stamp.slice(0, 10)} ${stamp.slice(11).replace(/-/g, ':')}`,
+      `Bug: HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}`,
+      '',
+      'Test eseguiti:',
+      testsMeta.map((t) => `- ${t.name}: ${t.status}`).join('\n'),
+    ].join('\n');
 
   // Data della sessione in UTC ISO (derivata dallo stamp UTC)
   const isoDate = `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`;
@@ -751,8 +788,10 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // Costo AI della sessione in USD: somma dei costi per-test registrati nei
   // metadati temporanei (writeTestCost) + costo della chiamata LLM del summary
   // di sessione. Fallback: metadata sopravvissuto.
-  const sessionCost = ([...perTestMetas.values()].reduce((acc, pt) => acc + (Number(pt.cost) || 0), 0)
-    || Number(meta.cost) || 0) + (Number(aiSummaryCost) || 0);
+  const sessionCost =
+    ([...perTestMetas.values()].reduce((acc, pt) => acc + (Number(pt.cost) || 0), 0) ||
+      Number(meta.cost) ||
+      0) + (Number(aiSummaryCost) || 0);
 
   const metadata = {
     browser,
@@ -852,7 +891,6 @@ function roundCost(value) {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? Math.round(n * 1e6) / 1e6 : 0;
 }
-
 
 function buildPrompt(browser, viewport, test, model, stamp) {
   const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;

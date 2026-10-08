@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { listRuns } from "@/lib/azure-reports";
+import { NextResponse } from 'next/server';
+import { listRuns } from '@/lib/azure-reports';
 
 /**
  * API che alimenta la tabella della dashboard /reports.
@@ -17,12 +17,12 @@ import { listRuns } from "@/lib/azure-reports";
  * - 500 { error: string } se Azure Blob non è raggiungibile/configurato
  */
 export async function GET() {
-    try {
-        const runs = await listRuns();
-        return NextResponse.json({ runs });
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[api/reports] Errore recupero run: ${message}`);
-        return NextResponse.json({ error: message }, { status: 500 });
-    }
+  try {
+    const runs = await listRuns();
+    return NextResponse.json({ runs });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[api/reports] Errore recupero run: ${message}`);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

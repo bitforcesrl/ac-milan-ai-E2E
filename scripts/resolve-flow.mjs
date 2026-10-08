@@ -73,14 +73,8 @@ function resolveFlow() {
   if (buildReason === 'Schedule') {
     // Il build number non ammette i caratteri ':' '<' '>' '"' '/' '\' '|' '?' '@' '*'
     // (TF209010): l'ora usa '-' al posto di ':'.
-    const runDateTime = new Date()
-      .toISOString()
-      .slice(0, 16)
-      .replace('T', ' ')
-      .replace(':', '-');
-    console.log(
-      `##vso[build.updatebuildnumber]Scheduled E2E - ${runDateTime}`
-    );
+    const runDateTime = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '-');
+    console.log(`##vso[build.updatebuildnumber]Scheduled E2E - ${runDateTime}`);
   }
 
   if (buildReason === 'PullRequest') {
@@ -153,7 +147,7 @@ for (const [name, value] of Object.entries(outputs)) {
 }
 
 console.log(
-  `[flow] Flusso risolto: mode=${flow.runMode} config=${flow.config} policy=${flow.policy} destinatari=${flow.recipients || '(nessuno)'}`
+  `[flow] Flusso risolto: mode=${flow.runMode} config=${flow.config} policy=${flow.policy} destinatari=${flow.recipients || '(nessuno)'}`,
 );
 if (flow.warn) {
   console.warn(`[flow] ${flow.warn}`);

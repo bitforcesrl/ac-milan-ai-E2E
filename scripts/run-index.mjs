@@ -117,7 +117,10 @@ function normalizeEntry(e) {
     pass,
     fail,
     total,
-    passRate: total > 0 ? Math.min(100, Math.max(0, Math.round(Number(e.passRate) || (pass / total) * 100))) : 0,
+    passRate:
+      total > 0
+        ? Math.min(100, Math.max(0, Math.round(Number(e.passRate) || (pass / total) * 100)))
+        : 0,
     bugs: { high: count(bugs.high), medium: count(bugs.medium), low: count(bugs.low) },
     duration: typeof e.duration === 'string' ? e.duration : '',
     cost: Number(e.cost) > 0 ? Math.round(Number(e.cost) * 1e6) / 1e6 : 0,
@@ -136,13 +139,15 @@ export function parseRunIndex(text) {
     return [];
   }
   if (!Array.isArray(parsed)) return [];
-  return parsed
-    .filter((e) => e && typeof e === 'object' && typeof e.run === 'string' && e.run)
-    .map(normalizeEntry)
-    // dedupe di sicurezza per `run` (tiene l'ultima occorrenza) + ordine desc,
-    // stesso comportamento di parseRunIndex in lib/run-index.ts
-    .sort((a, b) => b.run.localeCompare(a.run))
-    .filter((e, i, arr) => i === 0 || arr[i - 1].run !== e.run);
+  return (
+    parsed
+      .filter((e) => e && typeof e === 'object' && typeof e.run === 'string' && e.run)
+      .map(normalizeEntry)
+      // dedupe di sicurezza per `run` (tiene l'ultima occorrenza) + ordine desc,
+      // stesso comportamento di parseRunIndex in lib/run-index.ts
+      .sort((a, b) => b.run.localeCompare(a.run))
+      .filter((e, i, arr) => i === 0 || arr[i - 1].run !== e.run)
+  );
 }
 
 /**

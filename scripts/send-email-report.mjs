@@ -56,23 +56,25 @@ function loadConfig() {
   }
 
   if (!mailFromRaw) {
-    throw new Error('EMAIL_FROM e\' obbligatorio quando EMAIL_SENDGRID_API_KEY e\' valorizzata.');
+    throw new Error("EMAIL_FROM e' obbligatorio quando EMAIL_SENDGRID_API_KEY e' valorizzata.");
   }
 
   const from = parseFrom(mailFromRaw);
   if (!from) {
     throw new Error(
-      `EMAIL_FROM non e' un indirizzo valido: "${mailFromRaw}". Usa una casella reale verificata su SendGrid.`
+      `EMAIL_FROM non e' un indirizzo valido: "${mailFromRaw}". Usa una casella reale verificata su SendGrid.`,
     );
   }
 
   if (!reportUrl) {
-    throw new Error('EMAIL_REPORT_HTML_URL mancante. Caricare i report nello storage prima di eseguire il dispatch email.');
+    throw new Error(
+      'EMAIL_REPORT_HTML_URL mancante. Caricare i report nello storage prima di eseguire il dispatch email.',
+    );
   }
 
   if (sendPolicy !== 'always' && sendPolicy !== 'on-fail') {
     throw new Error(
-      `EMAIL_SEND_POLICY non valida: "${sendPolicy}". Valori ammessi: always, on-fail.`
+      `EMAIL_SEND_POLICY non valida: "${sendPolicy}". Valori ammessi: always, on-fail.`,
     );
   }
 
@@ -133,7 +135,9 @@ async function main() {
 
   try {
     await sendSendgridEmail(config, subject, textContent, htmlContent);
-    console.log(`[mail] Email inviata con successo (policy: ${config.sendPolicy}) a: ${config.to.map((item) => item.email).join(', ')}`);
+    console.log(
+      `[mail] Email inviata con successo (policy: ${config.sendPolicy}) a: ${config.to.map((item) => item.email).join(', ')}`,
+    );
   } catch (err) {
     console.error(`[mail ERROR] ${err.message}`);
     process.exit(1);
@@ -184,9 +188,7 @@ function collectCurrentRun(reportsDir) {
   const runPath = join(reportsDir, stamp);
 
   // Sessioni da leggere: quelle dichiarate nell'index (o tutte, nel fallback)
-  const combos = environments.length
-    ? environments
-    : listSessionCombos(runPath);
+  const combos = environments.length ? environments : listSessionCombos(runPath);
 
   const sessions = [];
   for (const { browser, viewport } of combos) {
@@ -234,7 +236,7 @@ function collectCurrentRun(reportsDir) {
       medium: acc.medium + s.stats.medium,
       low: acc.low + s.stats.low,
     }),
-    { pass: 0, fail: 0, total: 0, high: 0, medium: 0, low: 0 }
+    { pass: 0, fail: 0, total: 0, high: 0, medium: 0, low: 0 },
   );
 
   return {
@@ -297,7 +299,7 @@ function buildText(run, config) {
   ];
   for (const s of run.sessions) {
     lines.push(
-      `${s.browser.toUpperCase()} ${s.viewport}: ${s.status} — ${s.stats.pass}/${s.stats.total} test superati, bug H/M/L: ${s.stats.high}/${s.stats.medium}/${s.stats.low}`
+      `${s.browser.toUpperCase()} ${s.viewport}: ${s.status} — ${s.stats.pass}/${s.stats.total} test superati, bug H/M/L: ${s.stats.high}/${s.stats.medium}/${s.stats.low}`,
     );
     for (const t of s.tests) {
       lines.push(`  - ${t.label}: ${t.status}`);
@@ -344,7 +346,7 @@ function buildHtml(run, config) {
             <td style="padding:7px 12px;border-top:1px solid ${C.border};text-align:right;">
               <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;background:${t.status === 'FAIL' ? C.redBg : C.greenBg};color:${t.status === 'FAIL' ? C.red : C.green};">${t.status}</span>
             </td>
-          </tr>`
+          </tr>`,
             )
             .join('')
         : '';
@@ -363,11 +365,15 @@ function buildHtml(run, config) {
           </tr></table>
         </td>
       </tr>
-      ${testRows ? `<tr><td style="padding:0 16px 14px;">
+      ${
+        testRows
+          ? `<tr><td style="padding:0 16px 14px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border-radius:8px;">
           ${testRows}
         </table>
-      </td></tr>` : ''}
+      </td></tr>`
+          : ''
+      }
     </table>`;
     })
     .join('\n');

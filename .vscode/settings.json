@@ -1,0 +1,29 @@
+{
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": true,
+  "editor.renderWhitespace": "all",
+  "editor.rulers": [110],
+  "html.format.wrapAttributes": "force",
+  "html.format.enable": true,
+  "html.format.wrapLineLength": 110,
+  "editor.tabSize": 2,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.detectIndentation": false,
+  "[html]": {
+    "editor.defaultFormatter": "vscode.html-language-features"
+  },
+  "html.format.indentHandlebars": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "prettier.configPath": "./.prettierrc.json",
+  "chat.tools.terminal.autoApprove": {
+    "npx eslint": true
+  }
+}
