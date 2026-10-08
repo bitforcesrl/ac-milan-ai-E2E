@@ -8,9 +8,11 @@ export async function getStorageContext() {
     return null; // credenziali non disponibili: gli script chiamanti skippano
   }
 
-  const containerName = !process.env.AZURE_STORAGE_CONTAINER?.trim() || process.env.AZURE_STORAGE_CONTAINER.startsWith('$(')
-    ? 'e2e-reports'
-    : process.env.AZURE_STORAGE_CONTAINER.trim();
+  const containerName =
+    !process.env.AZURE_STORAGE_CONTAINER?.trim() ||
+    process.env.AZURE_STORAGE_CONTAINER.startsWith('$(')
+      ? 'e2e-reports'
+      : process.env.AZURE_STORAGE_CONTAINER.trim();
 
   const service = BlobServiceClient.fromConnectionString(connectionString);
   const container = service.getContainerClient(containerName);
@@ -18,7 +20,9 @@ export async function getStorageContext() {
   try {
     await container.createIfNotExists();
   } catch (err) {
-    console.log(`Container ${containerName} not created (${err.code || err.message}); assuming it exists.`);
+    console.log(
+      `Container ${containerName} not created (${err.code || err.message}); assuming it exists.`,
+    );
   }
 
   return {
@@ -26,4 +30,3 @@ export async function getStorageContext() {
     containerName,
   };
 }
-

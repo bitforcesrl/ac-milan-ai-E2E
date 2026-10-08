@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getTest } from "@/lib/azure-reports";
+import { NextResponse } from 'next/server';
+import { getTest } from '@/lib/azure-reports';
 
 /**
  * API di dettaglio di un singolo test:
@@ -29,22 +29,26 @@ import { getTest } from "@/lib/azure-reports";
  * AZURE_STORAGE_CONTAINER (default "e2e-reports").
  */
 export async function GET(
-    _req: Request,
-    { params }: { params: Promise<{ runId: string; browser: string; viewport: string; testId: string }> },
+  _req: Request,
+  {
+    params,
+  }: { params: Promise<{ runId: string; browser: string; viewport: string; testId: string }> },
 ) {
-    const { runId, browser, viewport, testId } = await params;
-    try {
-        const test = await getTest(runId, browser, viewport, testId);
-        if (!test) {
-            return NextResponse.json(
-                { error: `Test '${testId}' non trovato (run '${runId}', ${browser}/${viewport}).` },
-                { status: 404 },
-            );
-        }
-        return NextResponse.json({ test });
-    } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error(`[api/reports/${runId}/${browser}/${viewport}/${testId}] Errore recupero test: ${message}`);
-        return NextResponse.json({ error: message }, { status: 500 });
+  const { runId, browser, viewport, testId } = await params;
+  try {
+    const test = await getTest(runId, browser, viewport, testId);
+    if (!test) {
+      return NextResponse.json(
+        { error: `Test '${testId}' non trovato (run '${runId}', ${browser}/${viewport}).` },
+        { status: 404 },
+      );
     }
+    return NextResponse.json({ test });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(
+      `[api/reports/${runId}/${browser}/${viewport}/${testId}] Errore recupero test: ${message}`,
+    );
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

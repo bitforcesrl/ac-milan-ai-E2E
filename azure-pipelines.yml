@@ -1,4 +1,3 @@
- 
 # Run config dell'app passata come TEMPLATE PARAMETER (non queue-time variable):
 # le queue-time variables via REST venivano scartate silenziosamente da Azure
 # DevOps (permessi "Set build variables"), i template parameters no.
@@ -69,7 +68,6 @@ jobs:
           # Template parameter passato da /api/azure-pipeline (espanso a
           # compile-time, quindi sempre valorizzato se presente nel payload)
           E2E_RUN_CONFIG: ${{ parameters.e2eRunConfig }}
-
 
       - script: |
           npm ci

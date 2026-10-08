@@ -69,14 +69,14 @@ In `configs/index.ts` si definiscono anche: `BROWSERS` (chromium/firefox/webkit)
 
 Tre file che selezionano **quali test eseguire e con quali combinazioni** per ogni contesto. Ogni file contiene:
 
-| Campo | Significato |
-|---|---|
-| `tests` | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`) |
-| `browsers` | Browser su cui eseguire (`chromium`, `firefox`, `webkit`) |
-| `viewports` | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
-| `aiModel` | Modello OpenRouter usato dall'agente |
-| `maxParallelSessions` | Sessioni Playwright in parallelo (1–3) |
-| `emailRecipients` | (solo pipeline) destinatari della mail di report |
+| Campo                 | Significato                                                        |
+| --------------------- | ------------------------------------------------------------------ |
+| `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`)        |
+| `browsers`            | Browser su cui eseguire (`chromium`, `firefox`, `webkit`)          |
+| `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
+| `aiModel`             | Modello OpenRouter usato dall'agente                               |
+| `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                             |
+| `emailRecipients`     | (solo pipeline) destinatari della mail di report                   |
 
 - [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
 - [`configs/pr.config.json`](configs/pr.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
@@ -141,11 +141,11 @@ Poi triggera una run dalla dashboard o manualmente dalla pipeline.
 
 Utility npm:
 
-| Comando | Descrizione |
-|---|---|
-| `npm run sync:status` | Mostra i commit dell'harness non ancora merged (nessuna modifica) |
-| `npm run sync:pull` | Fetch + merge da `upstream` |
-| `npm run sync:pr` | Pusha il branch corrente sull'`upstream` per contribuire una modifica all'harness (poi apri la PR su Azure DevOps) |
+| Comando               | Descrizione                                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `npm run sync:status` | Mostra i commit dell'harness non ancora merged (nessuna modifica)                                                  |
+| `npm run sync:pull`   | Fetch + merge da `upstream`                                                                                        |
+| `npm run sync:pr`     | Pusha il branch corrente sull'`upstream` per contribuire una modifica all'harness (poi apri la PR su Azure DevOps) |
 
 > **Attenzione**: `sync:pr` pusha il tuo branch sull'upstream. Assicurati di non includere `configs/` (non esiste nell'upstream) — se hai modificato solo `configs/`, `tests/` o `.env`, non serve aprire PR.
 
@@ -163,4 +163,3 @@ Quando fai `npm run sync:pull`, l'harness può aggiornare `configs.template/` (e
 
 - **`configs/index.ts`**: riporta a mano le aggiunte (es. nuovi `BROWSERS` o `VIEWPORTS`) nel tuo file.
 - **`configs/*.json`**: se l'harness introduce nuovi campi, il codice li tollera con default; puoi rigenerare i file con `npm run setup` (non sovrascrive `configs/` se esiste) o aggiornarli manualmente.
-

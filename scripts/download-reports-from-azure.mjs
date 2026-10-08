@@ -36,7 +36,11 @@ for await (const blob of ctx.container.listBlobsFlat()) {
 }
 
 if (!blobs.length) {
-  console.log(runPrefix ? `Nessun blob trovato per la run "${runPrefix}".` : 'Nessuno storico presente su blob.');
+  console.log(
+    runPrefix
+      ? `Nessun blob trovato per la run "${runPrefix}".`
+      : 'Nessuno storico presente su blob.',
+  );
   process.exit(0);
 }
 

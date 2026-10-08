@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "setup": "test -d configs || cp -R configs.template configs",
     "ci:resolve-flow": "node scripts/resolve-flow.mjs",
     "ci:run-e2e": "node scripts/run-e2e.mjs --config configs/pipeline.config.json",
@@ -54,6 +56,8 @@
     "@types/sanitize-html": "^2.16.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "prettier": "^3.9.9",
+    "prettier-plugin-tailwindcss": "^0.8.1",
     "sass": "^1.104.1",
     "tailwindcss": "^4",
     "typescript": "^5"

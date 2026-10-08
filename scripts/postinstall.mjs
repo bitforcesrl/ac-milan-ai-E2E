@@ -9,7 +9,7 @@ execSync('test -d configs || cp -R configs.template configs', { stdio: 'inherit'
 
 // 2. Browser Playwright: salta su Vercel
 if (process.env.VERCEL) {
-    console.log('[postinstall] Ambiente Vercel rilevato: salto installazione browser Playwright.');
+  console.log('[postinstall] Ambiente Vercel rilevato: salto installazione browser Playwright.');
 } else {
-    execSync('playwright install --with-deps chromium firefox webkit', { stdio: 'inherit' });
+  execSync('playwright install --with-deps chromium firefox webkit', { stdio: 'inherit' });
 }

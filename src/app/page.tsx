@@ -1,9 +1,8 @@
-import Link from "next/link";
-import { BarChart2 } from "@deemlol/next-icons";
-import PageHeader from "@/components/PageHeader";
-import RunningPipelineBanner from "@/components/RunningPipelineBanner";
-import PipelineForm from "@/components/home/PipelineForm";
-
+import Link from 'next/link';
+import { BarChart2 } from '@deemlol/next-icons';
+import PageHeader from '@/components/PageHeader';
+import RunningPipelineBanner from '@/components/RunningPipelineBanner';
+import PipelineForm from '@/components/home/PipelineForm';
 
 /**
  * Home page (Server Component). Tutta la logica interattiva del form
@@ -11,7 +10,7 @@ import PipelineForm from "@/components/home/PipelineForm";
  */
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 bg-white">
+    <div className="flex flex-1 flex-col bg-white">
       <PageHeader
         title="AI E2E Tests"
         actions={
