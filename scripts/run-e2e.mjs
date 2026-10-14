@@ -89,6 +89,7 @@ function validateRunConfig(raw) {
       viewports: [...config.viewports],
       model: config.aiModel,
       maxParallelSessions: config.maxParallelSessions,
+      browserMode: config.browserMode,
     };
   } catch (error) {
     if (error instanceof RunConfigValidationError) throw error;
@@ -319,7 +320,8 @@ async function initMcpServers(browser, headed) {
       args: [
         '-y',
         '@playwright/mcp@latest',
-        headed ? '--headed' : '--headless',
+        // headed e' il default di @playwright/mcp: il flag esiste solo per headless
+        ...(headed ? [] : ['--headless']),
         '--isolated',
         '--browser',
         browser,
