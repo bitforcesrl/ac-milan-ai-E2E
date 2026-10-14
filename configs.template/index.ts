@@ -9,7 +9,7 @@ export type {
   BrowserConfig,
   E2ETest,
   MaxParallelSessions,
-  ViewportConfig,
+  ViewportConfig
 } from '../src/types/config';
 
 export const E2E_TESTS: E2ETest[] = [
@@ -43,7 +43,7 @@ export const VIEWPORTS: ViewportConfig[] = [
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)
-export const AI_MODELS: string[] = ['qwen/qwen3.7-plus'];
+export const AI_MODELS: string[] = ['qwen/qwen3.7-plus', 'z-ai/glm-5.3-flash', 'deepseek/deepseek-v4.1-flash'];
 
 // ============================================================================
 // EMAIL: destinatari di default precompilati nel form Next.js quando la run
