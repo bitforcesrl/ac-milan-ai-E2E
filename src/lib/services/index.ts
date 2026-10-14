@@ -50,5 +50,10 @@ export interface AppService {
 }
 
 export function getService(): AppService {
-  return process.env.E2E_LOCAL_MODE === '1' ? new LocalService() : new AzureService();
+  return isLocalMode() ? new LocalService() : new AzureService();
+}
+
+/** true se la dashboard gira in modalità locale (npm run dev:local). */
+export function isLocalMode(): boolean {
+  return process.env.E2E_LOCAL_MODE === '1';
 }
