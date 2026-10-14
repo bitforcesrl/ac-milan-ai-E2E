@@ -1,4 +1,5 @@
 import PageHeader from '@/components/PageHeader';
+import { viewportLabel } from '@/lib/e2e-tests';
 import { getService } from '@/lib/services';
 import { CheckCircle, Clock, Cpu, FileText, HelpCircle, XCircle } from '@deemlol/next-icons';
 import Link from 'next/link';
@@ -137,7 +138,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
             <header className="border-grey bg-grey/50 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3.5">
               <h3 className="flex flex-wrap items-center gap-2 text-base font-bold">
                 {session.browser}
-                {session.viewport && <span className={chip}>{session.viewport}</span>}
+                {session.viewport && <span className={chip}>{viewportLabel(session.viewport)}</span>}
                 {session.model && (
                   <span className={metaChip} title="Modello AI utilizzato">
                     <Cpu size={13} className={metaIcon} aria-hidden="true" />

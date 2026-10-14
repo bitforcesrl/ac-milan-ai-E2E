@@ -1,7 +1,7 @@
 {
   "tests": [{ "id": "demo-test", "notes": "Optional note to pass to the test" }],
   "browsers": ["chromium"],
-  "viewports": ["1280x650"],
+  "viewports": ["desktop"],
   "aiModel": "qwen/qwen3.7-plus",
   "maxParallelSessions": 3,
   "browserMode": "headless",

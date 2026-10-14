@@ -42,9 +42,11 @@ const BROWSERS: { id: string; label: string }[] = BROWSER_LIST.map((b) => ({
   label: b.label,
 }));
 
+// La label del catalogo include gia' il device emulato (es. "Tablet (iPad Pro 11)"):
+// l'id e' il nome dell'ambiente (desktop/tablet/mobile), non va mostrato.
 const VIEWPORTS: { id: string; label: string }[] = VIEWPORT_LIST.map((v) => ({
   id: v.id,
-  label: `${v.label} (${v.id})`,
+  label: v.label,
 }));
 
 // Lista test derivata da configs/index.ts: label = name, note precompilate dal catalogo
@@ -91,12 +93,12 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       tests: checked
         ? [
-            ...prev.tests,
-            {
-              id,
-              notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
-            },
-          ]
+          ...prev.tests,
+          {
+            id,
+            notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
+          },
+        ]
         : prev.tests.filter((t) => t.id !== id),
     }));
   }

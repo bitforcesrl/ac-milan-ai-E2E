@@ -13,8 +13,8 @@ import { NextResponse } from 'next/server';
  * → { run: { runId: "2026-09-28_10-44-25", date: "2026-09-28T10:44:25Z",
  *            status: "PASS", pass: 3, fail: 0, total: 3, passRate: 100,
  *            bugs: { high: 0, medium: 0, low: 0 }, duration: "12m 0s",
- *            environments: [{ browser: "chromium", viewport: "1280x650" }],
- *            sessions: [{ browser: "chromium", viewport: "1280x650", ...,
+ *            environments: [{ browser: "chromium", viewport: "desktop" }],
+ *            sessions: [{ browser: "chromium", viewport: "desktop", ...,
  *                         tests: [{ id: "quickbuy-cart-validation", ... }] }] }
  *
  * L'id di ogni test in `sessions[].tests[].id` si usa per l'endpoint di

@@ -23,6 +23,7 @@ export type ViewportConfig = {
   id: string;
   label: string;
   default: boolean;
+  device?: string;
 };
 
 export type MaxParallelSessions = {

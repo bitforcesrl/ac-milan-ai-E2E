@@ -36,10 +36,12 @@ export const BROWSERS: BrowserConfig[] = [
   { id: 'webkit', label: 'WebKit (Safari)', default: false },
 ];
 
+// NOTE: per simulare ambienti tablet/mobile è necessario specificare il campo "device" corrispondente al device Playwright da emulare.
+// altrimenti è come si stesse usando un device desktop,
 export const VIEWPORTS: ViewportConfig[] = [
-  { id: '1280x650', label: 'Desktop', default: true },
-  { id: '768x1024', label: 'Tablet', default: false },
-  { id: '390x844', label: 'Mobile', default: false },
+  { id: 'desktop', label: 'Desktop', default: true },
+  { id: 'tablet', label: 'Tablet (iPad Pro 11)', default: false, device: 'iPad Pro 11' },
+  { id: 'mobile', label: 'Mobile (iPhone 17 Pro)', default: false, device: 'iPhone 17 Pro' },
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)

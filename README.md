@@ -73,7 +73,7 @@ Quattro file che selezionano **quali test eseguire e con quali combinazioni** pe
 | --------------------- | --------------------------------------------------------------------------------------------- |
 | `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`), oppure `"*"` per eseguirli tutti |
 | `browsers`            | Browser su cui eseguire (`chromium`, `firefox`, `webkit`)                                     |
-| `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile)                            |
+| `viewports`           | Ambiente (`desktop`, `tablet`, `mobile`)                                                      |
 | `aiModel`             | Modello OpenRouter usato dall'agente                                                          |
 | `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                                                        |
 | `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale)                           |

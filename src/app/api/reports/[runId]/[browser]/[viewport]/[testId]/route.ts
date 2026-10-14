@@ -11,16 +11,16 @@ import { NextResponse } from 'next/server';
  *               "YYYY-MM-DD_HH-mm-ss" (UTC), es. "2026-09-28_10-44-25"
  *               (lo si ottiene da GET /api/reports o GET /api/reports/{runId})
  * - `browser`:  id del browser della sessione, es. "chromium" | "firefox" | "webkit"
- * - `viewport`: id del viewport della sessione, es. "1280x650" | "768x1024" | "390x844"
+ * - `viewport`: id dell'ambiente della sessione, es. "desktop" | "tablet" | "mobile"
  * - `testId`:   id del test come definito in configs/index.ts, es. "quickbuy-cart-validation"
  *               (uguale al campo `id` in sessions[].tests[] del dettaglio run)
  *
  * Esempio di chiamata:
  *
- *   GET /api/reports/2026-09-28_10-44-25/chromium/1280x650/quickbuy-cart-validation
+ *   GET /api/reports/2026-09-28_10-44-25/chromium/desktop/quickbuy-cart-validation
  *
  * → { test: { runId: "2026-09-28_10-44-25", browser: "chromium",
- *             viewport: "1280x650", status: "PASS",
+ *             viewport: "desktop", status: "PASS",
  *             report: "# Report test: ... (contenuto Markdown del report)",
  *             screenshots: [{ name: "quickbuy-cart-validation-001.png",
  *                             url: "https://...blob...?SAS", description: "..." }] }
