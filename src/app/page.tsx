@@ -1,14 +1,16 @@
-import Link from 'next/link';
-import { BarChart2 } from '@deemlol/next-icons';
 import PageHeader from '@/components/PageHeader';
 import RunningPipelineBanner from '@/components/RunningPipelineBanner';
 import PipelineForm from '@/components/home/PipelineForm';
+import { isLocalMode } from '@/lib/services';
+import { BarChart2 } from '@deemlol/next-icons';
+import Link from 'next/link';
 
 /**
  * Home page (Server Component). Tutta la logica interattiva del form
  * è delegata al client component foglia `PipelineForm`.
  */
 export default function Home() {
+  const localMode = isLocalMode();
   return (
     <div className="flex flex-1 flex-col bg-white">
       <PageHeader
@@ -22,7 +24,7 @@ export default function Home() {
       />
       <main className="mx-auto w-full max-w-7xl flex-1 px-6 pt-8 pb-24">
         <RunningPipelineBanner />
-        <PipelineForm />
+        <PipelineForm localMode={localMode} />
       </main>
     </div>
   );

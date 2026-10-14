@@ -1,28 +1,28 @@
 'use client';
 
-import { useState, type KeyboardEvent } from 'react';
-import Link from 'next/link';
 import {
-  Play,
-  CheckCircle,
-  XCircle,
-  Monitor,
-  Layers,
-  Cpu,
-  Columns,
-  List,
-  Mail,
-  X,
-} from '@deemlol/next-icons';
-import {
-  E2E_TEST_LIST,
-  BROWSER_LIST,
-  VIEWPORT_LIST,
   AI_MODEL_LIST,
+  BROWSER_LIST,
+  E2E_TEST_LIST,
   MAX_PARALLEL_SESSIONS_CONFIG,
+  VIEWPORT_LIST,
   buildDefaultRunConfig,
 } from '@/lib/e2e-tests';
 import type { RunConfig } from '@/lib/run-config-schema';
+import {
+  CheckCircle,
+  Columns,
+  Cpu,
+  Layers,
+  List,
+  Mail,
+  Monitor,
+  Play,
+  X,
+  XCircle,
+} from '@deemlol/next-icons';
+import Link from 'next/link';
+import { useState, type KeyboardEvent } from 'react';
 
 const FIELDSET_LEGEND_CLASS =
   'mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-dark-grey';
@@ -62,7 +62,7 @@ const TESTS: { id: string; label: string; description: string }[] = E2E_TEST_LIS
  */
 const EMAIL_REGEX = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
-export default function PipelineForm() {
+export default function PipelineForm({ localMode = false }: { localMode?: boolean }) {
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [config, setConfig] = useState<RunConfig>(DEFAULT_CONFIG);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -271,60 +271,63 @@ export default function PipelineForm() {
           </div>
         </div>
 
-        <fieldset className="flex flex-col gap-3">
-          <legend className={FIELDSET_LEGEND_CLASS}>
-            <Mail size={14} aria-hidden="true" />
-            Destinatari email
-          </legend>
-          <div
-            className="border-grey focus-within:ring-primary/50 focus-within:border-primary flex min-h-11 flex-wrap items-center gap-2 rounded-md border bg-white px-3 py-2 focus-within:ring-2"
-            onClick={(e) => {
-              const input = e.currentTarget.querySelector('input');
-              input?.focus();
-            }}
-          >
-            {(config.emailRecipients ?? []).map((email) => (
-              <span
-                key={email}
-                className="bg-grey flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-black"
-              >
-                {email}
-                <button
-                  type="button"
-                  aria-label={`Rimuovi ${email}`}
-                  className="text-dark-grey hover:bg-dark-grey/20 focus-visible:ring-primary/50 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:text-black focus-visible:ring-2 focus-visible:outline-none"
-                  onClick={() => removeEmailRecipient(email)}
+        {/* In modalità locale il report email non viene inviato: box nascosto */}
+        {!localMode && (
+          <fieldset className="flex flex-col gap-3">
+            <legend className={FIELDSET_LEGEND_CLASS}>
+              <Mail size={14} aria-hidden="true" />
+              Destinatari email
+            </legend>
+            <div
+              className="border-grey focus-within:ring-primary/50 focus-within:border-primary flex min-h-11 flex-wrap items-center gap-2 rounded-md border bg-white px-3 py-2 focus-within:ring-2"
+              onClick={(e) => {
+                const input = e.currentTarget.querySelector('input');
+                input?.focus();
+              }}
+            >
+              {(config.emailRecipients ?? []).map((email) => (
+                <span
+                  key={email}
+                  className="bg-grey flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium text-black"
                 >
-                  <X size={10} aria-hidden="true" />
-                </button>
-              </span>
-            ))}
-            <input
-              type="text"
-              inputMode="email"
-              className="placeholder:text-dark-grey min-w-40 flex-1 border-0 bg-transparent text-sm text-black focus:ring-0 focus:outline-none"
-              placeholder={
-                (config.emailRecipients?.length ?? 0) === 0
-                  ? 'es. team@azienda.com'
-                  : 'Aggiungi altro…'
-              }
-              value={emailInput}
-              onChange={(e) => {
-                setEmailInput(e.target.value);
-                setEmailError(null);
-              }}
-              onKeyDown={handleEmailInputKeyDown}
-              onBlur={() => {
-                if (emailInput.trim()) addEmailRecipient(emailInput);
-              }}
-            />
-          </div>
-          {emailError && (
-            <p role="alert" className="text-xs text-red-600">
-              {emailError}
-            </p>
-          )}
-        </fieldset>
+                  {email}
+                  <button
+                    type="button"
+                    aria-label={`Rimuovi ${email}`}
+                    className="text-dark-grey hover:bg-dark-grey/20 focus-visible:ring-primary/50 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:text-black focus-visible:ring-2 focus-visible:outline-none"
+                    onClick={() => removeEmailRecipient(email)}
+                  >
+                    <X size={10} aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+              <input
+                type="text"
+                inputMode="email"
+                className="placeholder:text-dark-grey min-w-40 flex-1 border-0 bg-transparent text-sm text-black focus:ring-0 focus:outline-none"
+                placeholder={
+                  (config.emailRecipients?.length ?? 0) === 0
+                    ? 'es. team@azienda.com'
+                    : 'Aggiungi altro…'
+                }
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setEmailError(null);
+                }}
+                onKeyDown={handleEmailInputKeyDown}
+                onBlur={() => {
+                  if (emailInput.trim()) addEmailRecipient(emailInput);
+                }}
+              />
+            </div>
+            {emailError && (
+              <p role="alert" className="text-xs text-red-600">
+                {emailError}
+              </p>
+            )}
+          </fieldset>
+        )}
       </section>
 
       {/* Test E2E */}

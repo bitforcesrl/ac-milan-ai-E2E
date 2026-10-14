@@ -223,17 +223,23 @@ export class LocalService implements AppService {
       };
     }
 
-    // In locale il browser deve essere visibile: forza "headed" a prescindere
-    // dalla config inviata dal form (che di default e' "headless").
-    let configWithHeaded = runConfigJson;
+    // Override per la modalità locale:
+    // - browserMode "headed": il browser deve essere visibile a prescindere
+    //   dalla config inviata dal form (che di default e' "headless");
+    // - niente email: in locale il report email non viene inviato.
+    let configWithOverrides = runConfigJson;
     try {
-      configWithHeaded = JSON.stringify({ ...JSON.parse(runConfigJson), browserMode: 'headed' });
+      configWithOverrides = JSON.stringify({
+        ...JSON.parse(runConfigJson),
+        browserMode: 'headed',
+        emailRecipients: [],
+      });
     } catch {
       // config gia' validata da parseRunConfig: non dovrebbe mai accadere
     }
 
     mkdirSync(LOCAL_DIR, { recursive: true });
-    writeFileSync(CONFIG_FILE, configWithHeaded, 'utf8');
+    writeFileSync(CONFIG_FILE, configWithOverrides, 'utf8');
 
     const logFd = openSync(LOG_FILE, 'a');
     const childEnv = { ...process.env };
