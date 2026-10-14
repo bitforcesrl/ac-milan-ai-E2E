@@ -64,7 +64,10 @@ const EMAIL_REGEX = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 export default function PipelineForm({ localMode = false }: { localMode?: boolean }) {
   const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [config, setConfig] = useState<RunConfig>(DEFAULT_CONFIG);
+  // In modalità locale il default è "headed": il browser visibile è il caso d'uso principale
+  const [config, setConfig] = useState<RunConfig>(
+    localMode ? { ...DEFAULT_CONFIG, browserMode: 'headed' } : DEFAULT_CONFIG,
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -271,8 +274,29 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
           </div>
         </div>
 
-        {/* In modalità locale il report email non viene inviato: box nascosto */}
-        {!localMode && (
+        {/* In modalità locale: scelta headed/headless al posto dei destinatari email
+            (il report email non viene inviato) */}
+        {localMode ? (
+          <fieldset className="flex flex-col gap-3">
+            <legend className={FIELDSET_LEGEND_CLASS}>
+              <Monitor size={14} aria-hidden="true" />
+              Modalità browser
+            </legend>
+            <select
+              className={SELECT_CLASS}
+              value={config.browserMode}
+              onChange={(e) =>
+                setConfig((prev) => ({
+                  ...prev,
+                  browserMode: e.target.value as RunConfig['browserMode'],
+                }))
+              }
+            >
+              <option value="headed">Headed (browser visibile)</option>
+              <option value="headless">Headless</option>
+            </select>
+          </fieldset>
+        ) : (
           <fieldset className="flex flex-col gap-3">
             <legend className={FIELDSET_LEGEND_CLASS}>
               <Mail size={14} aria-hidden="true" />

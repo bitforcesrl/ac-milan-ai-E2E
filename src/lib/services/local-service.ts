@@ -223,15 +223,12 @@ export class LocalService implements AppService {
       };
     }
 
-    // Override per la modalità locale:
-    // - browserMode "headed": il browser deve essere visibile a prescindere
-    //   dalla config inviata dal form (che di default e' "headless");
-    // - niente email: in locale il report email non viene inviato.
+    // Override per la modalità locale: niente email (il report email non
+    // viene inviato). browserMode arriva dal form (selettore headed/headless).
     let configWithOverrides = runConfigJson;
     try {
       configWithOverrides = JSON.stringify({
         ...JSON.parse(runConfigJson),
-        browserMode: 'headed',
         emailRecipients: [],
       });
     } catch {
