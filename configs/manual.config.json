@@ -1,12 +1,14 @@
 {
-  "tests": [
-    { "id": "fail-test" },
-    { "id": "quickbuy-cart-validation" }
-  ],
+  "tests": [],
   "browsers": ["chromium"],
   "viewports": ["desktop"],
   "aiModel": "deepseek/deepseek-v4.1-flash",
   "maxParallelSessions": 3,
   "browserMode": "headless",
-  "emailRecipients": ["t.rossi@sintraconsulting.eu", "r.gai@sintraconsulting.eu", "f.todino@sintraconsulting.eu", "m.rosi@sintraconsulting.eu"]
+  "emailRecipients": [
+    "t.rossi@sintraconsulting.eu",
+    "r.gai@sintraconsulting.eu",
+    "f.todino@sintraconsulting.eu",
+    "m.rosi@sintraconsulting.eu"
+  ]
 }

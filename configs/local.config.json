@@ -1,8 +1,5 @@
 {
-  "tests": [
-    { "id": "fail-test" },
-    { "id": "quickbuy-cart-validation" }
-  ],
+  "tests": [{ "id": "fail-test" }, { "id": "quickbuy-cart-validation" }],
   "browsers": ["chromium"],
   "viewports": ["desktop"],
   "aiModel": "z-ai/glm-5.3-flash",
