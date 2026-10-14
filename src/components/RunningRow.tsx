@@ -1,13 +1,7 @@
 'use client';
 
+import type { RunningBuild } from '@/lib/queries';
 import { Cpu } from '@deemlol/next-icons';
-
-type RunningBuild = {
-  id: number;
-  buildNumber: string;
-  status: string;
-  queueTime?: string;
-};
 
 /**
  * Riga della tabella reports che mostra una pipeline attualmente in corso (o in coda),
@@ -24,12 +18,12 @@ export default function RunningRow({
   const label = queued ? 'In coda' : 'In corso';
   const startedAt = build.queueTime
     ? new Date(build.queueTime).toLocaleString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : null;
 
   return (

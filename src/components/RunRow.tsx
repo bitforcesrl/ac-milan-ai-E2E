@@ -1,9 +1,9 @@
 'use client';
 
+import type { RunSummary } from '@/lib/services';
+import { CheckCircle, HelpCircle, XCircle } from '@deemlol/next-icons';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CheckCircle, XCircle, HelpCircle } from '@deemlol/next-icons';
-import type { RunSummary } from '@/lib/azure-reports';
 
 const muted = 'text-dark-grey';
 const chip =

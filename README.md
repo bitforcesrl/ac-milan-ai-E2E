@@ -158,6 +158,21 @@ npm run local:run-e2e    # run locale
 
 Poi triggera una run dalla dashboard o manualmente dalla pipeline.
 
+#### Modalità locale della dashboard (`npm run dev:local`)
+
+```bash
+npm run dev:local        # dashboard in modalità locale (E2E_LOCAL_MODE=1)
+```
+
+In questa modalità la dashboard **non usa Azure**:
+
+- **Avvio test dal form**: invece di triggerare la pipeline, esegue in background `scripts/run-e2e.mjs` con la run config del form (browser `headed`: vedi l'agente mentre testa). Log in `.e2e-local/run.log`, stato "run in corso" in `.e2e-local/running.json` (una run alla volta).
+- **Report**: letti dalla cartella `reports/` locale (stesso layout del blob, incluse le run locali di `npm run local:run-e2e`); gli screenshot sono serviti da `/api/reports-asset/`.
+
+Non servono credenziali Azure né variable group: basta `OPENROUTER_API_KEY` in `.env` per far girare l'agente. Con `npm run dev` (o in produzione su Vercel) tutto resta com'è: pipeline Azure + report da Blob.
+
+> **Architettura**: il backend è scelto da una factory (Strategy pattern) in [`src/lib/services/`](src/lib/services/index.ts): l'interfaccia [`AppService`](src/lib/services/index.ts) copre run (avvio/monitoraggio) e report (lettura), con due implementazioni — [`AzureService`](src/lib/services/azure-service.ts) (pipeline REST + Blob/SAS) e [`LocalService`](src/lib/services/local-service.ts) (run-e2e locale + fs). Aggiungere un nuovo backend = una nuova classe + una riga nella factory.
+
 > **Browser visibile**: la modalità del browser Playwright MCP si controlla con il campo `browserMode` nella run config (`"headed"` = visibile, `"headless"` = nascosto, default `headless`). Il template `configs/local.config.json` è preimpostato su `headed` per guardare l'agente mentre testa in locale.
 
 ## Sincronizzazione con l'harness

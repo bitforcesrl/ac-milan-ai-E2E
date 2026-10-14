@@ -1,5 +1,5 @@
+import { getService } from '@/lib/services';
 import { NextResponse } from 'next/server';
-import { getRun } from '@/lib/azure-reports';
 
 /**
  * API di dettaglio di una run: GET /api/reports/{runId}
@@ -26,7 +26,7 @@ import { getRun } from '@/lib/azure-reports';
 export async function GET(_req: Request, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   try {
-    const run = await getRun(runId);
+    const run = await getService().getRun(runId);
     if (!run) {
       return NextResponse.json({ error: `Run '${runId}' non trovata.` }, { status: 404 });
     }

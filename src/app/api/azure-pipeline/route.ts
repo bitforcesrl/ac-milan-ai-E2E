@@ -1,28 +1,24 @@
-import { NextResponse } from 'next/server';
-import { parseRunConfig, RunConfigValidationError } from '@/lib/run-config-schema';
 import {
-  E2E_TEST_LIST,
-  BROWSER_LIST,
-  VIEWPORT_LIST,
   AI_MODEL_LIST,
+  BROWSER_LIST,
+  E2E_TEST_LIST,
   MAX_PARALLEL_SESSIONS_CONFIG,
+  VIEWPORT_LIST,
 } from '@/lib/e2e-tests';
+import { parseRunConfig, RunConfigValidationError } from '@/lib/run-config-schema';
+import { getService } from '@/lib/services';
+import { NextResponse } from 'next/server';
 
 /**
- * API per triggerare la pipeline E2E su Azure DevOps tramite REST API.
+ * API per le run E2E: stato delle run in corso (GET) e avvio di una nuova run
+ * (POST). Il backend è scelto dalla factory getService() (Strategy pattern):
+ * - AzureService: trigger della pipeline su Azure DevOps via REST (default)
+ * - LocalService: esecuzione locale di scripts/run-e2e.mjs (npm run dev:local)
  *
- * Variabili d'ambiente richieste (solo server-side):
- * - AZURE_DEVOPS_ORG: nome dell'organizzazione Azure DevOps
- * - AZURE_DEVOPS_PROJECT: nome del progetto
- * - AZURE_DEVOPS_PIPELINE_ID: id della definizione di build (pipeline)
- * - AZURE_DEVOPS_PAT: Personal Access Token con permesso "Build (Read & Execute)"
- * - AZURE_DEVOPS_BRANCH (opzionale, default: main)
- *
- * Body: run config della run selezionata dal form in home page (stesso schema
- * dei file configs/*.config.json). Viene validata con Zod contro il catalogo in
- * configs/index.ts e passata alla pipeline come build variable E2E_RUN_CONFIG
- * (queue-time, NON come template parameter). La pipeline la materializza su
- * file temporaneo e la passa a run-e2e.mjs via --config (vedi azure-pipelines.yml).
+ * POST body: run config della run selezionata dal form in home page (stesso
+ * schema dei file configs/*.config.json). Viene validata con Zod contro il
+ * catalogo in configs/index.ts e passata al servizio (template parameter
+ * e2eRunConfig per Azure, file temporaneo per la modalità locale).
  */
 
 // Catalogo per la validazione della run config (da configs/index.ts via e2e-tests.ts)
@@ -35,62 +31,15 @@ const RUN_CONFIG_CATALOG = {
 };
 
 /**
- * GET: restituisce le build della pipeline attualmente in corso (o in coda).
+ * GET: restituisce le run attualmente in corso (o in coda).
  * Usato dalla home page per impedire l'avvio di run parallele.
  */
 export async function GET() {
-  const org = process.env.AZURE_DEVOPS_ORG;
-  const project = process.env.AZURE_DEVOPS_PROJECT;
-  const pipelineId = process.env.AZURE_DEVOPS_PIPELINE_ID;
-  const pat = process.env.AZURE_DEVOPS_PAT;
-
-  if (!org || !project || !pipelineId || !pat) {
-    return NextResponse.json({ error: 'Configurazione Azure DevOps mancante.' }, { status: 500 });
+  const { running, error, details, httpStatus } = await getService().getRunning();
+  if (error) {
+    return NextResponse.json({ error, details }, { status: httpStatus ?? 500 });
   }
-
-  const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?definitions=${pipelineId}&statusFilter=inProgress,notStarted&$top=10&api-version=7.1`;
-  const auth = Buffer.from(`:${pat}`).toString('base64');
-
-  try {
-    const res = await fetch(url, {
-      headers: { Authorization: `Basic ${auth}` },
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      return NextResponse.json(
-        { error: `Azure DevOps ha risposto con status ${res.status}` },
-        { status: res.status },
-      );
-    }
-
-    const data = await res.json();
-    const running = (data.value ?? []).map(
-      (b: {
-        id: number;
-        buildNumber: string;
-        status: string;
-        queueTime?: string;
-        _links?: { web?: { href?: string } };
-      }) => ({
-        id: b.id,
-        buildNumber: b.buildNumber,
-        status: b.status,
-        queueTime: b.queueTime,
-        webUrl: b._links?.web?.href,
-      }),
-    );
-
-    return NextResponse.json({ running });
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: 'Errore durante la chiamata ad Azure DevOps',
-        details: err instanceof Error ? err.message : String(err),
-      },
-      { status: 502 },
-    );
-  }
+  return NextResponse.json({ running });
 }
 
 export async function POST(request: Request) {
@@ -116,131 +65,14 @@ export async function POST(request: Request) {
     throw err;
   }
 
-  const org = process.env.AZURE_DEVOPS_ORG;
-  const project = process.env.AZURE_DEVOPS_PROJECT;
-  const pipelineId = process.env.AZURE_DEVOPS_PIPELINE_ID;
-  const pat = process.env.AZURE_DEVOPS_PAT;
-  const branch = process.env.AZURE_DEVOPS_BRANCH || 'main';
+  const result = await getService().triggerRun(runConfigJson);
 
-  if (!org || !project || !pipelineId || !pat) {
+  if (!result.ok) {
     return NextResponse.json(
-      {
-        error:
-          'Configurazione Azure DevOps mancante. Impostare AZURE_DEVOPS_ORG, AZURE_DEVOPS_PROJECT, AZURE_DEVOPS_PIPELINE_ID e AZURE_DEVOPS_PAT.',
-      },
-      { status: 500 },
+      { error: result.error, details: result.details, running: result.running },
+      { status: result.httpStatus },
     );
   }
 
-  // Verifica che non ci siano già build in corso o in coda per questa pipeline
-  const checkUrl = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?definitions=${pipelineId}&statusFilter=inProgress,notStarted&$top=10&api-version=7.1`;
-  const auth = Buffer.from(`:${pat}`).toString('base64');
-
-  try {
-    const checkRes = await fetch(checkUrl, {
-      headers: { Authorization: `Basic ${auth}` },
-      cache: 'no-store',
-    });
-
-    if (checkRes.ok) {
-      const checkData = await checkRes.json();
-      const running = (checkData.value ?? []).map(
-        (b: {
-          id: number;
-          buildNumber: string;
-          status: string;
-          queueTime?: string;
-          _links?: { web?: { href?: string } };
-        }) => ({
-          id: b.id,
-          buildNumber: b.buildNumber,
-          status: b.status,
-          queueTime: b.queueTime,
-          webUrl: b._links?.web?.href,
-        }),
-      );
-
-      if (running.length > 0) {
-        return NextResponse.json(
-          {
-            error:
-              'Esistono già run E2E in corso: attendere il completamento prima di avviarne una nuova.',
-            running,
-          },
-          { status: 409 },
-        );
-      }
-    }
-    // Se il check fallisce si prosegue comunque con il trigger (best-effort)
-  } catch (err) {
-    console.error('Errore durante la chiamata ad Azure DevOps:', err);
-    return NextResponse.json(
-      {
-        error: 'Errore durante la chiamata ad Azure DevOps',
-        details: err instanceof Error ? err.message : String(err),
-      },
-      { status: 502 },
-    );
-    // Ignora errori di rete sul check: il trigger viene tentato comunque
-  }
-
-  const url = `https://dev.azure.com/${org}/${encodeURIComponent(project)}/_apis/build/builds?api-version=7.1`;
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        definition: { id: Number(pipelineId) },
-        sourceBranch: `refs/heads/${branch}`,
-        templateParameters: {
-          e2eRunConfig: runConfigJson,
-          // Titolo fisso della run: usato dal name condizionale nel
-          // YAML (buildTitle via REST viene ignorato da ADO).
-          // NB: il titolo diventa build number, quindi non deve
-          // contenere caratteri vietati (":", "/", "\"", ecc.).
-          e2eRunTitle: `Run avviata dall'app E2E · ${new Date()
-            .toLocaleString('it-IT', {
-              timeZone: 'Europe/Rome',
-              dateStyle: 'short',
-              timeStyle: 'short',
-            })
-            .replaceAll(':', '.')
-            .replaceAll('/', '-')}`,
-        },
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      return NextResponse.json(
-        {
-          error: `Azure DevOps ha risposto con status ${res.status}`,
-          details: data,
-        },
-        { status: res.status },
-      );
-    }
-
-    return NextResponse.json({
-      ok: true,
-      buildId: data.id,
-      buildNumber: data.buildNumber,
-      webUrl: data._links?.web?.href,
-      status: data.status,
-    });
-  } catch (err) {
-    console.error('Errore durante la chiamata ad Azure DevOps:', err);
-    return NextResponse.json(
-      {
-        error: 'Errore durante la chiamata ad Azure DevOps',
-        details: err instanceof Error ? err.message : String(err),
-      },
-      { status: 502 },
-    );
-  }
+  return NextResponse.json(result);
 }
