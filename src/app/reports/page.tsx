@@ -1,7 +1,6 @@
 import PageHeader from '@/components/PageHeader';
 import ReportsTable from '@/components/ReportsTable';
-import { listRunningBuilds } from '@/lib/azure-devops';
-import { listRuns, type RunSummary } from '@/lib/azure-reports';
+import { getService, type RunningRun, type RunSummary } from '@/lib/services';
 import { FileText } from '@deemlol/next-icons';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -19,15 +18,15 @@ const muted = 'text-dark-grey';
 export default async function ReportsPage() {
   let runs: RunSummary[] = [];
   let error: string | null = null;
-  let runningBuilds: Awaited<ReturnType<typeof listRunningBuilds>> = [];
+  let runningBuilds: RunningRun[] = [];
 
   try {
-    runs = await listRuns();
+    runs = await getService().listRuns();
   } catch (err) {
     error = err instanceof Error ? err.message : String(err);
   }
 
-  runningBuilds = await listRunningBuilds();
+  runningBuilds = await getService().listRunningBuilds();
   const hasReports = runs.length > 0 || runningBuilds.length > 0;
   return (
     <div className="min-h-screen bg-white text-black antialiased">

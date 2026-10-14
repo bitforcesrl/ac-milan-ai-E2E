@@ -1,7 +1,7 @@
-import Link from 'next/link';
-import { getRun } from '@/lib/azure-reports';
-import { CheckCircle, XCircle, HelpCircle, Cpu, Clock, FileText } from '@deemlol/next-icons';
 import PageHeader from '@/components/PageHeader';
+import { getService } from '@/lib/services';
+import { CheckCircle, Clock, Cpu, FileText, HelpCircle, XCircle } from '@deemlol/next-icons';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,7 +52,7 @@ function statusChip(status: string) {
 
 export default async function RunDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  const run = await getRun(runId);
+  const run = await getService().getRun(runId);
 
   if (!run) {
     return (

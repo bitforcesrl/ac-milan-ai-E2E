@@ -1,5 +1,5 @@
+import { getService } from '@/lib/services';
 import { NextResponse } from 'next/server';
-import { getTest } from '@/lib/azure-reports';
 
 /**
  * API di dettaglio di un singolo test:
@@ -36,7 +36,7 @@ export async function GET(
 ) {
   const { runId, browser, viewport, testId } = await params;
   try {
-    const test = await getTest(runId, browser, viewport, testId);
+    const test = await getService().getTest(runId, browser, viewport, testId);
     if (!test) {
       return NextResponse.json(
         { error: `Test '${testId}' non trovato (run '${runId}', ${browser}/${viewport}).` },

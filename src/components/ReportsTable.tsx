@@ -1,12 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight } from '@deemlol/next-icons';
 import RunRow from '@/components/RunRow';
 import RunningRow from '@/components/RunningRow';
-import type { RunSummary } from '@/lib/azure-reports';
 import { fetchRunningBuilds, fetchRuns, queryKeys, type RunningBuild } from '@/lib/queries';
+import type { RunSummary } from '@/lib/services';
+import { ChevronLeft, ChevronRight } from '@deemlol/next-icons';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 
 const POLL_INTERVAL_MS = 15_000;
 /** Numero di run completate per pagina (paginazione lato client). */

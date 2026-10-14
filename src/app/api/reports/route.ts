@@ -1,5 +1,5 @@
+import { getService } from '@/lib/services';
 import { NextResponse } from 'next/server';
-import { listRuns } from '@/lib/azure-reports';
 
 /**
  * API che alimenta la tabella della dashboard /reports.
@@ -18,7 +18,7 @@ import { listRuns } from '@/lib/azure-reports';
  */
 export async function GET() {
   try {
-    const runs = await listRuns();
+    const runs = await getService().listRuns();
     return NextResponse.json({ runs });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

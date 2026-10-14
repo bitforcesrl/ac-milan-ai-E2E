@@ -26,12 +26,12 @@ git push github main
 ```bash
 npm install          # installa anche i browser Playwright (postinstall)
 cp .env.template .env
-npm run setup        # copia configs.template/ → configs/ (solo se assente)
+npm run setup        # copia configs.template/ → configs/ e azure-pipelines.template.yml → azure-pipelines.yml (solo se assenti)
 ```
 
 vedi `.env.template` per l'elenco completo delle variabili richieste.
 
-> `npm run setup` viene eseguito automaticamente anche dal `postinstall`, ma puoi rilanciarlo manualmente per ripristinare `configs/` dal template senza sovrascrivere eventuali personalizzazioni.
+> `npm run setup` viene eseguito automaticamente anche dal `postinstall`, ma puoi rilanciarlo manualmente per ripristinare `configs/` e `azure-pipelines.yml` dai template senza sovrascrivere eventuali personalizzazioni.
 
 ### 3. Configurazione test
 
@@ -71,22 +71,43 @@ Tre file che selezionano **quali test eseguire e con quali combinazioni** per og
 
 | Campo                 | Significato                                                        |
 | --------------------- | ------------------------------------------------------------------ |
-| `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`)        |
+| `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`), oppure `"*"` per eseguirli tutti |
 | `browsers`            | Browser su cui eseguire (`chromium`, `firefox`, `webkit`)          |
 | `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
 | `aiModel`             | Modello OpenRouter usato dall'agente                               |
 | `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                             |
+| `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale) |
 | `emailRecipients`     | (solo pipeline) destinatari della mail di report                   |
 
 - [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
 - [`configs/pr.config.json`](configs/pr.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
 - [`configs/local.config.json`](configs/local.config.json) — run locale (`npm run local:run-e2e`): 1 sessione parallela, nessuna mail.
 
+Il campo `tests` supporta anche lo **shortcut `"*"`** = esegui tutti i test del catalogo. Due formati equivalenti:
+
+```json
+"tests": "*"
+```
+
+```json
+"tests": [{ "id": "*" }]
+```
+
+Puoi anche mescolare: `"tests": [{ "id": "*" }, { "id": "my-test", "notes": "nota solo per questo test" }]` — lo shortcut viene espanso a tutti i test e le voci esplicite aggiungono/sovrascrivono (utile per passare `notes` a un test specifico). L'espansione avviene a runtime, quindi aggiungere un test a `configs/index.ts` lo include automaticamente nelle run `"*"` senza toccare i `.config.json`.
+
 Le run avviate dalla **dashboard** non usano questi file: la config arriva inline dal form (`E2E_RUN_CONFIG`).
+
+#### 3d. Prompt dell'agente — `PROJECT_PROMPT`
+
+Il prompt inviato all'agente AI a ogni test è definito in [`scripts/run-e2e.mjs`](scripts/run-e2e.mjs) (funzione `buildPrompt`) ed è **uguale per tutti i progetti**: contiene le regole generali (comportamento, browser/viewport, screenshot solo per bug, struttura obbligatoria di report e metadati). La struttura dei risultati non va modificata.
+
+Le **istruzioni specifiche del progetto** vivono nella costante [`PROJECT_PROMPT`](configs/index.ts) in `configs/index.ts` (stringa Markdown): vengono iniettate nel prompt tra le regole generali e la definizione del test. Usale per comportamenti attesi da non segnalare come bug, overlay particolari, convenzioni del sito (es. nel template è precompilata con le regole del progetto di riferimento: overlay upsell nel carrello, nome giocatore in maiuscolo, taglie).
+
+**Modifica solo `PROJECT_PROMPT` in `configs/index.ts`**, mai il prompt generico in `scripts/run-e2e.mjs`.
 
 ### 4. Azure DevOps
 
-1. Variable group `ai-e2e-secrets` (puoi modificare il nome nella [`azure-pipelines.yml`](azure-pipelines.yml)) con queste variabili (usate dalla pipeline per eseguire i test e inviare i report):
+1. Variable group `ai-e2e-secrets` (puoi modificare il nome in [`azure-pipelines.yml`](azure-pipelines.yml), la tua copia generata da [`azure-pipelines.template.yml`](azure-pipelines.template.yml)) con queste variabili (usate dalla pipeline per eseguire i test e inviare i report):
 
    ```
    AZURE_STORAGE_CONNECTION_STRING
@@ -98,7 +119,7 @@ Le run avviate dalla **dashboard** non usano questi file: la config arriva inlin
    SENDGRID_API_KEY
    ```
 
-2. Nuova pipeline → seleziona il repo client → [`azure-pipelines.yml`](azure-pipelines.yml).
+2. Nuova pipeline → seleziona il repo client → [`azure-pipelines.yml`](azure-pipelines.yml) (copiato da [`azure-pipelines.template.yml`](azure-pipelines.template.yml) al primo `npm install`/`npm run setup` — modifica la tua copia, non il template).
 3. Annota l'ID della pipeline → `AZURE_DEVOPS_PIPELINE_ID` in `.env` e variable group.
 4. Verifica pool agent: `Internal Linux with Docker` (JDK 21).
 5. Verifica che la variabile `E2E_RUN_CONFIG` sia dichiarata (vuota) nella pipeline.
@@ -137,6 +158,23 @@ npm run local:run-e2e    # run locale
 
 Poi triggera una run dalla dashboard o manualmente dalla pipeline.
 
+#### Modalità locale della dashboard (`npm run dev:local`)
+
+```bash
+npm run dev:local        # dashboard in modalità locale (E2E_LOCAL_MODE=1)
+```
+
+In questa modalità la dashboard **non usa Azure**:
+
+- **Avvio test dal form**: invece di triggerare la pipeline, esegue in background `scripts/run-e2e.mjs` con la run config del form (browser `headed`: vedi l'agente mentre testa). Log in `.e2e-local/run.log`, stato "run in corso" in `.e2e-local/running.json` (una run alla volta).
+- **Report**: letti dalla cartella `reports/` locale (stesso layout del blob, incluse le run locali di `npm run local:run-e2e`); gli screenshot sono serviti da `/api/reports-asset/`.
+
+Non servono credenziali Azure né variable group: basta `OPENROUTER_API_KEY` in `.env` per far girare l'agente. Con `npm run dev` (o in produzione su Vercel) tutto resta com'è: pipeline Azure + report da Blob.
+
+> **Architettura**: il backend è scelto da una factory (Strategy pattern) in [`src/lib/services/`](src/lib/services/index.ts): l'interfaccia [`AppService`](src/lib/services/index.ts) copre run (avvio/monitoraggio) e report (lettura), con due implementazioni — [`AzureService`](src/lib/services/azure-service.ts) (pipeline REST + Blob/SAS) e [`LocalService`](src/lib/services/local-service.ts) (run-e2e locale + fs). Aggiungere un nuovo backend = una nuova classe + una riga nella factory.
+
+> **Browser visibile**: la modalità del browser Playwright MCP si controlla con il campo `browserMode` nella run config (`"headed"` = visibile, `"headless"` = nascosto, default `headless`). Il template `configs/local.config.json` è preimpostato su `headed` per guardare l'agente mentre testa in locale.
+
 ## Sincronizzazione con l'harness
 
 Utility npm:
@@ -151,15 +189,17 @@ Utility npm:
 
 ### Cosa modifica il client
 
-Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.yml`, `package.json`, `configs.template/`). Il client tocca solo:
+Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.template.yml`, `package.json`, `configs.template/`). Il client tocca solo:
 
-- `configs/` — la tua copia (committata nel repo client)
+- `configs/` — la tua copia (committata nel repo client), incluso `configs/index.ts` (`PROJECT_PROMPT`)
+- `azure-pipelines.yml` — la tua copia generata da `azure-pipelines.template.yml` (committata nel repo client)
 - `tests/` — i tuoi test
 - `.env` — le tue variabili d'ambiente
 
 ### Aggiornamenti dell'harness
 
-Quando fai `npm run sync:pull`, l'harness può aggiornare `configs.template/` (es. nuovi browser/viewport, nuovi campi nei `.config.json`). Queste modifiche **non si propagano automaticamente** alla tua copia `configs/`:
+Quando fai `npm run sync:pull`, l'harness può aggiornare `configs.template/` (es. nuovi browser/viewport, nuovi campi nei `.config.json`) o `azure-pipelines.template.yml` (es. nuovi step di pipeline). Queste modifiche **non si propagano automaticamente** alle tue copie `configs/` e `azure-pipelines.yml`:
 
 - **`configs/index.ts`**: riporta a mano le aggiunte (es. nuovi `BROWSERS` o `VIEWPORTS`) nel tuo file.
 - **`configs/*.json`**: se l'harness introduce nuovi campi, il codice li tollera con default; puoi rigenerare i file con `npm run setup` (non sovrascrive `configs/` se esiste) o aggiornarli manualmente.
+- **`azure-pipelines.yml`**: se l'harness aggiorna `azure-pipelines.template.yml`, riporta a mano le modifiche nella tua copia (o rigenerala con `npm run setup`, che non sovrascrive se esiste già).

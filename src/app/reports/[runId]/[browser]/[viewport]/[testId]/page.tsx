@@ -1,9 +1,9 @@
-import { marked } from 'marked';
-import sanitizeHtml from 'sanitize-html';
-import { getTest } from '@/lib/azure-reports';
-import { CheckCircle, XCircle } from '@deemlol/next-icons';
 import PageHeader from '@/components/PageHeader';
 import ReportMarkdown from '@/components/ReportMarkdown';
+import { getService } from '@/lib/services';
+import { CheckCircle, XCircle } from '@deemlol/next-icons';
+import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +16,7 @@ export default async function TestDetailPage({
   params: Promise<{ runId: string; browser: string; viewport: string; testId: string }>;
 }) {
   const { runId, browser, viewport, testId } = await params;
-  const detail = await getTest(runId, browser, viewport, testId);
+  const detail = await getService().getTest(runId, browser, viewport, testId);
 
   if (!detail) {
     return (

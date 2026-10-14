@@ -8,6 +8,7 @@ import {
   DEFAULT_EMAIL_RECIPIENTS,
   E2E_TESTS,
   MAX_PARALLEL_SESSIONS,
+  PATHS,
   VIEWPORTS,
   type BrowserConfig,
   type E2ETest,
@@ -23,6 +24,7 @@ export const VIEWPORT_LIST: ViewportConfig[] = VIEWPORTS;
 export const AI_MODEL_LIST: string[] = AI_MODELS;
 export const MAX_PARALLEL_SESSIONS_CONFIG: MaxParallelSessions = MAX_PARALLEL_SESSIONS;
 export const DEFAULT_EMAIL_RECIPIENTS_LIST: string[] = DEFAULT_EMAIL_RECIPIENTS;
+export const PATHS_CONFIG = PATHS;
 
 /**
  * Run config di default per il form home page: deriva dai campi `enabled` e
@@ -39,6 +41,7 @@ export function buildDefaultRunConfig() {
     viewports: VIEWPORT_LIST.filter((v) => v.default).map((v) => v.id),
     aiModel: AI_MODEL_LIST[0],
     maxParallelSessions: MAX_PARALLEL_SESSIONS_CONFIG.default,
+    browserMode: 'headless' as const,
     emailRecipients: DEFAULT_EMAIL_RECIPIENTS_LIST,
   };
 }

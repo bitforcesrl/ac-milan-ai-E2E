@@ -8,21 +8,33 @@ import { z } from 'zod';
 
 export const RUN_CONFIG_FILE_NAMES = ['pipeline', 'local', 'mr'] as const;
 
+// Shortcut "*": seleziona tutti i test del catalogo. Accettato sia come
+// stringa ("tests": "*") sia come id dentro un elemento dell'array
+// ("tests": [{ "id": "*" }]); viene normalizzato ed espanso in parseRunConfig.
+const ALL_TESTS = '*';
+
+const testEntrySchema = z.object({
+  id: z.string().min(1),
+  notes: z.string().optional(),
+});
+
 export const runConfigSchema = z.object({
   // Test selezionati: id obbligatorio, note opzionali (override del campo
-  // `notes` del catalogo in configs/index.ts per la run corrente)
-  tests: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        notes: z.string().optional(),
-      }),
-    )
-    .min(1, 'Selezionare almeno un test.'),
+  // `notes` del catalogo in configs/index.ts per la run corrente).
+  // "*" (stringa o come id) = tutti i test del catalogo.
+  tests: z.preprocess(
+    (v) => (v === ALL_TESTS ? [{ id: ALL_TESTS }] : v),
+    z.array(testEntrySchema).min(1, 'Selezionare almeno un test.'),
+  ),
   browsers: z.array(z.string().min(1)).min(1, 'Selezionare almeno un browser.'),
   viewports: z.array(z.string().min(1)).min(1, 'Selezionare almeno un viewport.'),
   aiModel: z.string().min(1),
   maxParallelSessions: z.number().int().min(1),
+  // Modalita' del browser Playwright MCP: "headless" (default, sicuro in CI) o
+  // "headed" (browser visibile, utile in locale per guardare l'agente mentre
+  // testa). Il default e' nel campo: configs.template/local.config.json lo
+  // imposta esplicitamente a "headed".
+  browserMode: z.enum(['headless', 'headed']).default('headless'),
   // Destinatari email del report (run avviate dall'app Next.js): la mail in
   // questo caso viene inviata SEMPRE (pass o fail). Opzionale: se assente
   // lo script email fa skip con log.
@@ -69,8 +81,23 @@ export function parseRunConfig(
   const config = parsed.data;
   const errors: string[] = [];
 
+  // Espansione shortcut "*": tutti i test del catalogo (union con eventuali
+  // id espliciti, senza duplicati).
+  const hasWildcard = config.tests.some((t) => t.id === ALL_TESTS);
+  if (hasWildcard && catalog.E2E_TESTS.length === 0) {
+    errors.push('tests: nessun test nel catalogo (configs/index.ts) da espandere con "*".');
+  }
+  const expandedTests = hasWildcard
+    ? [
+        ...new Map([
+          ...catalog.E2E_TESTS.map((t) => ({ id: t.id })),
+          ...config.tests.filter((t) => t.id !== ALL_TESTS),
+        ].map((t) => [t.id, t])).values(),
+      ]
+    : config.tests;
+
   const testIds = new Set(catalog.E2E_TESTS.map((t) => t.id));
-  for (const test of config.tests) {
+  for (const test of expandedTests) {
     if (!testIds.has(test.id)) errors.push(`Test sconosciuto: ${test.id}`);
   }
 
@@ -98,5 +125,5 @@ export function parseRunConfig(
     throw new RunConfigValidationError(`Run config non valida: ${errors.join('; ')}`);
   }
 
-  return config;
+  return { ...config, tests: expandedTests };
 }

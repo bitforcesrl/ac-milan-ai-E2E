@@ -1,4 +1,4 @@
-import type { RunSummary } from '@/lib/azure-reports';
+import type { RunningRun, RunSummary } from '@/lib/services';
 
 /** Chiavi di cache React Query centralizzate. */
 export const queryKeys = {
@@ -6,13 +6,7 @@ export const queryKeys = {
   runningBuilds: ['azure-pipeline', 'running'] as const,
 };
 
-export type RunningBuild = {
-  id: number;
-  buildNumber: string;
-  status: string;
-  queueTime?: string;
-  webUrl?: string;
-};
+export type RunningBuild = RunningRun;
 
 /** Fetcher per l'elenco delle run completate: GET /api/reports */
 export async function fetchRuns(): Promise<RunSummary[]> {
