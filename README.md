@@ -96,6 +96,14 @@ Puoi anche mescolare: `"tests": [{ "id": "*" }, { "id": "my-test", "notes": "not
 
 Le run avviate dalla **dashboard** non usano questi file: la config arriva inline dal form (`E2E_RUN_CONFIG`).
 
+#### 3d. Prompt dell'agente — `PROJECT_PROMPT`
+
+Il prompt inviato all'agente AI a ogni test è definito in [`scripts/run-e2e.mjs`](scripts/run-e2e.mjs) (funzione `buildPrompt`) ed è **uguale per tutti i progetti**: contiene le regole generali (comportamento, browser/viewport, screenshot solo per bug, struttura obbligatoria di report e metadati). La struttura dei risultati non va modificata.
+
+Le **istruzioni specifiche del progetto** vivono nella costante [`PROJECT_PROMPT`](configs/index.ts) in `configs/index.ts` (stringa Markdown): vengono iniettate nel prompt tra le regole generali e la definizione del test. Usale per comportamenti attesi da non segnalare come bug, overlay particolari, convenzioni del sito (es. nel template è precompilata con le regole del progetto di riferimento: overlay upsell nel carrello, nome giocatore in maiuscolo, taglie).
+
+**Modifica solo `PROJECT_PROMPT` in `configs/index.ts`**, mai il prompt generico in `scripts/run-e2e.mjs`.
+
 ### 4. Azure DevOps
 
 1. Variable group `ai-e2e-secrets` (puoi modificare il nome in [`azure-pipelines.yml`](azure-pipelines.yml), la tua copia generata da [`azure-pipelines.template.yml`](azure-pipelines.template.yml)) con queste variabili (usate dalla pipeline per eseguire i test e inviare i report):
@@ -165,7 +173,7 @@ Utility npm:
 
 Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.template.yml`, `package.json`, `configs.template/`). Il client tocca solo:
 
-- `configs/` — la tua copia (committata nel repo client)
+- `configs/` — la tua copia (committata nel repo client), incluso `configs/index.ts` (`PROJECT_PROMPT`)
 - `azure-pipelines.yml` — la tua copia generata da `azure-pipelines.template.yml` (committata nel repo client)
 - `tests/` — i tuoi test
 - `.env` — le tue variabili d'ambiente

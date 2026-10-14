@@ -54,6 +54,27 @@ export const AI_MODELS: string[] = ['qwen/qwen3.7-plus', 'z-ai/glm-5.3-flash', '
 // ============================================================================
 export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
 
+// ============================================================================
+// PROMPT PROGETTO: istruzioni specifiche del progetto iniettate nel prompt
+// dell'agente (in scripts/run-e2e.mjs, tra le regole generali e la definizione
+// del test). Il testo generico condiviso resta hardcoded nello script: qui va
+// SOLO la personalizzazione del progetto. Formato libero (Markdown).
+// ============================================================================
+
+// ESEMPIO PROMPT MILAN STORE:
+
+// Istruzioni specifiche del progetto:
+// - Overlay di upsell nel carrello: quando si naviga al carrello dopo aver aggiunto un prodotto si apre AUTOMATICAMENTE
+//   un overlay di upsell. NON e' un errore: comportamento atteso, chiudilo con la "X" in alto a destra prima di
+//   procedere. NON documentarlo come bug.
+// - NON segnalare come bug: il nome del giocatore visualizzato in MAIUSCOLO (comportamento corretto e desiderato); taglie
+//   che non compaiono affatto (dipendono dalla configurazione del prodotto, alcune possono non esserci); l'overlay di upsell
+//   nel carrello (comportamento atteso, si chiude con la "X").
+// - Il sito e' uno shop e-commerce con personalizzazione prodotto (es. maglie personalizzabili): verifica la coerenza
+//   tra personalizzazione selezionata, anteprima e carrello, e che il prezzo finale rifletta le opzioni scelte.
+
+export const PROJECT_PROMPT: string = ``;
+
 // Sessioni in parallelo
 export const MAX_PARALLEL_SESSIONS: MaxParallelSessions = {
   default: 3,

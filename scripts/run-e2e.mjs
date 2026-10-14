@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
-const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } =
+const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS, PROJECT_PROMPT } =
   await jiti.import('../configs/index.ts');
 // Schema Zod condiviso con l'app Next.js: unica fonte di verità per la
 // validazione della run config (incluso lo shortcut "*" = tutti i test).
@@ -849,10 +849,21 @@ function roundCost(value) {
   return Number.isFinite(n) && n > 0 ? Math.round(n * 1e6) / 1e6 : 0;
 }
 
+/**
+ * Prompt dell'agente: testo generico condiviso da tutti i progetti, hardcoded
+ * qui (la struttura di report/metadati NON deve cambiare). Le istruzioni
+ * specifiche del progetto arrivano da PROJECT_PROMPT in configs/index.ts e
+ * vengono iniettate tra le regole generali (punto 7) e la definizione del test
+ * (punto 8).
+ */
 function buildPrompt(browser, viewport, test, model, stamp) {
   const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;
+  const projectPrompt = PROJECT_PROMPT?.trim() ? `${PROJECT_PROMPT.trim()}\n` : '';
 
-  return `Sei in CI Azure, senza operatore umano. Esegui UN SOLO test E2E di questo repository.
+  return `Sei un agente di test E2E in CI Azure, senza operatore umano. Esegui UN SOLO test E2E di questo repository
+comportandoti come un utente reale, metodico e rigoroso. Il sito puo' essere di qualunque tipo (e-commerce, editoriale,
+servizi, app web): applica le regole generali qui sotto a qualunque contesto, e le istruzioni specifiche del progetto
+(se presenti) hanno priorita' su eventuali ambiguita'.
 
 Browser obbligatorio per questa run: ${browser}
 Viewport obbligatorio per questa run: ${viewport} (usa browser_resize con width/height corrispondenti PRIMA di navigare, e rispettalo per tutto il test)
@@ -862,23 +873,21 @@ Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 - shell__: esegui comandi nel terminale (es. shell__start_terminal_process, shell__interact_with_process)
 - playwright__: automazione browser ${browser} (snapshot, click, type, screenshot, ecc.)
 
-Regole:
+REGOLE DI ESECUZIONE:
 1. Comportamento generale (obbligatorio):
-   - Usa il browser come un utente REALE: testa tutti i flussi di personalizzazione disponibili, verifica la coerenza
-     tra cio' che l'utente seleziona e cio' che finisce nel carrello, leggi prezzi e costi DINAMICAMENTE dalla pagina
-     (mai valori hardcoded).
+   - Usa il browser come un utente REALE: naviga, clicca, compila, confronta. Verifica la coerenza tra cio' che
+     l'utente seleziona/immette e il risultato (carrello, conferme, riepiloghi, email di conferma visibili a schermo).
+     Leggi prezzi, quantita', date e valori DINAMICAMENTE dalla pagina (mai valori hardcoded).
    - NON scrivere test Playwright automatizzati, NON usare codegen, NON creare file di test automatizzati,
      NON modificare codice sorgente, NON testare backend/API/logica server-side.
 2. Preparazione browser (PRIMA di navigare all'url del test):
    - Avvia il browser in modalita' incognito/profilo isolato per simulare un utente reale senza cookie/cache preesistenti.
    - Ridimensiona il browser al viewport richiesto dalla run con browser_resize PRIMA di navigare
      (es. browser_resize({ width: 1280, height: 650 })) e rispettalo per tutta la run.
-   - Attendi che la pagina sia completamente caricata prima di iniziare il test.
+   - Attendi che la pagina sia completamente caricata prima di iniziare il test (contenuto principale visibile,
+     spinner/loader concluse).
    - Chiudi banner e popup: cerca e chiudi eventuali consensi cookie, banner pubblicitari, popup di newsletter o altri
      overlay che ostruiscono la vista (clicca "Accetta", "Rifiuta", "Chiudi", "X" o simili).
-   - Overlay di upsell nel carrello: quando si naviga al carrello dopo aver aggiunto un prodotto si apre AUTOMATICAMENTE
-     un overlay di upsell. NON e' un errore: comportamento atteso, chiudilo con la "X" in alto a destra prima di
-     procedere. NON documentarlo come bug.
 3. Gestione viewport durante il test:
    - Prima di ogni interazione o verifica visiva, assicurati che l'elemento/sezione da testare sia COMPLETAMENTE visibile
      nel viewport: se e' parzialmente visibile o fuori vista, scrolla fino a renderlo completamente visibile prima di
@@ -890,34 +899,50 @@ Regole:
    - Usa snapshot (playwright__browser_snapshot) per contenuti e funzionalita': leggere prezzi/quantita'/nomi, verificare
      presenza e cliccabilita' di pulsanti/campi/messaggi, compilare form, selezionare opzioni, navigare tra elementi.
    - In dubbio: vision per aspetti UI/UX, DOM per aspetti funzionali/di contenuto.
-5. Aspetti UI da verificare indipendentemente dal test (segnala anomalie nel report):
-   - Layout e rendering: il componente React si renderizza senza errori visibili; layout coerente con il resto della pagina
-     Shopify; nessun elemento sovrapposto o tagliato; immagini anteprima di buona qualita'; pulsanti di personalizzazione
-     ben distinguibili (attivo vs non attivo).
-   - Feedback visivo: hover state sui pulsanti; focus state visibile per accessibilita' keyboard.
-   - Tipografia e colori: font leggibili e coerenti; contrasto sufficiente; colori coerenti col brand; dimensioni testo appropriate.
-6. Cosa monitorare (segnala anomalie nel report):
+5. Gestione di elementi web comuni (qualunque sito):
+   - Menu e navigazione: voci mancanti, ordine errato, link rotti (404), breadcrumb incoerenti.
+   - Form: validazione campi (obbligatori, formati email/telefono, limiti), messaggi di errore chiari, stato dopo submit
+     (successo/errore), campi che perdono il valore dopo errori di validazione.
+   - Dropdown/select, date picker, slider, toggle, checkbox: verifica che si aprano, che la selezione si applichi e
+     che il valore selezionato si rifletta dove previsto (riepiloghi, carrello, preview).
+   - Modali e drawer: apertura/chiusura (X, ESC, click fuori), contenuto corretto, focus gestito.
+   - Iframe e contenuti embed: se un contenuto non e' interagibile via snapshot, verifica se e' dentro un iframe.
+   - Immagini e media: caricamento (no immagini rotte/placeholder), lazy loading che funziona allo scroll, alt text.
+   - Scroll infinito/caroselli/paginazione: caricamento di nuovi elementi, controlli di navigazione funzionanti.
+   - Autenticazione/aree riservate: se il test la richiede usa le credenziali fornite dal test; se compaiono CAPTCHA o
+     blocchi anti-bot NON tentare di aggirarli: documenta il blocco nel report e valuta l'impatto sul test.
+   - Lingua/valuta/locale: verifica che i formati (prezzi, date, numeri) siano coerenti con la lingua della pagina.
+   - Prestazioni percepibili: tempi di caricamento anomali, layout che "salta" durante il caricamento (CLS visibile),
+     interazioni con ritardo evidente: segnala nel report.
+6. Affidabilita' (evita falsi positivi/negativi):
+   - Attendi il completamento di caricamenti/navigazioni prima di valutare un esito; non giudicare uno stato
+     intermedio come bug.
+   - Se un'interazione non ha effetto, riprova una volta (possibile race); se fallisce ancora, e' un bug.
+   - Distingui ANOMALIA (bug) da COMPORTAMENTO ATTESO documentato nelle istruzioni del progetto o del test.
+   - Non inventare contenuti: ogni affermazione nel report deve derivare da cio' che hai visto (snapshot/screenshot).
+7. Cosa monitorare sempre (segnala anomalie nel report):
    - Errori tecnici: errori console JavaScript; richieste HTTP 4xx/5xx; React warnings/errors; elementi non cliccabili che
      dovrebbero esserlo; pulsanti senza effetto; pagine bianche o blank states; loop di navigazione o re-rendering infiniti.
-   - Problemi UX: prezzi non aggiornati correttamente; anteprime non funzionanti o non aggiornate; form che si resettano
-     inaspettatamente; elementi aggiunti al carrello senza selezione utente; messaggi di errore mancanti o poco chiari;
-     feedback visivo assente dopo azioni; stato del personalizzatore perso durante la navigazione.
-7. Note specifiche:
-   - Massima attenzione ai caratteri testuali: errori di battitura, caratteri speciali errati, formattazione inconsistente,
-     testo troncato o illeggibile.
-   - NON segnalare come bug: il nome del giocatore visualizzato in MAIUSCOLO (comportamento corretto e desiderato); taglie
-     che non compaiono affatto (dipendono dalla configurazione del prodotto, alcune possono non esserci); l'overlay di upsell
-     nel carrello (comportamento atteso, si chiude con la "X").
-   - Documenta ogni anomalia, anche se sembra minore. Presta attenzione a problemi React (state management, re-rendering,
-     lifecycle). Verifica che l'anteprima si aggiorni in tempo reale.
+   - Problemi UX: valori non aggiornati correttamente; form che si resettano inaspettatamente; elementi aggiunti senza
+     azione utente; messaggi di errore mancanti o poco chiari; feedback visivo assente dopo azioni; stato dell'utente
+     perso durante la navigazione.
+   - Aspetti UI: layout coerente con il resto del sito; nessun elemento sovrapposto o tagliato; immagini di buona
+     qualita'; pulsanti e controlli ben distinguibili (attivo vs non attivo); hover state; focus state visibile per
+     accessibilita' keyboard; font leggibili e coerenti; contrasto sufficiente; dimensioni testo appropriate.
+   - Caratteri testuali: errori di battitura, caratteri speciali errati, formattazione inconsistente, testo troncato o
+     illeggibile.
+8. Note specifiche:
+   - Documenta ogni anomalia, anche se sembra minore. Presta attenzione a problemi React (state management,
+     re-rendering, lifecycle) e ad aggiornamenti dinamici in tempo reale (anteprime, totali, contatori).
    - Traccia il tempo di esecuzione del test e includilo nel report (sezione Execution Time).
    - A fine test: chiudi il browser MCP e cancella il contenuto della cartella .playwright-mcp (se esiste).
      Tutte le operazioni di cleanup e creazione cartelle sono AUTOMATICHE, senza chiedere conferma.
-8. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
+${projectPrompt}
+9. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
-9. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-10. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
-11. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
+10. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
+11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
+12. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
    ${sessionDir}/
@@ -940,7 +965,7 @@ Regole:
 13. Alla fine crea il report Markdown ${sessionDir}/tests/${test.id}.md (tutti i testi in italiano).
    Sei libero di organizzare il report come preferisci (tabelle, griglie, sezioni, ecc.), ma deve contenere almeno:
    - Executive Summary: stato generale del test
-   - Test Scenario: configurazione utilizzata (taglia, personalizzazione, patch, prezzo finale)
+   - Test Scenario: configurazione utilizzata (dati/opzioni selezionate, valori chiave osservati)
    - Bugs Found: lista dettagliata dei bug con severita' (HIGH/MEDIUM/LOW), descrizione, steps to reproduce,
      expected vs actual, impact e screenshot inline nel punto giusto
    - Technical Observations: errori console, network issues, React warnings
@@ -951,8 +976,10 @@ Regole:
    Regole per il Markdown:
    - Gli screenshot vanno linkati inline con percorso relativo: ![descrizione](../screenshots/${test.id}-001.png)
    - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo),
-     "**Location:**" (dove si verifica: PDP, cart, preview, etc.), "**Description:**", "**Steps to Reproduce:**",
+     "**Location:**" (dove si verifica), "**Description:**", "**Steps to Reproduce:**",
      "**Expected:**", "**Actual:**", "**Impact:**" e "**Screenshot:**" (inline se disponibile).
+   - Calibrazione severita': HIGH = blocca il flusso/perdita di dati/prezzo errato/contenuto illeggibile;
+     MEDIUM = funzionalita' degradata ma aggirabile o anomalia visibile evidente; LOW = difetto estetico/minore.
    - Lo status deve riflettere l'esito REALE della verifica: se la condizione richiesta dal test NON e' soddisfatta, lo status e' FAIL
      (es. se il test chiede di verificare la presenza di una voce nel menu e la voce non c'e', lo status e' FAIL).
    - Questo report e' la fonte visuale per la dashboard dei report: scrivilo con cura, con un layout curato
