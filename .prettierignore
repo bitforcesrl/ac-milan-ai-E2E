@@ -6,5 +6,5 @@ dist
 coverage
 playwright-report
 test-results
+reports
 package-lock.json
-configs

@@ -93,12 +93,12 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       tests: checked
         ? [
-          ...prev.tests,
-          {
-            id,
-            notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
-          },
-        ]
+            ...prev.tests,
+            {
+              id,
+              notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
+            },
+          ]
         : prev.tests.filter((t) => t.id !== id),
     }));
   }
