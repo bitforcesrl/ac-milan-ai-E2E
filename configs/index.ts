@@ -1,15 +1,15 @@
 import type {
-    BrowserConfig,
-    E2ETest,
-    MaxParallelSessions,
-    ViewportConfig,
+  BrowserConfig,
+  E2ETest,
+  MaxParallelSessions,
+  ViewportConfig,
 } from "../src/types/config";
 
 export type {
-    BrowserConfig,
-    E2ETest,
-    MaxParallelSessions,
-    ViewportConfig,
+  BrowserConfig,
+  E2ETest,
+  MaxParallelSessions,
+  ViewportConfig
 } from "../src/types/config";
 
 export const E2E_TESTS: E2ETest[] = [
@@ -92,6 +92,20 @@ export const AI_MODELS: string[] = ['qwen/qwen3.7-plus', 'z-ai/glm-5.3-flash', '
 // PR il destinatario e' l'autore della pull request (invio solo su FAIL).
 // ============================================================================
 export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
+
+
+export const PROJECT_PROMPT: string = `
+Istruzioni specifiche del progetto:
+- Overlay di upsell nel carrello: quando si naviga al carrello dopo aver aggiunto un prodotto si apre AUTOMATICAMENTE
+  un overlay di upsell. NON e' un errore: comportamento atteso, chiudilo con la "X" in alto a destra prima di
+  procedere. NON documentarlo come bug.
+- NON segnalare come bug: il nome del giocatore visualizzato in MAIUSCOLO (comportamento corretto e desiderato); taglie
+  che non compaiono affatto (dipendono dalla configurazione del prodotto, alcune possono non esserci); l'overlay di upsell
+  nel carrello (comportamento atteso, si chiude con la "X").
+- Il sito e' uno shop e-commerce con personalizzazione prodotto (es. maglie personalizzabili): verifica la coerenza
+  tra personalizzazione selezionata, anteprima e carrello, e che il prezzo finale rifletta le opzioni scelte.
+`;
+
 
 // Sessioni in parallelo
 export const MAX_PARALLEL_SESSIONS: MaxParallelSessions = {
