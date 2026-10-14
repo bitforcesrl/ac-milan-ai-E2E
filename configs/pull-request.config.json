@@ -1,10 +1,8 @@
 {
-  "tests": [
-    { "id": "fail-test" }
-  ],
+  "tests": "*",
   "browsers": ["chromium"],
   "viewports": ["1280x650"],
-  "aiModel": "qwen/qwen3.7-plus",
+  "aiModel": "deepseek/deepseek-v4.1-flash",
   "maxParallelSessions": 3,  
   "browserMode": "headless"
 }
