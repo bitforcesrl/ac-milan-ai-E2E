@@ -18,12 +18,12 @@ export default function RunningRow({
   const label = queued ? 'In coda' : 'In corso';
   const startedAt = build.queueTime
     ? new Date(build.queueTime).toLocaleString('it-IT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     : null;
 
   return (
