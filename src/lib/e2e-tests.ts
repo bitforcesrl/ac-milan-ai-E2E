@@ -39,6 +39,7 @@ export function buildDefaultRunConfig() {
     viewports: VIEWPORT_LIST.filter((v) => v.default).map((v) => v.id),
     aiModel: AI_MODEL_LIST[0],
     maxParallelSessions: MAX_PARALLEL_SESSIONS_CONFIG.default,
+    browserMode: 'headless',
     emailRecipients: DEFAULT_EMAIL_RECIPIENTS_LIST,
   };
 }

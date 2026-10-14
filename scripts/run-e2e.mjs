@@ -150,6 +150,7 @@ async function main() {
   console.log(`Tests: ${config.tests.map((t) => `${t.id} (${t.name})`).join(', ')}`);
   console.log(`Unità Totali: ${units.length}`);
   console.log(`Sessioni in parallelo: ${config.maxParallelSessions}`);
+  console.log(`Browser MCP: ${config.browserMode}`);
   console.log(`Cartella run: ${PATHS.reports}/${stamp}\n`);
 
   let hasFailures = false;
@@ -166,7 +167,7 @@ async function main() {
         `\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`,
       );
 
-      const exitCode = await runSession(unit, config, stamp);
+      const exitCode = await runSession(unit, config, stamp, config.browserMode === 'headed');
 
       if (!resultsByCombo.has(comboKey)) {
         resultsByCombo.set(comboKey, []);
@@ -221,13 +222,13 @@ async function main() {
 // 3. ESECUZIONE SESSIONE AGENTE LLM
 // ============================================================================
 
-async function runSession({ browser, viewport, test }, config, stamp) {
+async function runSession({ browser, viewport, test }, config, stamp, headed) {
   let mcp;
   let sessionCost = 0;
   try {
-    mcp = await initMcpServers(browser);
+    mcp = await initMcpServers(browser, headed);
     const messages = [
-      { role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp) },
+      { role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp, headed) },
     ];
     let finalText = '';
 
@@ -309,13 +310,13 @@ function writeTestCost(stamp, browser, viewport, testId, cost) {
 // 4. INTEGRAZIONE MCP (MODEL CONTEXT PROTOCOL)
 // ============================================================================
 
-async function initMcpServers(browser) {
+async function initMcpServers(browser, headed) {
   const cwd = process.cwd();
   const serverConfigs = [
     {
       name: 'playwright',
       command: 'npx',
-      args: ['-y', '@playwright/mcp@latest', '--headless', '--isolated', '--browser', browser],
+      args: ['-y', '@playwright/mcp@latest', headed ? '--headed' : '--headless', '--isolated', '--browser', browser],
       env: { ...process.env, PLAYWRIGHT_MCP_BROWSER: browser, PLAYWRIGHT_MCP_ISOLATED: 'true' },
     },
     {
@@ -856,7 +857,7 @@ function roundCost(value) {
  * vengono iniettate tra le regole generali (punto 7) e la definizione del test
  * (punto 8).
  */
-function buildPrompt(browser, viewport, test, model, stamp) {
+function buildPrompt(browser, viewport, test, model, stamp, headed) {
   const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;
   const projectPrompt = PROJECT_PROMPT?.trim() ? `${PROJECT_PROMPT.trim()}\n` : '';
 
@@ -941,7 +942,7 @@ ${projectPrompt}
 9. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 10. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, headless, viewport ${viewport} (rispettalo per tutta la run).
+11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? 'browser VISIBILE (headed): non chiudere la finestra, l\'operatore umano sta guardando' : 'headless'}, viewport ${viewport} (rispettalo per tutta la run).
 12. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):

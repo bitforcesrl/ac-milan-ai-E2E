@@ -30,6 +30,11 @@ export const runConfigSchema = z.object({
   viewports: z.array(z.string().min(1)).min(1, 'Selezionare almeno un viewport.'),
   aiModel: z.string().min(1),
   maxParallelSessions: z.number().int().min(1),
+  // Modalita' del browser Playwright MCP: "headless" (default, sicuro in CI) o
+  // "headed" (browser visibile, utile in locale per guardare l'agente mentre
+  // testa). Il default e' nel campo: configs.template/local.config.json lo
+  // imposta esplicitamente a "headed".
+  browserMode: z.enum(['headless', 'headed']).default('headless'),
   // Destinatari email del report (run avviate dall'app Next.js): la mail in
   // questo caso viene inviata SEMPRE (pass o fail). Opzionale: se assente
   // lo script email fa skip con log.

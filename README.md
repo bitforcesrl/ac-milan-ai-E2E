@@ -76,6 +76,7 @@ Tre file che selezionano **quali test eseguire e con quali combinazioni** per og
 | `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
 | `aiModel`             | Modello OpenRouter usato dall'agente                               |
 | `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                             |
+| `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale) |
 | `emailRecipients`     | (solo pipeline) destinatari della mail di report                   |
 
 - [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
@@ -156,6 +157,8 @@ npm run local:run-e2e    # run locale
 ```
 
 Poi triggera una run dalla dashboard o manualmente dalla pipeline.
+
+> **Browser visibile**: la modalità del browser Playwright MCP si controlla con il campo `browserMode` nella run config (`"headed"` = visibile, `"headless"` = nascosto, default `headless`). Il template `configs/local.config.json` è preimpostato su `headed` per guardare l'agente mentre testa in locale.
 
 ## Sincronizzazione con l'harness
 

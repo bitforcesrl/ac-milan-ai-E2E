@@ -6,6 +6,7 @@
   "viewports": ["1280x650"],
   "aiModel": "qwen/qwen3.7-plus",
   "maxParallelSessions": 3,
+  "browserMode": "headless",
   "emailRecipients": [
     "t.rossi@sintraconsulting.eu",
     "r.gai@sintraconsulting.eu",
