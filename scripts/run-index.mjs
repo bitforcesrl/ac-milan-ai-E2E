@@ -18,7 +18,7 @@ import { join } from 'node:path';
 //     "passRate": 75,                            // percentuale arrotondata
 //     "bugs": { "high": 0, "medium": 1, "low": 0 },
 //     "duration": "12m 0s",
-//     "environments": [{ "browser": "chromium", "viewport": "1280x650" }],
+//     "environments": [{ "browser": "chromium", "viewport": "desktop" }],
 //     "branch": "refs/heads/main"                // opzionale, solo su Azure
 //   }
 //

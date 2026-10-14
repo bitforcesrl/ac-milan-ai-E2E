@@ -1,5 +1,6 @@
 import PageHeader from '@/components/PageHeader';
 import ReportMarkdown from '@/components/ReportMarkdown';
+import { viewportLabel } from '@/lib/e2e-tests';
 import { getService } from '@/lib/services';
 import { CheckCircle, XCircle } from '@deemlol/next-icons';
 import { marked } from 'marked';
@@ -97,7 +98,9 @@ export default async function TestDetailPage({
     </p>,
     <p key="v" className="my-1.5 flex items-baseline justify-between gap-3 text-sm">
       <span className={`shrink-0 ${muted}`}>Viewport</span>
-      <b className="text-right font-mono text-xs font-semibold break-all">{detail.viewport}</b>
+      <b className="text-right font-mono text-xs font-semibold break-all">
+        {viewportLabel(detail.viewport)}
+      </b>
     </p>,
   ];
 

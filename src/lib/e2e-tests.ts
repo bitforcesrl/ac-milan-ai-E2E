@@ -21,6 +21,15 @@ export type { BrowserConfig, E2ETest, MaxParallelSessions, ViewportConfig };
 export const E2E_TEST_LIST: E2ETest[] = E2E_TESTS;
 export const BROWSER_LIST: BrowserConfig[] = BROWSERS;
 export const VIEWPORT_LIST: ViewportConfig[] = VIEWPORTS;
+
+/**
+ * Label leggibile di un ambiente (id del "viewport") dal catalogo:
+ * es. "tablet" → "Tablet (iPad Pro 11)". Fallback sull'id se sconosciuto
+ * (es. run storiche con id a pixel).
+ */
+export function viewportLabel(id: string): string {
+  return VIEWPORT_LIST.find((v) => v.id === id)?.label ?? id;
+}
 export const AI_MODEL_LIST: string[] = AI_MODELS;
 export const MAX_PARALLEL_SESSIONS_CONFIG: MaxParallelSessions = MAX_PARALLEL_SESSIONS;
 export const DEFAULT_EMAIL_RECIPIENTS_LIST: string[] = DEFAULT_EMAIL_RECIPIENTS;

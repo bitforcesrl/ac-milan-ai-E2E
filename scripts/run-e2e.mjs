@@ -227,7 +227,7 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
   let mcp;
   let sessionCost = 0;
   try {
-    mcp = await initMcpServers(browser, headed);
+    mcp = await initMcpServers(browser, headed, viewport);
     const messages = [
       { role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp, headed) },
     ];
@@ -311,8 +311,33 @@ function writeTestCost(stamp, browser, viewport, testId, cost) {
 // 4. INTEGRAZIONE MCP (MODEL CONTEXT PROTOCOL)
 // ============================================================================
 
-async function initMcpServers(browser, headed) {
+// Emulazione device REALE per tutti gli ambienti: @playwright/mcp supporta il
+// flag --device con i descrittori di Playwright (viewport + isMobile + hasTouch
+// + user-agent). Il viewport reale e' SEMPRE quello del device emulato.
+// - tablet/mobile: device dal catalogo configs/index.ts (campo "device" su
+//   VIEWPORTS, es. "iPhone 17 Pro", "iPad Pro 11").
+// - desktop: device derivato dall'engine (proprieta' dell'engine, non config
+//   utente).
+function deviceForViewport(viewport) {
+  return VIEWPORTS.find((v) => v.id === viewport)?.device;
+}
+
+const DESKTOP_DEVICE_BY_BROWSER = {
+  chromium: 'Desktop Chrome',
+  firefox: 'Desktop Firefox',
+  webkit: 'Desktop Safari',
+};
+
+function deviceForBrowser(browser) {
+  return DESKTOP_DEVICE_BY_BROWSER[browser];
+}
+
+async function initMcpServers(browser, headed, viewport) {
   const cwd = process.cwd();
+  // Priorita' al device del viewport (mobile/tablet); fallback al device del
+  // browser (desktop).
+  const viewportDevice = deviceForViewport(viewport);
+  const device = viewportDevice ?? deviceForBrowser(browser);
   const serverConfigs = [
     {
       name: 'playwright',
@@ -325,6 +350,9 @@ async function initMcpServers(browser, headed) {
         '--isolated',
         '--browser',
         browser,
+        // Device emulation REALE per tutti gli ambienti: il viewport reale e'
+        // sempre quello del device emulato.
+        ...(device ? ['--device', device] : []),
       ],
       env: { ...process.env, PLAYWRIGHT_MCP_BROWSER: browser, PLAYWRIGHT_MCP_ISOLATED: 'true' },
     },
@@ -876,7 +904,7 @@ servizi, app web): applica le regole generali qui sotto a qualunque contesto, e 
 (se presenti) hanno priorita' su eventuali ambiguita'.
 
 Browser obbligatorio per questa run: ${browser}
-Viewport obbligatorio per questa run: ${viewport} (usa browser_resize con width/height corrispondenti PRIMA di navigare, e rispettalo per tutto il test)
+Ambiente obbligatorio per questa run: ${viewport} (il browser e' gia' avviato con device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${deviceForViewport(viewport) ? " — MODALITA' MOBILE/TABLET: isMobile, hasTouch e user-agent mobile sono ATTIVI. Interagisci come su un device reale: tap invece di hover, niente hover state, layout e navigazione mobile" : ''}. NON usare browser_resize e NON cambiare le dimensioni: il viewport del device e' quello corretto e va rispettato per tutto il test)
 
 Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 - filesystem__: leggi/scrivi file del repository (working directory: ${process.cwd()})
@@ -892,8 +920,7 @@ REGOLE DI ESECUZIONE:
      NON modificare codice sorgente, NON testare backend/API/logica server-side.
 2. Preparazione browser (PRIMA di navigare all'url del test):
    - Avvia il browser in modalita' incognito/profilo isolato per simulare un utente reale senza cookie/cache preesistenti.
-   - Ridimensiona il browser al viewport richiesto dalla run con browser_resize PRIMA di navigare
-     (es. browser_resize({ width: 1280, height: 650 })) e rispettalo per tutta la run.
+   - Il browser e' gia' avviato con device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${deviceForViewport(viewport) ? ' (isMobile, hasTouch, user-agent mobile, viewport del device)' : ' (user-agent desktop, viewport del device)'}. NON usare browser_resize e NON modificare le dimensioni: il viewport e' gia' quello corretto.
    - Attendi che la pagina sia completamente caricata prima di iniziare il test (contenuto principale visibile,
      spinner/loader concluse).
    - Chiudi banner e popup: cerca e chiudi eventuali consensi cookie, banner pubblicitari, popup di newsletter o altri
@@ -951,7 +978,7 @@ ${projectPrompt}
 9. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 10. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? "browser VISIBILE (headed): non chiudere la finestra, l'operatore umano sta guardando" : 'headless'}, viewport ${viewport} (rispettalo per tutta la run).
+11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? "browser VISIBILE (headed): non chiudere la finestra, l'operatore umano sta guardando" : 'headless'}, ambiente ${viewport} (rispettalo per tutta la run), device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}" ATTIVA: NON ridimensionare il viewport.
 12. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
@@ -982,7 +1009,7 @@ ${projectPrompt}
    - UX Issues: problemi di usabilita' con suggerimenti
    - Recommendations: suggerimenti per fix prioritizzati
    - Execution Time: tempo totale impiegato per eseguire il test
-   - Viewport: dimensioni della finestra del browser (${viewport})
+   - Viewport: ambiente di esecuzione (${viewport}, device emulato: ${deviceForViewport(viewport) ?? deviceForBrowser(browser)})
    Regole per il Markdown:
    - Gli screenshot vanno linkati inline con percorso relativo: ![descrizione](../screenshots/${test.id}-001.png)
    - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo),

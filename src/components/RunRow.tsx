@@ -1,5 +1,6 @@
 'use client';
 
+import { viewportLabel } from '@/lib/e2e-tests';
 import type { RunSummary } from '@/lib/services';
 import { CheckCircle, HelpCircle, XCircle } from '@deemlol/next-icons';
 import Link from 'next/link';
@@ -43,7 +44,9 @@ export default function RunRow({ run, style }: { run: RunSummary; style?: React.
   const outcomeClass = ok ? 'text-green-600' : run.fail > 0 ? 'text-red-600' : '';
 
   const browsers = [...new Set(run.environments.map((e) => e.browser))];
-  const viewports = [...new Set(run.environments.map((e) => e.viewport).filter(Boolean))];
+  const viewports = [
+    ...new Set(run.environments.map((e) => viewportLabel(e.viewport)).filter(Boolean)),
+  ];
 
   const bugsBits = [
     run.bugs.high > 0 ? (
