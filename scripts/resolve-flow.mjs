@@ -4,18 +4,23 @@
 // sono leggibili dagli step successivi dello stesso job via macro $(NOME).
 //
 // Flussi:
-// - pull-request -> PR su main: config configs/pr.config.json, destinatario =
-//                   autore della PR (Build.RequestedForEmail), invio solo su FAIL
+// - pull-request -> PR su main: config configs/pull-request.config.json,
+//                   destinatario = autore della PR (Build.RequestedForEmail),
+//                   invio solo su FAIL
 // - app          -> run triggerata dall'app Next.js (template parameter
 //                   e2eRunConfig passato da /api/azure-pipeline, esposto come
 //                   env E2E_RUN_CONFIG nel job): destinatari = emailRecipients
 //                   nel JSON, invio SEMPRE (pass o fail)
-// - pipeline     -> lancio manuale/schedule su main: configs/pipeline.config.json,
+// - health-check -> run schedulate (BuildReason = Schedule): config
+//                   configs/health-check.config.json (test smoke/ridotti),
+//                   destinatari = emailRecipients nel file di config,
+//                   invio solo su FAIL
+// - manual       -> lancio manuale su main: configs/manual.config.json,
 //                   destinatari = emailRecipients nel file di config,
 //                   invio solo su FAIL
 //
 // Output variables:
-// - RUN_MODE:         pull-request | app | pipeline
+// - RUN_MODE:         pull-request | app | health-check | manual
 // - E2E_CONFIG_FILE:  path del file di config per run-e2e.mjs
 // - EMAIL_RECIPIENTS: destinatari email (virgola-separati, formato SendGrid)
 // - EMAIL_SEND_POLICY: always | on-fail
@@ -46,16 +51,17 @@ function extractRunConfigRecipients(runConfigJson) {
   }
 }
 
-function readPipelineConfigRecipients() {
+// Legge emailRecipients da un file di config (path relativo alla root del repo).
+function readConfigRecipients(configPath) {
   try {
-    const config = JSON.parse(readFileSync('configs/pipeline.config.json', 'utf8'));
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
     if (!Array.isArray(config.emailRecipients)) return '';
     return config.emailRecipients
       .map((e) => String(e).trim().toLowerCase())
       .filter((e) => EMAIL_REGEX.test(e))
       .join(',');
   } catch (err) {
-    console.error(`[flow] configs/pipeline.config.json non valido: ${err.message}`);
+    console.error(`[flow] ${configPath} non valido: ${err.message}`);
     return '';
   }
 }
@@ -64,7 +70,7 @@ function resolveFlow() {
   const buildReason = getCleanEnv('BUILD_REASON');
   const requestedForEmail = getCleanEnv('BUILD_REQUESTED_FOR_EMAIL');
   const runConfigJson = getCleanEnv('E2E_RUN_CONFIG');
-  const emailTo = readPipelineConfigRecipients();
+  const emailTo = readConfigRecipients('configs/manual.config.json');
 
   // Le run schedulate non possono ricevere template parameters, quindi il
   // `name:` YAML cade sul default (data + revisione). Qui rinominiamo la run
@@ -80,12 +86,25 @@ function resolveFlow() {
   if (buildReason === 'PullRequest') {
     return {
       runMode: 'pull-request',
-      config: 'configs/pr.config.json',
+      config: 'configs/pull-request.config.json',
       recipients: requestedForEmail,
       policy: 'on-fail',
       warn: requestedForEmail
         ? null
         : "BUILD_REQUESTED_FOR_EMAIL non valorizzata: impossibile determinare l'autore della PR.",
+    };
+  }
+
+  if (buildReason === 'Schedule') {
+    const healthCheckRecipients = readConfigRecipients('configs/health-check.config.json');
+    return {
+      runMode: 'health-check',
+      config: 'configs/health-check.config.json',
+      recipients: healthCheckRecipients,
+      policy: 'on-fail',
+      warn: healthCheckRecipients
+        ? null
+        : 'emailRecipients vuoto in configs/health-check.config.json: nessun destinatario per le run schedulate.',
     };
   }
 
@@ -100,13 +119,13 @@ function resolveFlow() {
   }
 
   return {
-    runMode: 'pipeline',
-    config: 'configs/pipeline.config.json',
+    runMode: 'manual',
+    config: 'configs/manual.config.json',
     recipients: emailTo,
     policy: 'on-fail',
     warn: emailTo
       ? null
-      : 'emailRecipients vuoto in configs/pipeline.config.json: nessun destinatario per run trigger/schedule.',
+      : 'emailRecipients vuoto in configs/manual.config.json: nessun destinatario per il lancio manuale.',
   };
 }
 
