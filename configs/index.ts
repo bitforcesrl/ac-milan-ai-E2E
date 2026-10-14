@@ -65,8 +65,8 @@ export const E2E_TESTS: E2ETest[] = [
 
 // ============================================================================
 // BROWSER & VIEWPORT: catalogo unico per script CI, file configs/*.json e
-// form Next.js. Le selezioni per-flusso vivono in configs/ (pipeline, local,
-// mr) o arrivano dal form come configJson inline.
+// form Next.js. Le selezioni per-flusso vivono in configs/ (manual,
+// pull-request, health-check, local) o arrivano dal form come configJson inline.
 // ============================================================================
 
 export const BROWSERS: BrowserConfig[] = [
@@ -75,10 +75,12 @@ export const BROWSERS: BrowserConfig[] = [
     { id: 'webkit', label: 'WebKit (Safari)', default: false },
 ];
 
+// NOTE: per simulare ambienti tablet/mobile è necessario specificare il campo "device" corrispondente al device Playwright da emulare.
+// altrimenti è come si stesse usando un device desktop,
 export const VIEWPORTS: ViewportConfig[] = [
-    { id: '1280x650', label: 'Desktop', default: true },
-    { id: '768x1024', label: 'Tablet', default: false },
-    { id: '390x844', label: 'Mobile', default: false },
+    { id: 'desktop', label: 'Desktop', default: true },
+    { id: 'tablet', label: 'Tablet (iPad Pro 11)', default: false, device: 'iPad Pro 11' },
+    { id: 'mobile', label: 'Mobile (iPhone 17 Pro)', default: false, device: 'iPhone 17 Pro' },
 ];
 
 // Modelli AI OpenRouter disponibili (primo = default)
@@ -87,9 +89,10 @@ export const AI_MODELS: string[] = ['qwen/qwen3.7-plus', 'z-ai/glm-5.3-flash', '
 // ============================================================================
 // EMAIL: destinatari di default precompilati nel form Next.js quando la run
 // viene avviata dall'app. La mail in quel caso viene inviata SEMPRE (pass o
-// fail). Per run trigger/schedule i destinatari vivono in
-// configs/pipeline.config.json (emailRecipients, invio solo su FAIL), per
-// PR il destinatario e' l'autore della pull request (invio solo su FAIL).
+// fail). Per run manuali/schedulate i destinatari vivono in
+// configs/manual.config.json e configs/health-check.config.json
+// (emailRecipients, invio solo su FAIL), per PR il destinatario e' l'autore
+// della pull request (invio solo su FAIL).
 // ============================================================================
 export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
 
