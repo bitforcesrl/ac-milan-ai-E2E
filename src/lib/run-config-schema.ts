@@ -89,10 +89,12 @@ export function parseRunConfig(
   }
   const expandedTests = hasWildcard
     ? [
-        ...new Map([
-          ...catalog.E2E_TESTS.map((t) => ({ id: t.id })),
-          ...config.tests.filter((t) => t.id !== ALL_TESTS),
-        ].map((t) => [t.id, t])).values(),
+        ...new Map(
+          [
+            ...catalog.E2E_TESTS.map((t) => ({ id: t.id })),
+            ...config.tests.filter((t) => t.id !== ALL_TESTS),
+          ].map((t) => [t.id, t]),
+        ).values(),
       ]
     : config.tests;
 

@@ -26,14 +26,14 @@ const MIME_BY_EXT: Record<string, string> = {
   '.json': 'application/json',
 };
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ path: string[] }> },
-) {
+export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path: segments } = await params;
 
   // Path sanitizzato: solo segmenti semplici, niente '..' o assoluti
-  if (!segments?.length || segments.some((s) => !s || s.includes('/') || s.includes('\\') || s === '..')) {
+  if (
+    !segments?.length ||
+    segments.some((s) => !s || s.includes('/') || s.includes('\\') || s === '..')
+  ) {
     return NextResponse.json({ error: 'Path non valido.' }, { status: 400 });
   }
 

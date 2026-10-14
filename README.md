@@ -69,15 +69,15 @@ In `configs/index.ts` si definiscono anche: `BROWSERS` (chromium/firefox/webkit)
 
 Tre file che selezionano **quali test eseguire e con quali combinazioni** per ogni contesto. Ogni file contiene:
 
-| Campo                 | Significato                                                        |
-| --------------------- | ------------------------------------------------------------------ |
+| Campo                 | Significato                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- |
 | `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`), oppure `"*"` per eseguirli tutti |
-| `browsers`            | Browser su cui eseguire (`chromium`, `firefox`, `webkit`)          |
-| `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
-| `aiModel`             | Modello OpenRouter usato dall'agente                               |
-| `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                             |
-| `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale) |
-| `emailRecipients`     | (solo pipeline) destinatari della mail di report                   |
+| `browsers`            | Browser su cui eseguire (`chromium`, `firefox`, `webkit`)                                     |
+| `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile)                            |
+| `aiModel`             | Modello OpenRouter usato dall'agente                                                          |
+| `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                                                        |
+| `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale)                           |
+| `emailRecipients`     | (solo pipeline) destinatari della mail di report                                              |
 
 - [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
 - [`configs/pr.config.json`](configs/pr.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.

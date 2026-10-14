@@ -223,8 +223,17 @@ export class LocalService implements AppService {
       };
     }
 
+    // In locale il browser deve essere visibile: forza "headed" a prescindere
+    // dalla config inviata dal form (che di default e' "headless").
+    let configWithHeaded = runConfigJson;
+    try {
+      configWithHeaded = JSON.stringify({ ...JSON.parse(runConfigJson), browserMode: 'headed' });
+    } catch {
+      // config gia' validata da parseRunConfig: non dovrebbe mai accadere
+    }
+
     mkdirSync(LOCAL_DIR, { recursive: true });
-    writeFileSync(CONFIG_FILE, runConfigJson, 'utf8');
+    writeFileSync(CONFIG_FILE, configWithHeaded, 'utf8');
 
     const logFd = openSync(LOG_FILE, 'a');
     const childEnv = { ...process.env };
@@ -236,7 +245,11 @@ export class LocalService implements AppService {
     });
 
     const startedAt = new Date().toISOString();
-    writeFileSync(RUNNING_FILE, JSON.stringify({ pid: child.pid ?? 0, startedAt }, null, 2), 'utf8');
+    writeFileSync(
+      RUNNING_FILE,
+      JSON.stringify({ pid: child.pid ?? 0, startedAt }, null, 2),
+      'utf8',
+    );
 
     child.on('close', () => {
       try {

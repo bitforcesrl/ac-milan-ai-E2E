@@ -436,7 +436,9 @@ export class AzureService implements AppService {
       let cost = 0;
 
       for (const { browser, viewport } of sessions) {
-        const meta = await downloadJson<SessionMeta>(`${runId}/${browser}/${viewport}/metadata.json`);
+        const meta = await downloadJson<SessionMeta>(
+          `${runId}/${browser}/${viewport}/metadata.json`,
+        );
         if (!meta) continue;
         tests.push(...(meta.tests ?? []));
         bugs.high += Number(meta.bugs?.high) || 0;

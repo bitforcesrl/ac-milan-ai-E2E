@@ -316,7 +316,14 @@ async function initMcpServers(browser, headed) {
     {
       name: 'playwright',
       command: 'npx',
-      args: ['-y', '@playwright/mcp@latest', headed ? '--headed' : '--headless', '--isolated', '--browser', browser],
+      args: [
+        '-y',
+        '@playwright/mcp@latest',
+        headed ? '--headed' : '--headless',
+        '--isolated',
+        '--browser',
+        browser,
+      ],
       env: { ...process.env, PLAYWRIGHT_MCP_BROWSER: browser, PLAYWRIGHT_MCP_ISOLATED: 'true' },
     },
     {
@@ -942,7 +949,7 @@ ${projectPrompt}
 9. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 10. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? 'browser VISIBILE (headed): non chiudere la finestra, l\'operatore umano sta guardando' : 'headless'}, viewport ${viewport} (rispettalo per tutta la run).
+11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? "browser VISIBILE (headed): non chiudere la finestra, l'operatore umano sta guardando" : 'headless'}, viewport ${viewport} (rispettalo per tutta la run).
 12. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):

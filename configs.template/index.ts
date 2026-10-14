@@ -9,7 +9,7 @@ export type {
   BrowserConfig,
   E2ETest,
   MaxParallelSessions,
-  ViewportConfig
+  ViewportConfig,
 } from '../src/types/config';
 
 export const E2E_TESTS: E2ETest[] = [
