@@ -1,19 +1,24 @@
-import 'dotenv/config';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import 'dotenv/config';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 
 import { createJiti } from 'jiti';
 
 const jiti = createJiti(import.meta.url);
 const { E2E_TESTS, BROWSERS, VIEWPORTS, AI_MODELS, MAX_PARALLEL_SESSIONS, PATHS } =
   await jiti.import('../configs/index.ts');
+// Schema Zod condiviso con l'app Next.js: unica fonte di verità per la
+// validazione della run config (incluso lo shortcut "*" = tutti i test).
+const { parseRunConfig, RunConfigValidationError } = await jiti.import(
+  '../src/lib/run-config-schema.ts',
+);
 
 import {
-  RUN_INDEX_FILE,
   buildRunIndexEntry,
   parseRunIndex,
   readRunIndexFile,
+  RUN_INDEX_FILE,
   upsertRunIndex,
   writeRunIndexFile,
 } from './run-index.mjs';
@@ -27,7 +32,7 @@ import {
 // Sorgente: flag CLI --config <path> (usato da azure-pipelines.yml e
 // package.json); in assenza del flag viene usato configs/local.config.json.
 //
-// Schema identico a src/lib/run-config-schema.ts (Zod), validato qui contro il
+// Schema Zod in src/lib/run-config-schema.ts, validato qui contro il
 // catalogo in configs/index.ts.
 
 const DEFAULT_CONFIG_PATH = 'configs/local.config.json';
@@ -57,86 +62,38 @@ function loadRunConfigFile() {
 }
 
 /**
- * Valida la run config grezza contro lo schema (stesso contratto di
- * src/lib/run-config-schema.ts) e contro il catalogo in configs/index.ts.
- * Ritorna la config normalizzata o solleva un errore descrittivo.
+ * Valida la run config grezza con lo schema Zod condiviso
+ * (src/lib/run-config-schema.ts, incluso lo shortcut "*" = tutti i test) e
+ * risolve i test selezionati contro il catalogo in configs/index.ts, con
+ * override delle note. Ritorna la config normalizzata o solleva un errore.
  */
 function validateRunConfig(raw) {
-  const errors = [];
-
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('Run config non valida: atteso un oggetto JSON.');
-  }
-
-  // --- tests ---
-  if (!Array.isArray(raw.tests) || raw.tests.length === 0) {
-    errors.push('tests: selezionare almeno un test.');
-  } else {
-    const testIds = new Set(E2E_TESTS.map((t) => t.id));
-    raw.tests.forEach((t, i) => {
-      if (!t || typeof t !== 'object' || typeof t.id !== 'string' || !t.id) {
-        errors.push(`tests[${i}]: id mancante o non valido.`);
-      } else if (!testIds.has(t.id)) {
-        errors.push(`tests[${i}]: test sconosciuto "${t.id}".`);
-      }
-      if (t?.notes !== undefined && typeof t.notes !== 'string') {
-        errors.push(`tests[${i}].notes: deve essere una stringa.`);
-      }
+  try {
+    const config = parseRunConfig(raw, {
+      E2E_TESTS,
+      BROWSERS,
+      VIEWPORTS,
+      AI_MODELS,
+      MAX_PARALLEL_SESSIONS,
     });
-  }
 
-  // --- browsers ---
-  if (!Array.isArray(raw.browsers) || raw.browsers.length === 0) {
-    errors.push('browsers: selezionare almeno un browser.');
-  } else {
-    const browserIds = new Set(BROWSERS.map((b) => b.id));
-    for (const b of raw.browsers) {
-      if (!browserIds.has(b)) errors.push(`browsers: browser sconosciuto "${b}".`);
-    }
+    // Risoluzione dei test selezionati contro il catalogo, con override note
+    const testsById = new Map(E2E_TESTS.map((t) => [t.id, t]));
+    return {
+      tests: config.tests.map(({ id, notes }) => {
+        const catalogTest = testsById.get(id);
+        const note = notes?.trim();
+        return note ? { ...catalogTest, notes: note } : catalogTest;
+      }),
+      browsers: [...config.browsers],
+      viewports: [...config.viewports],
+      model: config.aiModel,
+      maxParallelSessions: config.maxParallelSessions,
+    };
+  } catch (error) {
+    if (error instanceof RunConfigValidationError) throw error;
+    throw new Error(`Run config non valida: ${error?.message ?? error}`);
   }
-
-  // --- viewports ---
-  if (!Array.isArray(raw.viewports) || raw.viewports.length === 0) {
-    errors.push('viewports: selezionare almeno un viewport.');
-  } else {
-    const viewportIds = new Set(VIEWPORTS.map((v) => v.id));
-    for (const v of raw.viewports) {
-      if (!viewportIds.has(v)) errors.push(`viewports: viewport sconosciuto "${v}".`);
-    }
-  }
-
-  // --- aiModel ---
-  if (typeof raw.aiModel !== 'string' || !raw.aiModel) {
-    errors.push('aiModel: mancante o non valido.');
-  } else if (!AI_MODELS.includes(raw.aiModel)) {
-    errors.push(`aiModel: modello non disponibile "${raw.aiModel}".`);
-  }
-
-  // --- maxParallelSessions ---
-  const parallel = Number(raw.maxParallelSessions);
-  if (!MAX_PARALLEL_SESSIONS.options.includes(parallel)) {
-    errors.push(
-      `maxParallelSessions: valore non valido (ammessi: ${MAX_PARALLEL_SESSIONS.options.join(', ')}).`,
-    );
-  }
-
-  if (errors.length) {
-    throw new Error(`Run config non valida: ${errors.join(' ')}`);
-  }
-
-  // Risoluzione dei test selezionati contro il catalogo, con override note
-  const testsById = new Map(E2E_TESTS.map((t) => [t.id, t]));
-  return {
-    tests: raw.tests.map(({ id, notes }) => {
-      const catalogTest = testsById.get(id);
-      const note = notes?.trim();
-      return note ? { ...catalogTest, notes: note } : catalogTest;
-    }),
-    browsers: [...raw.browsers],
-    viewports: [...raw.viewports],
-    model: raw.aiModel,
-    maxParallelSessions: parallel,
-  };
 }
 
 function loadConfig() {

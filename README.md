@@ -71,7 +71,7 @@ Tre file che selezionano **quali test eseguire e con quali combinazioni** per og
 
 | Campo                 | Significato                                                        |
 | --------------------- | ------------------------------------------------------------------ |
-| `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`)        |
+| `tests`               | Elenco dei test per `id` (quelli registrati in `E2E_TESTS`), oppure `"*"` per eseguirli tutti |
 | `browsers`            | Browser su cui eseguire (`chromium`, `firefox`, `webkit`)          |
 | `viewports`           | Viewport (`1280x650` desktop, `768x1024` tablet, `390x844` mobile) |
 | `aiModel`             | Modello OpenRouter usato dall'agente                               |
@@ -81,6 +81,18 @@ Tre file che selezionano **quali test eseguire e con quali combinazioni** per og
 - [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
 - [`configs/pr.config.json`](configs/pr.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
 - [`configs/local.config.json`](configs/local.config.json) — run locale (`npm run local:run-e2e`): 1 sessione parallela, nessuna mail.
+
+Il campo `tests` supporta anche lo **shortcut `"*"`** = esegui tutti i test del catalogo. Due formati equivalenti:
+
+```json
+"tests": "*"
+```
+
+```json
+"tests": [{ "id": "*" }]
+```
+
+Puoi anche mescolare: `"tests": [{ "id": "*" }, { "id": "my-test", "notes": "nota solo per questo test" }]` — lo shortcut viene espanso a tutti i test e le voci esplicite aggiungono/sovrascrivono (utile per passare `notes` a un test specifico). L'espansione avviene a runtime, quindi aggiungere un test a `configs/index.ts` lo include automaticamente nelle run `"*"` senza toccare i `.config.json`.
 
 Le run avviate dalla **dashboard** non usano questi file: la config arriva inline dal form (`E2E_RUN_CONFIG`).
 
