@@ -67,7 +67,7 @@ In `configs/index.ts` si definiscono anche: `BROWSERS` (chromium/firefox/webkit)
 
 #### 3c. Config per ambiente — `configs/*.json`
 
-Tre file che selezionano **quali test eseguire e con quali combinazioni** per ogni contesto. Ogni file contiene:
+Quattro file che selezionano **quali test eseguire e con quali combinazioni** per ogni contesto. Ogni file contiene:
 
 | Campo                 | Significato                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------------- |
@@ -77,10 +77,11 @@ Tre file che selezionano **quali test eseguire e con quali combinazioni** per og
 | `aiModel`             | Modello OpenRouter usato dall'agente                                                          |
 | `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                                                        |
 | `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale)                           |
-| `emailRecipients`     | (solo pipeline) destinatari della mail di report                                              |
+| `emailRecipients`     | (solo manual/health-check) destinatari della mail di report                                   |
 
-- [`configs/pipeline.config.json`](configs/pipeline.config.json) — run manuali/schedule su `main`. Mail inviata solo su FAIL a `emailRecipients`.
-- [`configs/pr.config.json`](configs/pr.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
+- [`configs/manual.config.json`](configs/manual.config.json) — lancio manuale su `main`. Mail inviata solo su FAIL a `emailRecipients`.
+- [`configs/health-check.config.json`](configs/health-check.config.json) — run schedulate (schedule): solo smoke (pochi test, 1 sessione). Mail su FAIL a `emailRecipients`.
+- [`configs/pull-request.config.json`](configs/pull-request.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
 - [`configs/local.config.json`](configs/local.config.json) — run locale (`npm run local:run-e2e`): 1 sessione parallela, nessuna mail.
 
 Il campo `tests` supporta anche lo **shortcut `"*"`** = esegui tutti i test del catalogo. Due formati equivalenti:

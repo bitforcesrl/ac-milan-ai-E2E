@@ -1,12 +1,12 @@
 // Schema Zod della run config: unico contratto condiviso tra
-// - i file configs/*.json (pipeline, local, mr)
+// - i file configs/*.json (manual, pull-request, health-check, local)
 // - il form Next.js (PipelineForm) e l'API /api/azure-pipeline
 // Gli id di test/browser/viewport/aiModel vengono validati contro il catalogo
 // in configs/index.ts (vedi validateRunConfigAgainstCatalog).
 
 import { z } from 'zod';
 
-export const RUN_CONFIG_FILE_NAMES = ['pipeline', 'local', 'mr'] as const;
+export const RUN_CONFIG_FILE_NAMES = ['manual', 'pull-request', 'health-check', 'local'] as const;
 
 // Shortcut "*": seleziona tutti i test del catalogo. Accettato sia come
 // stringa ("tests": "*") sia come id dentro un elemento dell'array
