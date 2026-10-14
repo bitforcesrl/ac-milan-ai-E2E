@@ -26,12 +26,12 @@ git push github main
 ```bash
 npm install          # installa anche i browser Playwright (postinstall)
 cp .env.template .env
-npm run setup        # copia configs.template/ → configs/ (solo se assente)
+npm run setup        # copia configs.template/ → configs/ e azure-pipelines.template.yml → azure-pipelines.yml (solo se assenti)
 ```
 
 vedi `.env.template` per l'elenco completo delle variabili richieste.
 
-> `npm run setup` viene eseguito automaticamente anche dal `postinstall`, ma puoi rilanciarlo manualmente per ripristinare `configs/` dal template senza sovrascrivere eventuali personalizzazioni.
+> `npm run setup` viene eseguito automaticamente anche dal `postinstall`, ma puoi rilanciarlo manualmente per ripristinare `configs/` e `azure-pipelines.yml` dai template senza sovrascrivere eventuali personalizzazioni.
 
 ### 3. Configurazione test
 
@@ -86,7 +86,7 @@ Le run avviate dalla **dashboard** non usano questi file: la config arriva inlin
 
 ### 4. Azure DevOps
 
-1. Variable group `ai-e2e-secrets` (puoi modificare il nome nella [`azure-pipelines.yml`](azure-pipelines.yml)) con queste variabili (usate dalla pipeline per eseguire i test e inviare i report):
+1. Variable group `ai-e2e-secrets` (puoi modificare il nome in [`azure-pipelines.yml`](azure-pipelines.yml), la tua copia generata da [`azure-pipelines.template.yml`](azure-pipelines.template.yml)) con queste variabili (usate dalla pipeline per eseguire i test e inviare i report):
 
    ```
    AZURE_STORAGE_CONNECTION_STRING
@@ -98,7 +98,7 @@ Le run avviate dalla **dashboard** non usano questi file: la config arriva inlin
    SENDGRID_API_KEY
    ```
 
-2. Nuova pipeline → seleziona il repo client → [`azure-pipelines.yml`](azure-pipelines.yml).
+2. Nuova pipeline → seleziona il repo client → [`azure-pipelines.yml`](azure-pipelines.yml) (copiato da [`azure-pipelines.template.yml`](azure-pipelines.template.yml) al primo `npm install`/`npm run setup` — modifica la tua copia, non il template).
 3. Annota l'ID della pipeline → `AZURE_DEVOPS_PIPELINE_ID` in `.env` e variable group.
 4. Verifica pool agent: `Internal Linux with Docker` (JDK 21).
 5. Verifica che la variabile `E2E_RUN_CONFIG` sia dichiarata (vuota) nella pipeline.
@@ -151,15 +151,17 @@ Utility npm:
 
 ### Cosa modifica il client
 
-Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.yml`, `package.json`, `configs.template/`). Il client tocca solo:
+Non modificare i file dell'harness (`scripts/`, `src/`, `azure-pipelines.template.yml`, `package.json`, `configs.template/`). Il client tocca solo:
 
 - `configs/` — la tua copia (committata nel repo client)
+- `azure-pipelines.yml` — la tua copia generata da `azure-pipelines.template.yml` (committata nel repo client)
 - `tests/` — i tuoi test
 - `.env` — le tue variabili d'ambiente
 
 ### Aggiornamenti dell'harness
 
-Quando fai `npm run sync:pull`, l'harness può aggiornare `configs.template/` (es. nuovi browser/viewport, nuovi campi nei `.config.json`). Queste modifiche **non si propagano automaticamente** alla tua copia `configs/`:
+Quando fai `npm run sync:pull`, l'harness può aggiornare `configs.template/` (es. nuovi browser/viewport, nuovi campi nei `.config.json`) o `azure-pipelines.template.yml` (es. nuovi step di pipeline). Queste modifiche **non si propagano automaticamente** alle tue copie `configs/` e `azure-pipelines.yml`:
 
 - **`configs/index.ts`**: riporta a mano le aggiunte (es. nuovi `BROWSERS` o `VIEWPORTS`) nel tuo file.
 - **`configs/*.json`**: se l'harness introduce nuovi campi, il codice li tollera con default; puoi rigenerare i file con `npm run setup` (non sovrascrive `configs/` se esiste) o aggiornarli manualmente.
+- **`azure-pipelines.yml`**: se l'harness aggiorna `azure-pipelines.template.yml`, riporta a mano le modifiche nella tua copia (o rigenerala con `npm run setup`, che non sovrascrive se esiste già).
