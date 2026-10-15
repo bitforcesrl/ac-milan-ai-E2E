@@ -26,7 +26,7 @@ export const E2E_TESTS: E2ETest[] = [
 
 // ============================================================================
 // BROWSER & VIEWPORT: catalogo unico per script CI, file configs/*.json e
-// form Next.js. Le selezioni per-flusso vivono in configs/ (manual,
+// form Next.js. Le selezioni per-flusso vivono in configs/ (default,
 // pull-request, health-check, local) o arrivano dal form come configJson inline.
 // ============================================================================
 
@@ -55,7 +55,7 @@ export const AI_MODELS: string[] = [
 // EMAIL: destinatari di default precompilati nel form Next.js quando la run
 // viene avviata dall'app. La mail in quel caso viene inviata SEMPRE (pass o
 // fail). Per run manuali/schedulate i destinatari vivono in
-// configs/manual.config.json e configs/health-check.config.json
+// configs/default.config.json e configs/health-check.config.json
 // (emailRecipients, invio solo su FAIL), per PR il destinatario e' l'autore
 // della pull request (invio solo su FAIL).
 // ============================================================================
