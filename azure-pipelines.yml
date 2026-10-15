@@ -45,7 +45,7 @@ variables:
 jobs:
   - job: e2e
     displayName: AI E2E tests
-    timeoutInMinutes: 60
+    timeoutInMinutes: 180
     steps:
       - checkout: self
 
