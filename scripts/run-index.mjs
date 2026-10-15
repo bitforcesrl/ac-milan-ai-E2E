@@ -47,7 +47,7 @@ function count(value) {
  * @param {string} [input.branch]       Branch sorgente (solo su Azure Pipelines)
  * @returns {object} Record RunIndexEntry
  */
-export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, branch }) {
+export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, duration, branch }) {
   const tests = (sessions ?? []).flatMap((s) => s?.tests ?? []);
   const pass = count(tests.filter((t) => t?.status === 'PASS').length);
   const fail = count(tests.filter((t) => t?.status === 'FAIL').length);
@@ -64,7 +64,6 @@ export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, bra
     .filter((s) => s?.browser)
     .map((s) => ({ browser: s.browser, viewport: s.viewport ?? '' }));
 
-  const duration = (sessions ?? []).find((s) => s?.duration)?.duration ?? '';
 
   // Costo AI totale della run in USD: somma dei costi di sessione
   // (parametro `cost` se fornito, altrimenti somma dai metadata di sessione)
@@ -80,7 +79,7 @@ export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, bra
     total,
     passRate: total > 0 ? Math.round((pass / total) * 100) : 0,
     bugs,
-    duration,
+    duration: duration || '',
     cost: Math.round(totalCost * 1e6) / 1e6,
     environments,
     ...(branch ? { branch } : {}),

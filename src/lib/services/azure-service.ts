@@ -432,7 +432,8 @@ export class AzureService implements AppService {
       const tests: Array<{ status?: string }> = [];
       const bugs = { high: 0, medium: 0, low: 0 };
       const environments: Array<{ browser: string; viewport: string }> = [];
-      let duration = '';
+      // Durata della run: dal metadata di run (wall-clock)
+      const duration = runMeta.duration ?? '';
       let cost = 0;
 
       for (const { browser, viewport } of sessions) {
@@ -445,7 +446,6 @@ export class AzureService implements AppService {
         bugs.medium += Number(meta.bugs?.medium) || 0;
         bugs.low += Number(meta.bugs?.low) || 0;
         environments.push({ browser, viewport });
-        if (!duration && meta.duration) duration = meta.duration;
         cost += Number(meta.cost) || 0;
       }
 
@@ -515,6 +515,7 @@ export class AzureService implements AppService {
           id: testId,
           name: t.name || testId,
           status: t.status === 'FAIL' ? 'FAIL' : t.status === 'PASS' ? 'PASS' : '',
+          duration: t.duration ?? '',
           href: testId
             ? `/reports/${runId}/${encodeURIComponent(browser)}/${encodeURIComponent(viewport)}/${encodeURIComponent(testId)}`
             : '',
@@ -550,7 +551,8 @@ export class AzureService implements AppService {
               ? 'PASS'
               : '',
       ...agg,
-      duration: sessions.find((s) => s.duration)?.duration ?? '',
+      // Durata della run: dal metadata di run (wall-clock)
+      duration: runMeta.duration ?? '',
       cost: Math.round(sessions.reduce((acc, s) => acc + s.cost, 0) * 1e6) / 1e6,
       environments: sessionDirs,
       sessions,
