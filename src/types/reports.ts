@@ -82,5 +82,7 @@ export type TestDetail = {
   /** Contenuto Markdown del report del test (tests/<testId>.md). */
   report: string;
   status: string;
+  /** Durata del test (es. "2m 34s"), se disponibile. */
+  duration: string;
   screenshots: Array<{ name: string; url: string; description: string }>;
 };

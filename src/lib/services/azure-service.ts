@@ -583,6 +583,7 @@ export class AzureService implements AppService {
 
     const entry = (sessionMeta.tests ?? []).find((t) => t.id === testId);
     const status = entry?.status ?? '';
+    const duration = entry?.duration ?? '';
 
     // Screenshot del test: file in screenshots/ prefissati con "<testId>-"
     // (elencati in sessionMeta.screenshotPaths dalla pipeline).
@@ -608,6 +609,7 @@ export class AzureService implements AppService {
       viewport,
       report,
       status,
+      duration,
       screenshots,
     };
   }
