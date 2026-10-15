@@ -1,55 +1,11 @@
 import PageHeader from '@/components/PageHeader';
-import { viewportLabel } from '@/lib/e2e-tests';
+import SessionMatrix from '@/components/SessionMatrix';
+import SessionSummaryAccordion from '@/components/SessionSummaryAccordion';
 import { getService } from '@/lib/services';
-import { CheckCircle, Clock, Cpu, FileText, HelpCircle, XCircle } from '@deemlol/next-icons';
-import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
 const muted = 'text-dark-grey';
-const chip =
-  'inline-flex items-center gap-1.5 rounded-full border border-grey bg-white px-2.5 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap text-black';
-const metaChip =
-  'inline-flex items-center gap-1.5 rounded-full border border-grey bg-white px-3 py-1 text-xs font-medium text-black';
-const metaIcon = 'text-dark-grey';
-
-function statusIcon(status: string) {
-  const kind = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'unknown';
-  const cls =
-    kind === 'pass' ? 'text-green-600' : kind === 'fail' ? 'text-red-600' : 'text-dark-grey';
-  return (
-    <span
-      className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${cls}`}
-    >
-      {kind === 'pass' ? (
-        <CheckCircle size={30} aria-hidden="true" />
-      ) : kind === 'fail' ? (
-        <XCircle size={30} aria-hidden="true" />
-      ) : (
-        <HelpCircle size={18} aria-hidden="true" />
-      )}
-    </span>
-  );
-}
-
-function statusChip(status: string) {
-  if (!status) return null;
-  return status === 'PASS' ? (
-    <span
-      className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-green-700"
-      aria-label="Superato"
-    >
-      PASS
-    </span>
-  ) : (
-    <span
-      className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-red-700"
-      aria-label="Fallito"
-    >
-      FAIL
-    </span>
-  );
-}
 
 export default async function RunDetailPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
@@ -125,105 +81,19 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
           )}
         </dl>
 
-        <h2 className="mt-12 mb-4 text-xl font-bold">Ambienti di test</h2>
-        {run.sessions.length === 0 && (
+        <h2 className="mt-12 mb-4 text-xl font-bold">Matrice test × ambiente</h2>
+        {run.sessions.length === 0 ? (
           <p className={muted}>Nessuna sessione disponibile per questo run.</p>
+        ) : (
+          <SessionMatrix run={run} />
         )}
 
-        {run.sessions.map((session) => (
-          <section
-            key={`${session.browser}/${session.viewport}`}
-            className="border-grey mb-5 overflow-hidden rounded-xl border bg-white shadow-sm transition-shadow hover:shadow-md"
-          >
-            <header className="border-grey bg-grey/50 flex flex-wrap items-center justify-between gap-3 border-b px-5 py-3.5">
-              <h3 className="flex flex-wrap items-center gap-2 text-base font-bold">
-                {session.browser}
-                {session.viewport && <span className={chip}>{viewportLabel(session.viewport)}</span>}
-                {session.model && (
-                  <span className={metaChip} title="Modello AI utilizzato">
-                    <Cpu size={13} className={metaIcon} aria-hidden="true" />
-                    {session.model}
-                  </span>
-                )}
-                {session.duration && (
-                  <span className={metaChip} title="Durata sessione">
-                    <Clock size={13} className={metaIcon} aria-hidden="true" />
-                    {session.duration}
-                  </span>
-                )}
-                {session.cost > 0 && (
-                  <span className={metaChip} title="Costo della sessione (USD)">
-                    ${session.cost.toFixed(4)}
-                  </span>
-                )}
-                {!session.model && !session.duration && (
-                  <span className={`text-xs italic ${muted}`}>Metadati non disponibili</span>
-                )}
-              </h3>
-              {statusIcon(session.status)}
-            </header>
-
-            <div className="p-5">
-              {session.summary && (
-                <div className="border-grey bg-grey/40 rounded-lg border p-4">
-                  <h4 className="text-dark-grey mb-1.5 flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
-                    <FileText size={13} aria-hidden="true" />
-                    Summary sessione
-                  </h4>
-                  <p className="m-0 text-sm leading-relaxed whitespace-pre-wrap text-black">
-                    {session.summary}
-                  </p>
-                </div>
-              )}
-
-              <h4 className={`mt-5 mb-2 text-xs font-bold tracking-wide uppercase ${muted}`}>
-                Dettaglio test
-              </h4>
-              {session.tests.length ? (
-                <ul className="flex flex-col gap-2">
-                  {session.tests.map((test) => (
-                    <li
-                      key={test.id}
-                      className="border-grey bg-grey hover:border-dark-grey flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 transition-colors hover:bg-white"
-                    >
-                      <span className="text-sm font-semibold break-all">{test.name}</span>
-                      <span className="flex shrink-0 items-center gap-2.5">
-                        {test.duration && (
-                          <span
-                            className={chip}
-                            title="Durata del test"
-                          >
-                            <Clock size={12} className={metaIcon} aria-hidden="true" />
-                            {test.duration}
-                          </span>
-                        )}
-                        {test.status ? (
-                          statusChip(test.status)
-                        ) : (
-                          <span
-                            className={`inline-block rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted} bg-grey border-grey border`}
-                          >
-                            N/D
-                          </span>
-                        )}
-                        {test.href && (
-                          <Link
-                            className="text-sm font-bold tracking-wide whitespace-nowrap text-black uppercase hover:underline"
-                            href={test.href}
-                          >
-                            Vai al dettaglio →
-                          </Link>
-                        )}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className={muted}>Nessun test registrato per questa sessione.</p>
-              )}
-            </div>
-          </section>
-        ))}
+        {run.sessions.length > 0 && (
+          <>
+            <h2 className="mt-12 mb-4 text-xl font-bold">Analisi AI per ambiente</h2>
+            <SessionSummaryAccordion sessions={run.sessions} />
+          </>
+        )}
       </main>
     </div>
   );

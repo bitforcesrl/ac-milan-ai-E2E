@@ -1,6 +1,6 @@
 'use client';
 
-import { viewportLabel } from '@/lib/e2e-tests';
+import { browserLabel, viewportLabel } from '@/lib/e2e-tests';
 import type { RunSummary } from '@/lib/services';
 import { CheckCircle, HelpCircle, XCircle } from '@deemlol/next-icons';
 import Link from 'next/link';
@@ -131,7 +131,7 @@ export default function RunRow({ run, style }: { run: RunSummary; style?: React.
           <div className="flex flex-wrap gap-1.5">
             {browsers.map((b) => (
               <span key={b} className={chip}>
-                {b}
+                {browserLabel(b)}
               </span>
             ))}
           </div>

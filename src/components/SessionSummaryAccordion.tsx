@@ -1,0 +1,164 @@
+import { browserLabel, viewportLabel } from '@/lib/e2e-tests';
+import type { SessionView } from '@/types/reports';
+import { CheckCircle, Clock, Cpu, FileText, HelpCircle, XCircle } from '@deemlol/next-icons';
+import Link from 'next/link';
+
+const muted = 'text-dark-grey';
+const metaChip =
+  'inline-flex items-center gap-1.5 rounded-full border border-grey bg-white px-3 py-1 text-xs font-medium text-black';
+const metaIcon = 'text-dark-grey';
+
+function statusIcon(status: string) {
+  const kind = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'unknown';
+  const cls =
+    kind === 'pass' ? 'text-green-600' : kind === 'fail' ? 'text-red-600' : 'text-dark-grey';
+  return (
+    <span
+      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${cls}`}
+    >
+      {kind === 'pass' ? (
+        <CheckCircle size={26} aria-hidden="true" />
+      ) : kind === 'fail' ? (
+        <XCircle size={26} aria-hidden="true" />
+      ) : (
+        <HelpCircle size={16} aria-hidden="true" />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Accordion "Analisi AI per ambiente": un <details> per sessione (browser × viewport).
+ * Le sessioni FAIL sono aperte di default, le PASS chiuse. Nessun JS client.
+ */
+export default function SessionSummaryAccordion({ sessions }: { sessions: SessionView[] }) {
+  if (sessions.length === 0) return null;
+
+  // FAIL prima, poi nell'ordine originale.
+  const sorted = [...sessions].sort((a, b) => {
+    const aFail = a.status === 'FAIL' ? 0 : 1;
+    const bFail = b.status === 'FAIL' ? 0 : 1;
+    return aFail - bFail;
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      {sorted.map((session) => {
+        const open = session.status === 'FAIL';
+        const key = `${session.browser}/${session.viewport}`;
+        return (
+          <details
+            key={key}
+            open={open}
+            className="border-grey group overflow-hidden rounded-xl border bg-white shadow-sm open:shadow-md"
+          >
+            <summary className="border-grey flex cursor-pointer flex-wrap items-center justify-between gap-3 bg-grey/50 px-5 py-3.5 select-none hover:bg-grey/70 [&::-webkit-details-marker]:hidden">
+              <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
+                {statusIcon(session.status)}
+                {session.viewport ? (
+                  <>
+                    {browserLabel(session.browser)}
+                    <span className={`font-normal ${muted}`} aria-hidden="true">
+                      ·
+                    </span>
+                    <span className="font-semibold">{viewportLabel(session.viewport)}</span>
+                  </>
+                ) : (
+                  browserLabel(session.browser)
+                )}
+                {session.model && (
+                  <span className={metaChip} title="Modello AI utilizzato">
+                    <Cpu size={13} className={metaIcon} aria-hidden="true" />
+                    {session.model}
+                  </span>
+                )}
+                {session.duration && (
+                  <span className={metaChip} title="Durata sessione">
+                    <Clock size={13} className={metaIcon} aria-hidden="true" />
+                    {session.duration}
+                  </span>
+                )}
+                {session.cost > 0 && (
+                  <span className={metaChip} title="Costo della sessione (USD)">
+                    ${session.cost.toFixed(4)}
+                  </span>
+                )}
+              </span>
+              <span
+                className={`text-xs font-bold tracking-wide uppercase ${muted} transition-transform group-open:rotate-90`}
+                aria-hidden="true"
+              >
+                ▸
+              </span>
+            </summary>
+
+            <div className="p-5">
+              {session.summary && (
+                <div className="border-grey bg-grey/40 rounded-lg border p-4">
+                  <h4 className="text-dark-grey mb-1.5 flex items-center gap-1.5 text-xs font-bold tracking-wide uppercase">
+                    <FileText size={13} aria-hidden="true" />
+                    Summary sessione
+                  </h4>
+                  <p className="m-0 text-sm leading-relaxed whitespace-pre-wrap text-black">
+                    {session.summary}
+                  </p>
+                </div>
+              )}
+              {session.tests.length > 0 && (
+                <div className="mt-4">
+                  <h4 className={`mb-2 text-xs font-bold tracking-wide uppercase ${muted}`}>
+                    Dettaglio test
+                  </h4>
+                  <ul className="flex flex-col gap-2">
+                    {session.tests.map((test) => (
+                      <li
+                        key={test.id}
+                        className="border-grey bg-grey hover:border-dark-grey flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 transition-colors hover:bg-white"
+                      >
+                        <span className="text-sm font-semibold break-all">{test.name}</span>
+                        <span className="flex shrink-0 items-center gap-2.5">
+                          {test.duration && (
+                            <span
+                              className="inline-flex items-center gap-1.5 rounded-full border border-grey bg-white px-2.5 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap text-black"
+                              title="Durata del test"
+                            >
+                              <Clock size={12} className={metaIcon} aria-hidden="true" />
+                              {test.duration}
+                            </span>
+                          )}
+                          {test.status === 'PASS' ? (
+                            <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-green-700">
+                              PASS
+                            </span>
+                          ) : test.status === 'FAIL' ? (
+                            <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-red-700">
+                              FAIL
+                            </span>
+                          ) : (
+                            <span
+                              className={`inline-block rounded-full bg-grey border border-grey px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted}`}
+                            >
+                              N/D
+                            </span>
+                          )}
+                          {test.href && (
+                            <Link
+                              className="text-sm font-bold tracking-wide whitespace-nowrap text-black uppercase hover:underline"
+                              href={test.href}
+                            >
+                              Vai al dettaglio →
+                            </Link>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}

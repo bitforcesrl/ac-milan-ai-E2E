@@ -30,6 +30,14 @@ export const VIEWPORT_LIST: ViewportConfig[] = VIEWPORTS;
 export function viewportLabel(id: string): string {
   return VIEWPORT_LIST.find((v) => v.id === id)?.label ?? id;
 }
+
+/**
+ * Label leggibile di un browser dal catalogo: es. "chromium" → "Chromium".
+ * Fallback sull'id se sconosciuto.
+ */
+export function browserLabel(id: string): string {
+  return BROWSER_LIST.find((b) => b.id === id)?.label ?? id;
+}
 export const AI_MODEL_LIST: string[] = AI_MODELS;
 export const MAX_PARALLEL_SESSIONS_CONFIG: MaxParallelSessions = MAX_PARALLEL_SESSIONS;
 export const DEFAULT_EMAIL_RECIPIENTS_LIST: string[] = DEFAULT_EMAIL_RECIPIENTS;
