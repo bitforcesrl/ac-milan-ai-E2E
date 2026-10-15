@@ -1,0 +1,115 @@
+# Run config dell'app passata come TEMPLATE PARAMETER (non queue-time variable):
+# le queue-time variables via REST venivano scartate silenziosamente da Azure
+# DevOps (permessi "Set build variables"), i template parameters no.
+# - vuoto  -> run manuale/schedule su main (mode=pipeline)
+# - JSON   -> run triggerata dall'app (mode=app)
+parameters:
+  - name: e2eRunConfig
+    type: string
+    default: ''
+  - name: e2eRunTitle
+    type: string
+    default: ''
+
+# Nome run: se la run è avviata dall'app (parameter e2eRunTitle valorizzato)
+# usa il titolo personalizzato, altrimenti il formato di default
+# (data + revisione + messaggio dell'ultimo commit).
+name: ${{ coalesce(parameters.e2eRunTitle, '$(Date:yyyyMMdd).$(Rev:r)') }}
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+schedules:
+  - cron: '0 6 * * *'
+    displayName: Daily E2E 06:00 UTC
+    branches:
+      include:
+        - main
+    always: true
+
+pool:
+  name: 'Internal Linux with Docker'
+  demands:
+    - jdk -equals 21
+
+variables:
+  - group: acmilan-e2e-secrets
+
+jobs:
+  - job: e2e
+    displayName: AI E2E tests
+    timeoutInMinutes: 60
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 22
+        inputs:
+          versionSpec: '22.x'
+
+      # Risolve il flusso e imposta le variabili job-scoped RUN_MODE,
+      # E2E_CONFIG_FILE, EMAIL_RECIPIENTS, EMAIL_SEND_POLICY (leggibili dagli
+      # step successivi di QUESTO job via macro $(NOME)).
+      - script: node scripts/resolve-flow.mjs
+        name: resolveFlow
+        displayName: Resolve flow mode, config and email policy
+        env:
+          # Variabili predefinite Azure DevOps
+          BUILD_REASON: $(Build.Reason)
+          BUILD_REQUESTED_FOR_EMAIL: $(Build.RequestedForEmail)
+          AGENT_TEMPDIRECTORY: $(Agent.TempDirectory)
+          # Template parameter passato da /api/azure-pipeline (espanso a
+          # compile-time, quindi sempre valorizzato se presente nel payload)
+          E2E_RUN_CONFIG: ${{ parameters.e2eRunConfig }}
+
+      - script: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+        displayName: Install dependencies and browsers
+
+      - script: node scripts/run-e2e.mjs --config "$(E2E_CONFIG_FILE)"
+        displayName: Run AI E2E
+        continueOnError: true
+        env:
+          OPENROUTER_API_KEY: $(OPENROUTER_API_KEY)
+          AGENT_TEMPDIRECTORY: $(Agent.TempDirectory)
+
+      - script: npm run ci:upload-reports
+        displayName: Upload reports to Azure Blob
+        condition: succeededOrFailed()
+        env:
+          AZURE_STORAGE_CONNECTION_STRING: $(AZURE_STORAGE_CONNECTION_STRING)
+          AZURE_STORAGE_CONTAINER: $(AZURE_STORAGE_CONTAINER)
+
+      - script: npm run ci:send-email
+        displayName: Send Email report via SendGrid
+        condition: succeededOrFailed()
+        env:
+          EMAIL_SENDGRID_API_KEY: $(SENDGRID_API_KEY)
+          EMAIL_FROM: $(EMAIL_FROM)
+          EMAIL_RECIPIENTS: $(EMAIL_RECIPIENTS)
+          EMAIL_SEND_POLICY: $(EMAIL_SEND_POLICY)
+          EMAIL_REPORT_HTML_URL: $(EMAIL_REPORT_HTML_URL)
+          NEXT_PUBLIC_CLIENT_NAME: $(NEXT_PUBLIC_CLIENT_NAME)
+
+      # La pipeline deve fallire se i test falliscono, ma SOLO in modalità
+      # pull-request (per app/pipeline la run è informativa: report + email).
+      # run-e2e.mjs gira con continueOnError=true (upload/email devono partire
+      # comunque) e scrive un marker file in caso di failure: questo step
+      # finale lo legge e fallisce la build dopo che report ed email sono
+      # stati inviati.
+      - script: |
+          if [ "$(RUN_MODE)" = "pull-request" ] && [ -f "$(Agent.TempDirectory)/e2e-failed" ]; then
+            echo "##vso[task.logissue type=error]Test E2E falliti in modalità pull-request: pipeline marcata come failed."
+            exit 1
+          fi
+          echo "Nessun failure da propagare (mode=$(RUN_MODE))."
+        displayName: Fail pipeline on test failures (PR only)
+        condition: succeededOrFailed()
