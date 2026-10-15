@@ -421,6 +421,7 @@ export class LocalService implements AppService {
 
     const entry = (sessionMeta.tests ?? []).find((t) => t.id === testId);
     const status = entry?.status ?? '';
+    const duration = entry?.duration ?? '';
 
     const screenshots = await Promise.all(
       (sessionMeta.screenshotPaths ?? [])
@@ -444,6 +445,7 @@ export class LocalService implements AppService {
       viewport,
       report,
       status,
+      duration,
       screenshots,
     };
   }

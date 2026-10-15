@@ -102,6 +102,14 @@ export default async function TestDetailPage({
         {viewportLabel(detail.viewport)}
       </b>
     </p>,
+    ...(detail.duration
+      ? [
+        <p key="d" className="my-1.5 flex items-baseline justify-between gap-3 text-sm">
+          <span className={`shrink-0 ${muted}`}>Durata</span>
+          <b className="text-right font-mono text-xs font-semibold">{detail.duration}</b>
+        </p>,
+      ]
+      : []),
   ];
 
   return (
