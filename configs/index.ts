@@ -86,9 +86,9 @@ export const VIEWPORTS: ViewportConfig[] = [
 
 // Modelli AI OpenRouter disponibili (primo = default)
 export const AI_MODELS: string[] = [
+  'deepseek/deepseek-v4.1-flash',
   'qwen/qwen3.7-plus',
   'z-ai/glm-5.3-flash',
-  'deepseek/deepseek-v4.1-flash',
 ];
 
 // ============================================================================
@@ -103,14 +103,20 @@ export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
 
 export const PROJECT_PROMPT: string = `
 Istruzioni specifiche del progetto:
+- Il sito e' lo shop ufficiale AC Milan: e-commerce con maglie e prodotti personalizzabili (nome/numero giocatore,
+  patch), prezzi in EUR, carrello con upsell. Verifica la coerenza tra personalizzazione selezionata, anteprima e
+  carrello, e che il prezzo finale rifletta le opzioni scelte.
 - Overlay di upsell nel carrello: quando si naviga al carrello dopo aver aggiunto un prodotto si apre AUTOMATICAMENTE
   un overlay di upsell. NON e' un errore: comportamento atteso, chiudilo con la "X" in alto a destra prima di
   procedere. NON documentarlo come bug.
 - NON segnalare come bug: il nome del giocatore visualizzato in MAIUSCOLO (comportamento corretto e desiderato); taglie
   che non compaiono affatto (dipendono dalla configurazione del prodotto, alcune possono non esserci); l'overlay di upsell
   nel carrello (comportamento atteso, si chiude con la "X").
-- Il sito e' uno shop e-commerce con personalizzazione prodotto (es. maglie personalizzabili): verifica la coerenza
-  tra personalizzazione selezionata, anteprima e carrello, e che il prezzo finale rifletta le opzioni scelte.
+- NON segnalare come bug: l'inserimento di un nome/numero composto da soli spazi (es. "   ") che supera la validazione
+  e genera una personalizzazione "vuota" nel carrello (es. "PRODOTTO PERSONALIZZAZIONE MAGLIA" senza nome/numero
+  visibile). E' un comportamento noto e accettato del sito, fuori dallo scope dei test: NON documentarlo come bug e
+  NON far fallire il test per questo motivo. Se un input di soli spazi viene accettato, continua il test senza
+  segnalare nulla.
 `;
 
 // Sessioni in parallelo

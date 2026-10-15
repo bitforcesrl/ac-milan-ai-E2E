@@ -1,7 +1,7 @@
 {
   "tests": "*",
   "browsers": ["chromium"],
-  "viewports": ["desktop"],
+  "viewports": ["desktop", "tablet", "mobile"],
   "aiModel": "deepseek/deepseek-v4.1-flash",
   "maxParallelSessions": 3,
   "browserMode": "headless",
