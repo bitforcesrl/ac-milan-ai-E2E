@@ -172,13 +172,17 @@ function statusFrom(rawStatus: string, fail: number, total: number): string {
 /** Lista le run (cartelle <stamp> con metadata.json) in reports/. */
 async function scanRunIds(): Promise<string[]> {
   const root = safeLocalPath();
-  if (!root || !existsSync(root)) return [];
-  const entries = await readdir(root);
+  // NB: commenti turbopackIgnore: questo codice gira SOLO in modalita' locale
+  // (E2E_LOCAL_MODE=1), mai su Vercel; senza il commento Turbopack traccia
+  // l'intero progetto per il tracing delle file access a runtime.
+  if (!root || !existsSync(/* turbopackIgnore: true */ root)) return [];
+  const entries = await readdir(/* turbopackIgnore: true */ root);
   const runIds: string[] = [];
   for (const name of entries) {
     if (!RUN_DIR_RE.test(name)) continue;
     try {
-      if ((await stat(path.join(root, name))).isDirectory()) runIds.push(name);
+      const p = path.join(/* turbopackIgnore: true */ root, name);
+      if ((await stat(/* turbopackIgnore: true */ p)).isDirectory()) runIds.push(name);
     } catch {
       // ignora
     }
@@ -241,7 +245,11 @@ export class LocalService implements AppService {
     const logFd = openSync(LOG_FILE, 'a');
     const childEnv = { ...process.env };
     delete childEnv.E2E_LOCAL_MODE; // il flag vale solo per la dashboard
-    const child = spawn('node', ['scripts/run-e2e.mjs', '--config', CONFIG_FILE], {
+    // Path costruito a runtime: Turbopack prova a risolvere i letterali passati
+    // a spawn come moduli e la build su Vercel fallisce ("Module not found").
+    // Questo codice gira solo in locale, il path resta una stringa dinamica.
+    const scriptPath = ['scripts', 'run-e2e.mjs'].join('/');
+    const child = spawn('node', [scriptPath, '--config', CONFIG_FILE], {
       cwd: process.cwd(),
       stdio: ['ignore', logFd, logFd],
       env: childEnv,
