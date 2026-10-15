@@ -7,6 +7,8 @@ export type RunMeta = {
   /** Data della run in UTC ISO (es. 2026-09-22T09:01:03Z). */
   date?: string;
   status?: string;
+  /** Durata wall-clock dell'intera run (es. "2m 34s"). */
+  duration?: string;
   /** Albero delle combinazioni testate: una voce per browser con i suoi viewport. */
   sessions?: Array<{ browser?: string; viewports?: string[] }>;
 };
@@ -21,7 +23,7 @@ export type SessionMeta = {
   duration?: string;
   status?: string;
   summary?: string;
-  tests?: Array<{ id?: string; name?: string; status?: string }>;
+  tests?: Array<{ id?: string; name?: string; status?: string; duration?: string }>;
   bugs?: { high?: number; medium?: number; low?: number };
   /** Costo AI della sessione in USD (somma dei costi OpenRouter). */
   cost?: number;
@@ -61,6 +63,8 @@ export type SessionView = {
     id: string;
     name: string;
     status: string;
+    /** Durata del singolo test (es. "2m 34s"), se disponibile. */
+    duration: string;
     href: string; // link alla pagina di dettaglio test
   }>;
 };

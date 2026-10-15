@@ -157,6 +157,11 @@ async function main() {
   let hasFailures = false;
   const sessionMetas = [];
   const resultsByCombo = new Map();
+  // Finestra temporale reale (wall clock) per combo browser/viewport: min start
+  // / max end dei suoi test. Serve per la durata di sessione corretta quando
+  // piu' test della stessa combo girano in parallelo (la somma delle durate
+  // per-test sovrastimerebbe).
+  const comboTimes = new Map();
   let cursor = 0;
 
   async function worker() {
@@ -168,7 +173,16 @@ async function main() {
         `\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`,
       );
 
+      const startedAt = Date.now();
       const exitCode = await runSession(unit, config, stamp, config.browserMode === 'headed');
+      const endedAt = Date.now();
+
+      // Finestra temporale della combo: min start / max end dei suoi test
+      const prev = comboTimes.get(comboKey);
+      comboTimes.set(comboKey, {
+        start: Math.min(prev?.start ?? startedAt, startedAt),
+        end: Math.max(prev?.end ?? endedAt, endedAt),
+      });
 
       if (!resultsByCombo.has(comboKey)) {
         resultsByCombo.set(comboKey, []);
@@ -186,20 +200,30 @@ async function main() {
   }
 
   const poolSize = Math.min(config.maxParallelSessions, units.length);
+  // Wall clock dell'intera run: start prima del pool, end dopo Promise.all
+  const runStartedAt = Date.now();
   await Promise.all(Array.from({ length: poolSize }, worker));
+  const runDurationSeconds = Math.max(0, Math.round((Date.now() - runStartedAt) / 1000));
 
   // Aggregazione e generazione dei summary finali
   for (const browser of config.browsers) {
     for (const viewport of config.viewports) {
       const comboKey = `${browser}/${viewport}`;
       const results = resultsByCombo.get(comboKey) ?? [];
-      const meta = await aggregateSessionReports(browser, viewport, config, stamp, results);
+      const meta = await aggregateSessionReports(
+        browser,
+        viewport,
+        config,
+        stamp,
+        results,
+        comboTimes.get(comboKey),
+      );
       if (meta) sessionMetas.push(meta);
     }
   }
 
-  writeRunMetadata(stamp, config, hasFailures, sessionMetas);
-  updateRunsIndex(stamp, config, hasFailures, sessionMetas);
+  writeRunMetadata(stamp, config, hasFailures, sessionMetas, runDurationSeconds);
+  updateRunsIndex(stamp, config, hasFailures, sessionMetas, runDurationSeconds);
 
   if (hasFailures) {
     console.error('\n[CI FAIL] Uno o più test/browser hanno fallito.');
@@ -226,6 +250,8 @@ async function main() {
 async function runSession({ browser, viewport, test }, config, stamp, headed) {
   let mcp;
   let sessionCost = 0;
+  // Durata reale del singolo test (wall clock, Date.now())
+  const startedAt = Date.now();
   try {
     mcp = await initMcpServers(browser, headed, viewport);
     const messages = [
@@ -280,9 +306,11 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
     console.error(`[${browser}/${test.id}] Errore sessione: ${err.message}`, err);
     return 1;
   } finally {
-    // Costo AI della sessione (USD): aggiunto ai metadati TEMPORANEI per-test
-    // scritti dall'agente, così l'aggregazione lo raccoglie come gli altri campi.
-    writeTestCost(stamp, browser, viewport, test.id, sessionCost);
+    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+    // Costo AI (USD) e durata reale del test: aggiunti ai metadati TEMPORANEI
+    // per-test scritti dall'agente, così l'aggregazione li raccoglie come gli
+    // altri campi.
+    writeTestMeta(stamp, browser, viewport, test.id, sessionCost, durationSeconds);
     if (mcp?.clients) {
       await closeMcpClients(mcp.clients);
     }
@@ -290,20 +318,23 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
 }
 
 /**
- * Aggiunge il campo "cost" (USD) ai metadati temporanei per-test
- * `${sessionDir}/metadata/<test-id>.json` scritti dall'agente.
+ * Aggiunge i campi "cost" (USD) e "durationSeconds" ai metadati temporanei
+ * per-test `${sessionDir}/metadata/<test-id>.json` scritti dall'agente.
  * Il file viene poi aggregato nel metadata.json di sessione e cancellato.
  */
-function writeTestCost(stamp, browser, viewport, testId, cost) {
+function writeTestMeta(stamp, browser, viewport, testId, cost, durationSeconds) {
   const path = `${PATHS.reports}/${stamp}/${browser}/${viewport}/metadata/${testId}.json`;
   if (!existsSync(path)) return;
   try {
     const meta = JSON.parse(readFileSync(path, 'utf8'));
     meta.cost = roundCost(cost);
+    meta.durationSeconds = Math.max(0, Math.round(Number(durationSeconds) || 0));
     writeFileSync(path, JSON.stringify(meta, null, 2), 'utf8');
-    console.log(`[report] Costo AI ${meta.cost} USD registrato in ${path}`);
+    console.log(
+      `[report] Costo AI ${meta.cost} USD e durata ${formatDuration(meta.durationSeconds)} registrati in ${path}`,
+    );
   } catch (err) {
-    console.warn(`[report] Impossibile registrare il costo AI in ${path}: ${err.message}`);
+    console.warn(`[report] Impossibile registrare costo/durata in ${path}: ${err.message}`);
   }
 }
 
@@ -524,13 +555,19 @@ function buildRunStamp() {
   return new Date().toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
 }
 
-function computeDurationLabel(stamp) {
-  const [datePart, timePart] = stamp.split('_');
-  const [y, mo, d] = datePart.split('-').map(Number);
-  const [h, mi, s] = timePart.replace(/-/g, ':').split(':').map(Number);
-  const start = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
-  const totalMin = Math.max(0, Math.round((Date.now() - start.getTime()) / 60000));
-  return `${totalMin}m 0s`;
+/**
+ * Formatta una durata in secondi come "2m 34s" (o "45s" sotto il minuto,
+ * "1h 2m 3s" sopra l'ora). Sostituisce il vecchio troncamento ai minuti
+ * ("Xm 0s") che perdeva i secondi.
+ */
+function formatDuration(seconds) {
+  const total = Math.max(0, Math.round(Number(seconds) || 0));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
 }
 
 /**
@@ -609,7 +646,7 @@ function readPerTestMetas(sessionDir) {
   return byId;
 }
 
-async function aggregateSessionReports(browser, viewport, config, stamp, results) {
+async function aggregateSessionReports(browser, viewport, config, stamp, results, comboTime) {
   const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;
   mkdirSync(sessionDir, { recursive: true });
 
@@ -696,12 +733,25 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   // metadata.json di sessione: il file sopravvissuto contiene solo l'ULTIMO
   // test eseguito per questa combo. La lista dei test va quindi SEMPRE
   // ricostruita dai risultati osservati dalla CI.
+  // Durata della sessione: finestra temporale reale della combo (min start /
+  // max end dei suoi test, tracciata nel worker pool).
+  const sessionDuration = formatDuration(
+    Math.max(0, Math.round((comboTime.end - comboTime.start) / 1000)),
+  );
+
   const testsMeta = results.map(({ test, status }) => {
+    // Durata del singolo test: dai metadati temporanei per-test
+    // (durationSeconds scritti da writeTestMeta), formattata. Fallback: ''.
+    const pt = perTestMetas.get(test.id);
+    const testDuration = Number(pt?.durationSeconds);
     return {
       id: test.id,
       name: test.name,
       // Lo status osservato dalla CI (CI_STATUS) ha la priorita' su quello dichiarato dall'agente
       status,
+      ...(Number.isFinite(testDuration) && testDuration > 0
+        ? { duration: formatDuration(testDuration) }
+        : {}),
     };
   });
 
@@ -794,7 +844,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     model: config.model,
     run: stamp,
     date: isoDate,
-    duration: computeDurationLabel(stamp),
+    duration: sessionDuration,
     status: allPass ? 'PASS' : 'FAIL',
     summary,
     tests: testsMeta,
@@ -820,13 +870,15 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
  * (presenti nel file locale, tipicamente scaricato dallo storico blob
  * da upload-reports-to-azure.mjs nelle run precedenti).
  */
-function updateRunsIndex(stamp, config, hasFailures, sessionMetas) {
+function updateRunsIndex(stamp, config, hasFailures, sessionMetas, runDurationSeconds) {
   const indexPath = `${PATHS.reports}/${RUN_INDEX_FILE}`;
   const entry = buildRunIndexEntry({
     run: stamp,
     date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
     hasFailures,
     sessions: sessionMetas,
+    // Durata wall-clock dell'intera run (misurata nel main)
+    duration: formatDuration(runDurationSeconds),
     // Branch sorgente su Azure Pipelines (assente in locale)
     branch: process.env.BUILD_SOURCEBRANCH?.trim() || undefined,
   });
@@ -837,7 +889,7 @@ function updateRunsIndex(stamp, config, hasFailures, sessionMetas) {
   console.log(`[report] Index run aggiornato: ${indexPath} (${updated.length} run)`);
 }
 
-function writeRunMetadata(stamp, config, hasFailures, sessionMetas = []) {
+function writeRunMetadata(stamp, config, hasFailures, sessionMetas = [], runDurationSeconds = 0) {
   const runDir = `${PATHS.reports}/${stamp}`;
   mkdirSync(runDir, { recursive: true });
 
@@ -856,6 +908,8 @@ function writeRunMetadata(stamp, config, hasFailures, sessionMetas = []) {
     date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
     status: hasFailures ? 'FAIL' : 'PASS',
     sessions,
+    // Durata wall-clock dell'intera run (es. "2m 34s")
+    duration: formatDuration(runDurationSeconds),
     // Costo AI totale della run in USD
     cost: roundCost(totalCost),
   };

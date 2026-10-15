@@ -188,6 +188,15 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
                     >
                       <span className="text-sm font-semibold break-all">{test.name}</span>
                       <span className="flex shrink-0 items-center gap-2.5">
+                        {test.duration && (
+                          <span
+                            className={chip}
+                            title="Durata del test"
+                          >
+                            <Clock size={12} className={metaIcon} aria-hidden="true" />
+                            {test.duration}
+                          </span>
+                        )}
                         {test.status ? (
                           statusChip(test.status)
                         ) : (
