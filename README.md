@@ -77,9 +77,9 @@ Quattro file che selezionano **quali test eseguire e con quali combinazioni** pe
 | `aiModel`             | Modello OpenRouter usato dall'agente                                                          |
 | `maxParallelSessions` | Sessioni Playwright in parallelo (1–3)                                                        |
 | `browserMode`         | `headless` (default) o `headed` (browser visibile, utile in locale)                           |
-| `emailRecipients`     | (solo manual/health-check) destinatari della mail di report                                   |
+| `emailRecipients`     | (solo default/health-check) destinatari della mail di report                                  |
 
-- [`configs/manual.config.json`](configs/manual.config.json) — lancio manuale su `main`. Mail inviata solo su FAIL a `emailRecipients`.
+- [`configs/default.config.json`](configs/default.config.json) — lancio manuale su `main` (fallback quando non scatta PR, schedule o run dall'app). Mail inviata solo su FAIL a `emailRecipients`.
 - [`configs/health-check.config.json`](configs/health-check.config.json) — run schedulate (schedule): solo smoke (pochi test, 1 sessione). Mail su FAIL a `emailRecipients`.
 - [`configs/pull-request.config.json`](configs/pull-request.config.json) — run su pull request: solo smoke (pochi test, 1 sessione). Mail su FAIL all'autore della PR.
 - [`configs/local.config.json`](configs/local.config.json) — run locale (`npm run local:run-e2e`): 1 sessione parallela, nessuna mail.

@@ -15,12 +15,12 @@
 //                   configs/health-check.config.json (test smoke/ridotti),
 //                   destinatari = emailRecipients nel file di config,
 //                   invio solo su FAIL
-// - manual       -> lancio manuale su main: configs/manual.config.json,
+// - default      -> lancio manuale su main (fallback): configs/default.config.json,
 //                   destinatari = emailRecipients nel file di config,
 //                   invio solo su FAIL
 //
 // Output variables:
-// - RUN_MODE:         pull-request | app | health-check | manual
+// - RUN_MODE:         pull-request | app | health-check | default
 // - E2E_CONFIG_FILE:  path del file di config per run-e2e.mjs
 // - EMAIL_RECIPIENTS: destinatari email (virgola-separati, formato SendGrid)
 // - EMAIL_SEND_POLICY: always | on-fail
@@ -70,7 +70,7 @@ function resolveFlow() {
   const buildReason = getCleanEnv('BUILD_REASON');
   const requestedForEmail = getCleanEnv('BUILD_REQUESTED_FOR_EMAIL');
   const runConfigJson = getCleanEnv('E2E_RUN_CONFIG');
-  const emailTo = readConfigRecipients('configs/manual.config.json');
+  const emailTo = readConfigRecipients('configs/default.config.json');
 
   // Le run schedulate non possono ricevere template parameters, quindi il
   // `name:` YAML cade sul default (data + revisione). Qui rinominiamo la run
@@ -119,13 +119,13 @@ function resolveFlow() {
   }
 
   return {
-    runMode: 'manual',
-    config: 'configs/manual.config.json',
+    runMode: 'default',
+    config: 'configs/default.config.json',
     recipients: emailTo,
     policy: 'on-fail',
     warn: emailTo
       ? null
-      : 'emailRecipients vuoto in configs/manual.config.json: nessun destinatario per il lancio manuale.',
+      : 'emailRecipients vuoto in configs/default.config.json: nessun destinatario per il lancio manuale.',
   };
 }
 
