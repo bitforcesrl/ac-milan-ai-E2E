@@ -1,11 +1,11 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useActionState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { loginAction, type LoginState } from '@/lib/actions/auth.actions';
 import { loginSchema, type LoginInput } from '@/lib/validations/login';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useSearchParams } from 'next/navigation';
+import { startTransition, useActionState } from 'react';
+import { useForm } from 'react-hook-form';
 
 const initialState: LoginState = {};
 
@@ -36,8 +36,10 @@ export default function LoginForm() {
         e.preventDefault();
         // Cattura i dati in modo sincrono prima della validazione asincrona
         const formData = new FormData(e.currentTarget);
-        // Validazione client-side con Zod; se valida, invia alla Server Action
-        handleSubmit(() => formAction(formData))(e);
+        // Validazione client-side con Zod; se valida, invia alla Server Action.
+        // Il dispatch di useActionState va chiamato dentro una transition
+        // (altrimenti React 19 segnala il warning e isPending non si aggiorna).
+        handleSubmit(() => startTransition(() => formAction(formData)))(e);
       }}
       className="mt-10 space-y-4"
       noValidate
