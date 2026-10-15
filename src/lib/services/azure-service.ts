@@ -333,7 +333,7 @@ export class AzureService implements AppService {
       // Ignora errori di rete sul check: il trigger viene tentato comunque
     }
 
-    const url = buildsUrl(config.org, config.project);
+    const url = buildsUrl(config.org, config.project, 'api-version=7.1');
 
     try {
       const res = await fetch(url, {
