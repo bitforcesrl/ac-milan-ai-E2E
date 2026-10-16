@@ -98,12 +98,12 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       tests: checked
         ? [
-            ...prev.tests,
-            {
-              id,
-              notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
-            },
-          ]
+          ...prev.tests,
+          {
+            id,
+            notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
+          },
+        ]
         : prev.tests.filter((t) => t.id !== id),
     }));
   }
@@ -117,9 +117,9 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       tests: checked
         ? TESTS.map((t) => ({
-            id: t.id,
-            notes: E2E_TEST_LIST.find((e) => e.id === t.id)?.notes ?? '',
-          }))
+          id: t.id,
+          notes: E2E_TEST_LIST.find((e) => e.id === t.id)?.notes ?? '',
+        }))
         : [],
     }));
   }
@@ -178,17 +178,25 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
 
   function validateConfig(): boolean {
     const errors: typeof validationErrors = {};
+    let scrollTo: string | null = null;
     if (config.browsers.length === 0) {
       errors.browsers = 'Selezionare almeno un browser.';
+      scrollTo = scrollTo || 'validation-error-browsers';
     }
     if (config.viewports.length === 0) {
       errors.viewports = 'Selezionare almeno un viewport.';
+      scrollTo = scrollTo || 'validation-error-viewports';
     }
     if (config.tests.length === 0) {
       errors.tests = 'Selezionare almeno un test E2E.';
+      scrollTo = scrollTo || 'validation-error-tests';
     }
     setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    if (scrollTo) {
+      document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return false;
+    }
+    return true;
   }
 
   async function triggerPipeline() {
@@ -253,7 +261,11 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
               </label>
             ))}
             {validationErrors.browsers && (
-              <p role="alert" className="text-xs text-red-600">
+              <p
+                id="validation-error-browsers"
+                role="alert"
+                className="text-[0.7rem] leading-4 text-red-600"
+              >
                 {validationErrors.browsers}
               </p>
             )}
@@ -281,7 +293,11 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
               </label>
             ))}
             {validationErrors.viewports && (
-              <p role="alert" className="text-xs text-red-600">
+              <p
+                id="validation-error-viewports"
+                role="alert"
+                className="text-[0.7rem] leading-4 text-red-600"
+              >
                 {validationErrors.viewports}
               </p>
             )}
@@ -438,7 +454,11 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
             Seleziona tutti
           </label>
           {validationErrors.tests && (
-            <p role="alert" className="text-xs text-red-600">
+            <p
+              id="validation-error-tests"
+              role="alert"
+              className="text-[0.7rem] leading-4 text-red-600"
+            >
               {validationErrors.tests}
             </p>
           )}
