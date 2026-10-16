@@ -39,7 +39,7 @@ function failChip(href?: string) {
 function ndChip() {
   return (
     <span
-      className={`inline-block rounded-full bg-grey border border-grey px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted}`}
+      className={`bg-grey border-grey inline-block rounded-full border px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted}`}
     >
       N/D
     </span>
@@ -75,12 +75,8 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
     }
   }
   const sortedRowIds = [...rowIds].sort((a, b) => {
-    const aFail = sessions.some(
-      (s) => s.tests.find((t) => t.id === a)?.status === 'FAIL',
-    );
-    const bFail = sessions.some(
-      (s) => s.tests.find((t) => t.id === b)?.status === 'FAIL',
-    );
+    const aFail = sessions.some((s) => s.tests.find((t) => t.id === a)?.status === 'FAIL');
+    const bFail = sessions.some((s) => s.tests.find((t) => t.id === b)?.status === 'FAIL');
     if (aFail !== bFail) return aFail ? -1 : 1;
     return rowIds.indexOf(a) - rowIds.indexOf(b);
   });
@@ -132,7 +128,7 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
             <tr key={testId} className="border-grey border-b last:border-b-0">
               <th
                 scope="row"
-                className="border-grey border-r min-w-[220px] px-4 py-3 text-sm font-semibold whitespace-nowrap"
+                className="border-grey min-w-[220px] border-r px-4 py-3 text-sm font-semibold whitespace-nowrap"
               >
                 {rowNames.get(testId)}
               </th>
@@ -140,7 +136,10 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
                 const cell = cells.get(`${testId}|${key}`);
                 if (!cell) {
                   return (
-                    <td key={key} className="border-grey border-r px-3 py-3 text-center last:border-r-0">
+                    <td
+                      key={key}
+                      className="border-grey border-r px-3 py-3 text-center last:border-r-0"
+                    >
                       {ndChip()}
                     </td>
                   );
@@ -148,13 +147,19 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
                 const { test } = cell;
                 if (!test) {
                   return (
-                    <td key={key} className="border-grey border-r px-3 py-3 text-center last:border-r-0">
+                    <td
+                      key={key}
+                      className="border-grey border-r px-3 py-3 text-center last:border-r-0"
+                    >
                       {ndChip()}
                     </td>
                   );
                 }
                 return (
-                  <td key={key} className="border-grey border-r px-3 py-3 text-center last:border-r-0">
+                  <td
+                    key={key}
+                    className="border-grey border-r px-3 py-3 text-center last:border-r-0"
+                  >
                     {test.status === 'PASS'
                       ? passChip(test.href)
                       : test.status === 'FAIL'

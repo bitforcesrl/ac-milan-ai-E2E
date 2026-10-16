@@ -1,10 +1,10 @@
+import { createJiti } from 'jiti';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { createJiti } from 'jiti';
+import { parseRunIndex, readRunIndexFile } from './run-index.mjs';
 
 const jiti = createJiti(import.meta.url);
 const { PATHS } = await jiti.import('../configs/index.ts');
-import { parseRunIndex, readRunIndexFile } from './run-index.mjs';
 
 // ============================================================================
 // 1. CONFIGURAZIONE & VALIDAZIONE AMBIENTE
@@ -291,6 +291,7 @@ function listSessionCombos(runPath) {
 // ============================================================================
 
 function buildText(run, config) {
+  const reportLink = buildReportLink(config, run);
   const lines = [
     `Report E2E ${config.clientName ? config.clientName + ' ' : ''}— run ${run.run}`,
     `Esito: ${run.status}`,
@@ -305,8 +306,15 @@ function buildText(run, config) {
       lines.push(`  - ${t.label}: ${t.status}`);
     }
   }
-  lines.push('', 'Apri il report HTML:', config.reportUrl);
+  lines.push('', 'Apri il report HTML:', reportLink);
   return lines.join('\n');
+}
+
+// Il reportUrl e' la base dell'app (es. https://ac-milan-ai-e2e.vercel.app):
+// il link deve puntare alla rotta del report della run corrente
+// (/reports/{runId}, vedi src/app/reports/[runId]/page.tsx).
+function buildReportLink(config, run) {
+  return `${config.reportUrl.replace(/\/+$/, '')}/reports/${run.run}`;
 }
 
 // Palette allineata all'app (globals.scss):
@@ -323,6 +331,7 @@ const C = {
 };
 
 function buildHtml(run, config) {
+  const reportLink = buildReportLink(config, run);
   const fail = run.status === 'FAIL';
   const accent = fail ? C.red : C.green;
   const accentBg = fail ? C.redBg : C.greenBg;
@@ -410,7 +419,7 @@ function buildHtml(run, config) {
         </td></tr>
 
         <tr><td align="center" style="padding:12px 4px 24px;">
-          <a href="${escapeAttr(config.reportUrl)}" style="display:inline-block;padding:12px 28px;background:${C.primary};color:#ffffff;text-decoration:none;border-radius:999px;font-weight:600;font-size:14px;">Apri il report completo →</a>
+          <a href="${escapeAttr(reportLink)}" style="display:inline-block;padding:12px 28px;background:${C.primary};color:#ffffff;text-decoration:none;border-radius:999px;font-weight:600;font-size:14px;">Apri il report completo →</a>
         </td></tr>
 
         <tr><td align="center" style="border-top:1px solid ${C.border};padding:16px 4px 0;font-size:11px;color:${C.muted};">

@@ -64,7 +64,6 @@ export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, dur
     .filter((s) => s?.browser)
     .map((s) => ({ browser: s.browser, viewport: s.viewport ?? '' }));
 
-
   // Costo AI totale della run in USD: somma dei costi di sessione
   // (parametro `cost` se fornito, altrimenti somma dai metadata di sessione)
   const sessionCost = (sessions ?? []).reduce((acc, s) => acc + (Number(s?.cost) || 0), 0);

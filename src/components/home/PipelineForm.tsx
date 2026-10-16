@@ -73,6 +73,13 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
+  // Errori di validazione pre-submit per sezione (tutti i campi obbligatori
+  // tranne le email, che restano facoltative)
+  const [validationErrors, setValidationErrors] = useState<{
+    browsers?: string;
+    viewports?: string;
+    tests?: string;
+  }>({});
 
   function toggleBrowser(id: string, checked: boolean) {
     setConfig((prev) => ({
@@ -100,6 +107,24 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
             },
           ]
         : prev.tests.filter((t) => t.id !== id),
+    }));
+  }
+
+  // "Seleziona tutti": seleziona/deseleziona tutti i test del catalogo
+  // (le note sono precompilate dal catalogo). Indeterminato se parziale.
+  const allTestsSelected =
+    TESTS.length > 0 && TESTS.every((t) => config.tests.some((sel) => sel.id === t.id));
+  const someTestsSelected = config.tests.length > 0 && !allTestsSelected;
+
+  function toggleAllTests(checked: boolean) {
+    setConfig((prev) => ({
+      ...prev,
+      tests: checked
+        ? TESTS.map((t) => ({
+            id: t.id,
+            notes: E2E_TEST_LIST.find((e) => e.id === t.id)?.notes ?? '',
+          }))
+        : [],
     }));
   }
 
@@ -155,9 +180,30 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
     }
   }
 
+  // Validazione client-side pre-submit: tutti i campi obbligatori tranne le
+  // email (facoltative). In modalità locale non ci sono le email ma c'è la
+  // modalità browser (headed/headless), garantita dalla select.
+  function validateConfig(): boolean {
+    const errors: typeof validationErrors = {};
+    if (config.browsers.length === 0) {
+      errors.browsers = 'Selezionare almeno un browser.';
+    }
+    if (config.viewports.length === 0) {
+      errors.viewports = 'Selezionare almeno un viewport.';
+    }
+    if (config.tests.length === 0) {
+      errors.tests = 'Selezionare almeno un test E2E.';
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  }
+
   async function triggerPipeline() {
-    setState('loading');
     setErrorMessage(null);
+    if (!validateConfig()) {
+      return;
+    }
+    setState('loading');
 
     try {
       const res = await fetch('/api/azure-pipeline', {
@@ -208,6 +254,11 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
                 {label}
               </label>
             ))}
+            {validationErrors.browsers && (
+              <p role="alert" className="text-xs text-red-600">
+                {validationErrors.browsers}
+              </p>
+            )}
           </fieldset>
 
           <fieldset className="flex flex-col gap-3">
@@ -226,6 +277,11 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
                 {label}
               </label>
             ))}
+            {validationErrors.viewports && (
+              <p role="alert" className="text-xs text-red-600">
+                {validationErrors.viewports}
+              </p>
+            )}
           </fieldset>
           <div className="flex flex-col gap-6">
             <fieldset className="flex flex-col gap-3">
@@ -366,6 +422,23 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
             <List size={14} aria-hidden="true" />
             Test E2E
           </legend>
+          <label className="border-grey flex items-center gap-3 rounded-lg border bg-white px-4 py-3 text-sm font-semibold text-black">
+            <input
+              type="checkbox"
+              className={CHECKBOX_CLASS}
+              checked={allTestsSelected}
+              ref={(el) => {
+                if (el) el.indeterminate = someTestsSelected;
+              }}
+              onChange={(e) => toggleAllTests(e.target.checked)}
+            />
+            Seleziona tutti
+          </label>
+          {validationErrors.tests && (
+            <p role="alert" className="text-xs text-red-600">
+              {validationErrors.tests}
+            </p>
+          )}
           {TESTS.map(({ id, label, description }) => {
             const selected = config.tests.some((t) => t.id === id);
             const notes = config.tests.find((t) => t.id === id)?.notes ?? '';
