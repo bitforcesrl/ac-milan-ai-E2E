@@ -73,8 +73,6 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [emailError, setEmailError] = useState<string | null>(null);
-  // Errori di validazione pre-submit per sezione (tutti i campi obbligatori
-  // tranne le email, che restano facoltative)
   const [validationErrors, setValidationErrors] = useState<{
     browsers?: string;
     viewports?: string;
@@ -110,8 +108,6 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
     }));
   }
 
-  // "Seleziona tutti": seleziona/deseleziona tutti i test del catalogo
-  // (le note sono precompilate dal catalogo). Indeterminato se parziale.
   const allTestsSelected =
     TESTS.length > 0 && TESTS.every((t) => config.tests.some((sel) => sel.id === t.id));
   const someTestsSelected = config.tests.length > 0 && !allTestsSelected;
@@ -180,9 +176,6 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
     }
   }
 
-  // Validazione client-side pre-submit: tutti i campi obbligatori tranne le
-  // email (facoltative). In modalità locale non ci sono le email ma c'è la
-  // modalità browser (headed/headless), garantita dalla select.
   function validateConfig(): boolean {
     const errors: typeof validationErrors = {};
     if (config.browsers.length === 0) {
@@ -244,8 +237,13 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
               Browser
             </legend>
             {BROWSERS.map(({ id, label }) => (
-              <label key={id} className="flex items-center gap-3 text-sm text-black">
+              <label
+                key={id}
+                htmlFor={`browser-${id}`}
+                className="flex cursor-pointer items-center gap-3 text-sm text-black"
+              >
                 <input
+                  id={`browser-${id}`}
                   type="checkbox"
                   className={CHECKBOX_CLASS}
                   checked={config.browsers.includes(id)}
@@ -267,8 +265,13 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
               Viewport
             </legend>
             {VIEWPORTS.map(({ id, label }) => (
-              <label key={id} className="flex items-center gap-3 text-sm text-black">
+              <label
+                key={id}
+                htmlFor={`viewport-${id}`}
+                className="flex cursor-pointer items-center gap-3 text-sm text-black"
+              >
                 <input
+                  id={`viewport-${id}`}
                   type="checkbox"
                   className={CHECKBOX_CLASS}
                   checked={config.viewports.includes(id)}
@@ -422,7 +425,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
             <List size={14} aria-hidden="true" />
             Test E2E
           </legend>
-          <label className="border-grey flex items-center gap-3 rounded-lg border bg-white px-4 py-3 text-sm font-semibold text-black">
+          <label className="flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold text-black">
             <input
               type="checkbox"
               className={CHECKBOX_CLASS}
@@ -447,20 +450,23 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
                 key={id}
                 className="border-grey bg-grey/40 hover:border-dark-grey/40 hover:bg-grey/70 flex flex-col gap-2 rounded-lg border px-4 py-3.5 transition-colors duration-200"
               >
-                <label className="flex items-start gap-3">
+                <label htmlFor={`test-${id}`} className="flex cursor-pointer items-start gap-3">
                   <input
+                    id={`test-${id}`}
                     type="checkbox"
                     className={`${CHECKBOX_CLASS} mt-0.5`}
                     checked={selected}
                     onChange={(e) => toggleTest(id, e.target.checked)}
                   />
-                  <span className="text-sm leading-6 font-semibold text-black">{label}</span>
+                  <span className="flex flex-col gap-1">
+                    <span className="text-sm leading-6 font-semibold text-black">{label}</span>
+                    {description && (
+                      <span className="text-dark-grey text-xs leading-5">{description}</span>
+                    )}
+                  </span>
                 </label>
-                {description && (
-                  <p className="text-dark-grey pl-7 text-xs leading-5">{description}</p>
-                )}
                 {selected && (
-                  <label className="text-dark-grey flex flex-col gap-1 pl-7 text-xs">
+                  <div className="text-dark-grey flex flex-col gap-1 pl-7 text-xs">
                     Eventuali note per l{"'"}agente AI (opzionale)
                     <textarea
                       className={TEXTAREA_CLASS}
@@ -468,7 +474,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
                       value={notes}
                       onChange={(e) => setTestNotes(id, e.target.value)}
                     />
-                  </label>
+                  </div>
                 )}
               </div>
             );
