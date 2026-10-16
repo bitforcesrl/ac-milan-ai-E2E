@@ -174,7 +174,12 @@ async function main() {
       );
 
       const startedAt = Date.now();
-      const exitCode = await runSession(unit, config, stamp, config.browserMode === 'headed');
+      const { exitCode, status, reason } = await runSession(
+        unit,
+        config,
+        stamp,
+        config.browserMode === 'headed',
+      );
       const endedAt = Date.now();
 
       // Finestra temporale della combo: min start / max end dei suoi test
@@ -189,7 +194,10 @@ async function main() {
       }
       resultsByCombo.get(comboKey).push({
         test: unit.test,
-        status: exitCode === 0 ? 'PASS' : 'FAIL',
+        // Status osservato dalla CI: PASS / FAIL (dichiarato dall'agente) o
+        // ERROR (sessione troncata/errata senza CI_STATUS).
+        status,
+        ...(reason ? { reason } : {}),
       });
 
       if (exitCode !== 0) {
@@ -252,14 +260,39 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
   let sessionCost = 0;
   // Durata reale del singolo test (wall clock, Date.now())
   const startedAt = Date.now();
+  // Status osservato dalla CI: default ERROR (sessione non completata).
+  let sessionStatus = 'ERROR';
+  let sessionReason = null;
   try {
     mcp = await initMcpServers(browser, headed, viewport);
     const messages = [
       { role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp, headed) },
     ];
     let finalText = '';
+    // Anti-loop: traccia l'ultimo messaggio assistant per rilevare ripetizioni
+    let lastAssistantKey = '';
+    let repeatCount = 0;
+    let nudgedRepeat = false;
+    // Soglia di turni oltre la quale si nudga l'agente a finalizzare
+    const nudgeTurn = Math.max(1, Math.floor(config.maxTurns * 0.8));
+    // True se l'agente ha chiuso naturalmente (risposta senza tool call)
+    let completedNaturally = false;
 
     for (let turn = 0; turn < config.maxTurns; turn++) {
+      // Nudge a soglia: turni in esaurimento, finalizzare subito
+      if (turn === nudgeTurn) {
+        messages.push({
+          role: 'user',
+          content:
+            'ATTENZIONE: i turni disponibili stanno per esaurirsi. NON eseguire altre verifiche: ' +
+            `finalizza ORA il test, scrivi il report ${stamp}/tests/${test.id}.md e i metadata, ` +
+            'e rispondi con CI_STATUS=PASS o CI_STATUS=FAIL.',
+        });
+        console.warn(
+          `[${browser}/${test.id}] Nudge finalizzazione a turno ${turn}/${config.maxTurns}.`,
+        );
+      }
+
       const response = await chatCompletion(messages, mcp.tools, config);
       const choice = response.choices?.[0]?.message;
 
@@ -271,7 +304,8 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
 
       if (!choice) {
         console.error(`[${browser}/${test.id}] Nessuna risposta ricevuta da OpenRouter.`);
-        return 2;
+        sessionReason = 'Nessuna risposta da OpenRouter';
+        return { exitCode: 2, status: sessionStatus, reason: sessionReason };
       }
 
       messages.push(choice);
@@ -279,10 +313,35 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
       if (choice.content) {
         process.stdout.write(choice.content);
         finalText += `\n${choice.content}`;
+
+        // Rilevamento ripetizioni: stesso contenuto assistant per 3 turni
+        const key = choice.content.trim();
+        if (key && key === lastAssistantKey) {
+          repeatCount += 1;
+        } else {
+          lastAssistantKey = key;
+          repeatCount = 0;
+        }
+        if (repeatCount >= 3 && !nudgedRepeat) {
+          nudgedRepeat = true;
+          messages.push({
+            role: 'user',
+            content:
+              'Stai ripetendo la stessa azione/risposta senza progresso. NON ripetere: se un bug e\u0300 gia\u0300 ' +
+              'confermato, documentalo e passa avanti; altrimenti finalizza il test, scrivi report e metadata ' +
+              'e rispondi con CI_STATUS=PASS o CI_STATUS=FAIL.',
+          });
+          console.warn(
+            `[${browser}/${test.id}] Nudge anti-ripetizione (contenuto identico x${repeatCount}).`,
+          );
+        }
       }
 
       const toolCalls = choice.tool_calls ?? [];
-      if (!toolCalls.length) break;
+      if (!toolCalls.length) {
+        completedNaturally = true;
+        break;
+      }
 
       for (const call of toolCalls) {
         const toolResult = await executeToolCall(call, mcp.toolMap, config.mcpToolTimeout);
@@ -296,21 +355,41 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
 
     console.log(`\n--- ${browser} @ ${viewport} - ${test.id} completato ---`);
 
-    if (!finalText.includes('CI_STATUS=PASS')) {
-      console.error(`[${browser}/${test.id}] CI_STATUS non e' PASS.`);
-      return 2;
+    if (!/CI_STATUS=(PASS|FAIL)/.test(finalText)) {
+      // Sessione troncata (budget turni esaurito) o interrotta: status ERROR,
+      // NON un FAIL del test (il test non e' mai giunto a esito).
+      sessionStatus = 'ERROR';
+      sessionReason = completedNaturally
+        ? 'Sessione terminata senza CI_STATUS'
+        : 'Budget turni esaurito (sessione troncata)';
+      console.error(`[${browser}/${test.id}] ${sessionReason}: status ERROR.`);
+      return { exitCode: 2, status: sessionStatus, reason: sessionReason };
     }
 
-    return 0;
+    sessionStatus = finalText.includes('CI_STATUS=PASS') ? 'PASS' : 'FAIL';
+    sessionReason = null;
+    return { exitCode: sessionStatus === 'PASS' ? 0 : 2, status: sessionStatus, reason: null };
   } catch (err) {
     console.error(`[${browser}/${test.id}] Errore sessione: ${err.message}`, err);
-    return 1;
+    sessionStatus = 'ERROR';
+    sessionReason = `Errore sessione: ${err.message}`;
+    return { exitCode: 1, status: sessionStatus, reason: sessionReason };
   } finally {
     const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
     // Costo AI (USD) e durata reale del test: aggiunti ai metadati TEMPORANEI
-    // per-test scritti dall'agente, così l'aggregazione li raccoglie come gli
-    // altri campi.
-    writeTestMeta(stamp, browser, viewport, test.id, sessionCost, durationSeconds);
+    // per-test scritti dall'agente (o creati come fallback minimo se l'agente
+    // non li ha mai scritti), così l'aggregazione li raccoglie come gli altri
+    // campi.
+    writeTestMeta(
+      stamp,
+      browser,
+      viewport,
+      test.id,
+      sessionCost,
+      durationSeconds,
+      sessionStatus,
+      sessionReason,
+    );
     if (mcp?.clients) {
       await closeMcpClients(mcp.clients);
     }
@@ -322,13 +401,37 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
  * per-test `${sessionDir}/metadata/<test-id>.json` scritti dall'agente.
  * Il file viene poi aggregato nel metadata.json di sessione e cancellato.
  */
-function writeTestMeta(stamp, browser, viewport, testId, cost, durationSeconds) {
+function writeTestMeta(stamp, browser, viewport, testId, cost, durationSeconds, status, reason) {
   const path = `${PATHS.reports}/${stamp}/${browser}/${viewport}/metadata/${testId}.json`;
-  if (!existsSync(path)) return;
+  let meta = null;
+  if (existsSync(path)) {
+    try {
+      meta = JSON.parse(readFileSync(path, 'utf8'));
+    } catch (err) {
+      console.warn(`[report] JSON non valido in ${path}: ${err.message}. Uso il fallback.`);
+      meta = null;
+    }
+  }
+  if (!meta) {
+    // Fallback: l'agente non ha scritto i metadata (sessione troncata/errata).
+    // Creo un file minimo cosi' costo e durata sono SEMPRE registrati per test.
+    meta = {
+      id: testId,
+      name: testId,
+      browser,
+      viewport,
+      status: status === 'PASS' || status === 'FAIL' ? status : 'ERROR',
+      summary: reason || "Sessione agente incompleta: metadata non generati dall'agente.",
+      bugs: { high: 0, medium: 0, low: 0 },
+      screenshotPaths: [],
+    };
+    mkdirSync(`${PATHS.reports}/${stamp}/${browser}/${viewport}/metadata`, { recursive: true });
+    console.warn(`[report] Metadata mancanti per ${testId}: creato fallback minimo in ${path}`);
+  }
   try {
-    const meta = JSON.parse(readFileSync(path, 'utf8'));
     meta.cost = roundCost(cost);
     meta.durationSeconds = Math.max(0, Math.round(Number(durationSeconds) || 0));
+    if (reason && meta.status === 'ERROR') meta.reason = reason;
     writeFileSync(path, JSON.stringify(meta, null, 2), 'utf8');
     console.log(
       `[report] Costo AI ${meta.cost} USD e durata ${formatDuration(meta.durationSeconds)} registrati in ${path}`,
@@ -672,7 +775,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   if (!meta) {
     const testsMeta = [];
     const screenshotPaths = [];
-    for (const { test, status } of results) {
+    for (const { test, status, reason } of results) {
       const reportPath = `${sessionDir}/tests/${test.id}.md`;
 
       // Fallback: se l'agente non ha scritto il report Markdown, lo script ne
@@ -685,10 +788,13 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
           `- **Browser:** ${browser} | **Viewport:** ${viewport} | **Modello AI:** ${config.model}`,
           `- **Run:** ${stamp}`,
           `- **Status:** ${status}`,
+          ...(reason ? `- **Motivo:** ${reason}` : []),
           '',
           status === 'PASS'
             ? "Test completato con successo, ma il report Markdown non e' stato generato dall'agente."
-            : "Test fallito e report Markdown non generato dall'agente: verificare i log della sessione.",
+            : status === 'ERROR'
+              ? `Sessione agente incompleta (test non giunto a esito)${reason ? `: ${reason}` : ''}. Report non generato dall'agente: verificare i log della sessione.`
+              : "Test fallito e report Markdown non generato dall'agente: verificare i log della sessione.",
           '',
         ].join('\n');
         mkdirSync(`${sessionDir}/tests`, { recursive: true });
@@ -710,6 +816,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
         id: test.id,
         name: test.name,
         status,
+        ...(reason ? { reason } : {}),
       });
     }
 
@@ -739,7 +846,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     Math.max(0, Math.round((comboTime.end - comboTime.start) / 1000)),
   );
 
-  const testsMeta = results.map(({ test, status }) => {
+  const testsMeta = results.map(({ test, status, reason }) => {
     // Durata del singolo test: dai metadati temporanei per-test
     // (durationSeconds scritti da writeTestMeta), formattata. Fallback: ''.
     const pt = perTestMetas.get(test.id);
@@ -749,6 +856,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
       name: test.name,
       // Lo status osservato dalla CI (CI_STATUS) ha la priorita' su quello dichiarato dall'agente
       status,
+      ...(reason ? { reason } : {}),
       ...(Number.isFinite(testDuration) && testDuration > 0
         ? { duration: formatDuration(testDuration) }
         : {}),
@@ -1045,6 +1153,10 @@ ${projectPrompt}
    "di documentazione", "di stato iniziale" o di pagine che funzionano correttamente. Se il test e' PASS e
    non hai bug da documentare, NON salvare NESSUN screenshot (cartella screenshots/ vuota o non creata).
    Ogni screenshot salvato deve corrispondere a un bug citato nel report.
+   MASSIMO 2 TENTATIVI di screenshot per bug: se lo stato transitorio da catturare non si riproduce dopo
+   2 tentativi, documenta il bug nel report senza screenshot e passa oltre (NON riprovare all'infinito).
+   Se un bug e' stato confermato 2 volte, consideralo confermato: documentalo nel report e passa alla
+   verifica successiva (NON ripetere la stessa riproduzione piu' volte).
    COME salvare uno screenshot (procedura obbligatoria quando trovi un bug):
    1. Crea la cartella se non esiste: ${sessionDir}/screenshots/ (tool filesystem o shell).
    2. Chiama playwright__browser_take_screenshot con il parametro "filename" imposto al percorso
@@ -1103,6 +1215,13 @@ CHECK FINALE (obbligatorio prima di rispondere con CI_STATUS):
 - Ogni bug nel report ha almeno uno screenshot salvato su disco in ${sessionDir}/screenshots/ e linkato inline nel report?
 - "screenshotPaths" in metadata/${test.id}.json elenca TUTTI i file effettivamente presenti in screenshots/?
 - Se hai dichiarato bug ma screenshots/ e' vuota, NON procedere: salva gli screenshot mancanti prima di continuare.
+
+GESTIONE BUDGET (obbligatoria): hai un numero LIMITATO di turni. Gestisci il tempo con criterio:
+- Non ripetere verifiche gia' completate o screenshot gia' tentati.
+- Se ricevi un messaggio che ti chiede di finalizzare, obbedisci IMMEDIATAMENTE: scrivi report e metadata
+  con i dati gia' raccolti e rispondi con CI_STATUS.
+- Se il test non puo' essere completato per tempo, documenta cio' che hai verificato e rispondi comunque
+  con CI_STATUS=FAIL (mai terminare senza CI_STATUS: una sessione senza CI_STATUS viene marcata ERROR).
 
 Quando hai finito (report .md e metadata/${test.id}.json scritti), l'ultima riga della tua risposta deve essere esattamente una di queste:
 CI_STATUS=PASS
