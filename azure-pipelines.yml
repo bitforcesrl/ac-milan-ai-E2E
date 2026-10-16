@@ -70,8 +70,7 @@ jobs:
           E2E_RUN_CONFIG: ${{ parameters.e2eRunConfig }}
 
       - script: |
-          npm ci
-          npx playwright install --with-deps chromium firefox webkit
+          npm ci --omit=dev
         displayName: Install dependencies and browsers
 
       - script: node scripts/run-e2e.mjs --config "$(E2E_CONFIG_FILE)"
