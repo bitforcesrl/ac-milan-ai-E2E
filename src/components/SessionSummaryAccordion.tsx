@@ -52,7 +52,7 @@ export default function SessionSummaryAccordion({ sessions }: { sessions: Sessio
             open={open}
             className="border-grey group overflow-hidden rounded-xl border bg-white shadow-sm open:shadow-md"
           >
-            <summary className="border-grey flex cursor-pointer flex-wrap items-center justify-between gap-3 bg-grey/50 px-5 py-3.5 select-none hover:bg-grey/70 [&::-webkit-details-marker]:hidden">
+            <summary className="border-grey bg-grey/50 hover:bg-grey/70 flex cursor-pointer flex-wrap items-center justify-between gap-3 px-5 py-3.5 select-none [&::-webkit-details-marker]:hidden">
               <span className="flex flex-wrap items-center gap-2 text-sm font-bold">
                 {statusIcon(session.status)}
                 {session.viewport ? (
@@ -119,7 +119,7 @@ export default function SessionSummaryAccordion({ sessions }: { sessions: Sessio
                         <span className="flex shrink-0 items-center gap-2.5">
                           {test.duration && (
                             <span
-                              className="inline-flex items-center gap-1.5 rounded-full border border-grey bg-white px-2.5 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap text-black"
+                              className="border-grey inline-flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap text-black"
                               title="Durata del test"
                             >
                               <Clock size={12} className={metaIcon} aria-hidden="true" />
@@ -136,7 +136,7 @@ export default function SessionSummaryAccordion({ sessions }: { sessions: Sessio
                             </span>
                           ) : (
                             <span
-                              className={`inline-block rounded-full bg-grey border border-grey px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted}`}
+                              className={`bg-grey border-grey inline-block rounded-full border px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted}`}
                             >
                               N/D
                             </span>
