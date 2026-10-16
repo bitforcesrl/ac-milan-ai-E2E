@@ -69,10 +69,6 @@ body {
   @apply bg-white text-black;
 }
 
-p {
-  @apply text-[18px] leading-6;
-}
-
 /* Report Markdown renderizzato nella pagina di dettaglio test (/reports/.../<testId>) */
 .report-markdown {
   @apply border-grey rounded-xl border bg-white p-5 text-[15px] leading-relaxed shadow-sm;
