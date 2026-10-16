@@ -375,7 +375,7 @@ async function initMcpServers(browser, headed, viewport) {
       command: 'npx',
       args: [
         '-y',
-        '@playwright/mcp@latest',
+        '@playwright/mcp',
         // headed e' il default di @playwright/mcp: il flag esiste solo per headless
         ...(headed ? [] : ['--headless']),
         '--isolated',
