@@ -84,6 +84,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       browsers: checked ? [...prev.browsers, id] : prev.browsers.filter((b) => b !== id),
     }));
+    if (checked) setValidationErrors((prev) => ({ ...prev, browsers: undefined }));
   }
 
   function toggleViewport(id: string, checked: boolean) {
@@ -91,6 +92,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       viewports: checked ? [...prev.viewports, id] : prev.viewports.filter((v) => v !== id),
     }));
+    if (checked) setValidationErrors((prev) => ({ ...prev, viewports: undefined }));
   }
 
   function toggleTest(id: string, checked: boolean) {
@@ -98,14 +100,15 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       tests: checked
         ? [
-          ...prev.tests,
-          {
-            id,
-            notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
-          },
-        ]
+            ...prev.tests,
+            {
+              id,
+              notes: E2E_TEST_LIST.find((t) => t.id === id)?.notes ?? '',
+            },
+          ]
         : prev.tests.filter((t) => t.id !== id),
     }));
+    if (checked) setValidationErrors((prev) => ({ ...prev, tests: undefined }));
   }
 
   const allTestsSelected =
@@ -117,9 +120,9 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
       ...prev,
       tests: checked
         ? TESTS.map((t) => ({
-          id: t.id,
-          notes: E2E_TEST_LIST.find((e) => e.id === t.id)?.notes ?? '',
-        }))
+            id: t.id,
+            notes: E2E_TEST_LIST.find((e) => e.id === t.id)?.notes ?? '',
+          }))
         : [],
     }));
   }
@@ -193,7 +196,10 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
     }
     setValidationErrors(errors);
     if (scrollTo) {
-      document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // L'errore non è ancora nel DOM al primo submit: si attende il render
+      requestAnimationFrame(() => {
+        document.getElementById(scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       return false;
     }
     return true;
@@ -264,7 +270,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
               <p
                 id="validation-error-browsers"
                 role="alert"
-                className="text-[0.7rem] leading-4 text-red-600"
+                className="text-sm leading-4 text-red-600"
               >
                 {validationErrors.browsers}
               </p>
@@ -296,7 +302,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
               <p
                 id="validation-error-viewports"
                 role="alert"
-                className="text-[0.7rem] leading-4 text-red-600"
+                className="text-sm leading-4 text-red-600"
               >
                 {validationErrors.viewports}
               </p>
@@ -454,11 +460,7 @@ export default function PipelineForm({ localMode = false }: { localMode?: boolea
             Seleziona tutti
           </label>
           {validationErrors.tests && (
-            <p
-              id="validation-error-tests"
-              role="alert"
-              className="text-[0.7rem] leading-4 text-red-600"
-            >
+            <p id="validation-error-tests" role="alert" className="text-sm leading-4 text-red-600">
               {validationErrors.tests}
             </p>
           )}
