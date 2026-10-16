@@ -36,6 +36,20 @@ function failChip(href?: string) {
   );
 }
 
+function clickableCell(href: string | undefined, chip: React.ReactNode) {
+  if (!href) return chip;
+  return (
+    <Link
+      href={href}
+      className="block w-full"
+      aria-label="Vai al dettaglio del test"
+      style={{ margin: '-12px -12px', padding: '12px 12px' }}
+    >
+      {chip}
+    </Link>
+  );
+}
+
 function ndChip() {
   return (
     <span
@@ -132,7 +146,7 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
               >
                 {rowNames.get(testId)}
               </th>
-              {columns.map(({ session, key }) => {
+              {columns.map(({ key }) => {
                 const cell = cells.get(`${testId}|${key}`);
                 if (!cell) {
                   return (
@@ -161,9 +175,9 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
                     className="border-grey border-r px-3 py-3 text-center last:border-r-0"
                   >
                     {test.status === 'PASS'
-                      ? passChip(test.href)
+                      ? clickableCell(test.href, passChip())
                       : test.status === 'FAIL'
-                        ? failChip(test.href)
+                        ? clickableCell(test.href, failChip())
                         : ndChip()}
                   </td>
                 );
