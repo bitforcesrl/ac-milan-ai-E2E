@@ -2,7 +2,7 @@
 
 import { browserLabel, viewportLabel } from '@/lib/e2e-tests';
 import type { RunSummary } from '@/lib/services';
-import { CheckCircle, HelpCircle, XCircle } from '@deemlol/next-icons';
+import { AlertTriangle, CheckCircle, HelpCircle, XCircle } from '@deemlol/next-icons';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -10,10 +10,27 @@ const muted = 'text-dark-grey';
 const chip =
   'inline-block rounded-full border border-grey bg-grey px-2.5 py-0.5 font-mono text-[0.72rem] font-medium whitespace-nowrap text-black';
 
-function statusIconSvg(kind: 'pass' | 'fail' | 'unknown') {
+type StatusKind = 'pass' | 'fail' | 'error' | 'unknown';
+
+const STATUS_KIND: Record<string, StatusKind> = {
+  PASS: 'pass',
+  FAIL: 'fail',
+  ERROR: 'error',
+};
+
+const STATUS_TEXT: Record<StatusKind, string> = {
+  pass: 'Successo',
+  fail: 'Fallito',
+  error: 'Incompleta: test non giunti a esito',
+  unknown: 'Sconosciuto',
+};
+
+function statusIconSvg(kind: StatusKind) {
   if (kind === 'pass')
     return <CheckCircle size={22} aria-hidden="true" className="text-green-600" />;
   if (kind === 'fail') return <XCircle size={22} aria-hidden="true" className="text-red-600" />;
+  if (kind === 'error')
+    return <AlertTriangle size={22} aria-hidden="true" className="text-orange-600" />;
   return <HelpCircle size={22} aria-hidden="true" className="text-dark-grey" />;
 }
 
@@ -37,11 +54,16 @@ export default function RunRow({ run, style }: { run: RunSummary; style?: React.
     }
   }
 
-  const statusKind = run.status === 'PASS' ? 'pass' : run.status === 'FAIL' ? 'fail' : 'unknown';
-  const statusText =
-    run.status === 'PASS' ? 'Successo' : run.status === 'FAIL' ? 'Fallito' : 'Sconosciuto';
-  const ok = run.total > 0 && run.fail === 0;
-  const outcomeClass = ok ? 'text-green-600' : run.fail > 0 ? 'text-red-600' : '';
+  const statusKind = STATUS_KIND[run.status] ?? 'unknown';
+  const statusText = STATUS_TEXT[statusKind];
+  const ok = run.total > 0 && run.fail === 0 && run.error === 0;
+  const outcomeClass = ok
+    ? 'text-green-600'
+    : run.fail > 0
+      ? 'text-red-600'
+      : run.error > 0
+        ? 'text-orange-600'
+        : '';
 
   const browsers = [...new Set(run.environments.map((e) => e.browser))];
   const viewports = [
@@ -101,7 +123,7 @@ export default function RunRow({ run, style }: { run: RunSummary; style?: React.
         aria-label={statusText}
       >
         <span className="inline-flex items-center justify-center transition-transform duration-200 group-hover:scale-110">
-          {statusIconSvg(statusKind as 'pass' | 'fail' | 'unknown')}
+          {statusIconSvg(statusKind)}
         </span>
       </td>
       <td className="border-grey border-b px-3.5 py-2.5 align-middle">
@@ -117,6 +139,14 @@ export default function RunRow({ run, style }: { run: RunSummary; style?: React.
         <div className={`font-bold whitespace-nowrap ${outcomeClass}`}>
           {run.total > 0 ? `${run.pass}/${run.total} con successo` : 'Nessun test'}
         </div>
+        {run.error > 0 && (
+          <div
+            className="mt-0.5 text-xs font-semibold whitespace-nowrap text-orange-600"
+            title="Test non giunti a esito (ERROR): vedi il dettaglio della run"
+          >
+            {run.error === 1 ? '1 test in errore' : `${run.error} test in errore`}
+          </div>
+        )}
         {run.total > 0 && (
           <div className="bg-grey mt-1.5 h-1.5 max-w-40 overflow-hidden rounded-full">
             <div

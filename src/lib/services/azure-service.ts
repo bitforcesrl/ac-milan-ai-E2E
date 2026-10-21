@@ -152,6 +152,15 @@ async function sasUrl(blobName: string): Promise<string> {
   return `${container.url.replace(/\/$/, '')}/${blobName}?${sas}`;
 }
 
+async function blobExists(blobName: string): Promise<boolean> {
+  const { container } = await getContainer();
+  try {
+    return await container.getBlockBlobClient(blobName).exists();
+  } catch {
+    return false;
+  }
+}
+
 async function downloadText(blobName: string): Promise<string | null> {
   const { container } = await getContainer();
   try {
@@ -196,10 +205,13 @@ function aggregate(
 ) {
   const pass = tests.filter((t) => t.status === 'PASS').length;
   const fail = tests.filter((t) => t.status === 'FAIL').length;
-  const total = pass + fail;
+  // ERROR: test non giunti a esito, contati nel totale
+  const error = tests.filter((t) => t.status === 'ERROR').length;
+  const total = pass + fail + error;
   return {
     pass,
     fail,
+    error,
     total,
     passRate: total > 0 ? Math.round((pass / total) * 100) : 0,
     bugs: {
@@ -208,6 +220,25 @@ function aggregate(
       low: Number(bugs?.low) || 0,
     },
   };
+}
+
+/**
+ * Esito della run: quello scritto dalla pipeline (PASS | FAIL | ERROR) o, per
+ * run legacy senza status, derivato dai conteggi dei test.
+ */
+function statusFrom(
+  rawStatus: string,
+  agg: { fail: number; error: number; total: number },
+): string {
+  if (['PASS', 'FAIL', 'ERROR'].includes(rawStatus)) return rawStatus;
+  if (agg.error > 0) return 'ERROR';
+  if (agg.fail > 0) return 'FAIL';
+  return agg.total > 0 ? 'PASS' : '';
+}
+
+/** Status di un test o sessione: PASS | FAIL | ERROR, '' se sconosciuto. */
+function testStatus(status: string | undefined): string {
+  return status === 'PASS' || status === 'FAIL' || status === 'ERROR' ? status : '';
 }
 
 /**
@@ -221,6 +252,7 @@ function indexEntryToRunSummary(e: RunIndexEntry): RunSummary {
     status: e.status,
     pass: e.pass,
     fail: e.fail,
+    error: e.error,
     total: e.total,
     passRate: e.passRate,
     bugs: e.bugs,
@@ -455,14 +487,7 @@ export class AzureService implements AppService {
       summaries.push({
         runId,
         date: runMeta.date ?? `${runId.slice(0, 10)}T${runId.slice(11).replace(/-/g, ':')}Z`,
-        status:
-          rawStatus === 'PASS' || rawStatus === 'FAIL'
-            ? rawStatus
-            : agg.fail > 0
-              ? 'FAIL'
-              : agg.total > 0
-                ? 'PASS'
-                : '',
+        status: statusFrom(rawStatus, agg),
         ...agg,
         duration,
         cost: Math.round(cost * 1e6) / 1e6,
@@ -514,7 +539,9 @@ export class AzureService implements AppService {
         testRows.push({
           id: testId,
           name: t.name || testId,
-          status: t.status === 'FAIL' ? 'FAIL' : t.status === 'PASS' ? 'PASS' : '',
+          status: testStatus(t.status),
+          errorType: t.errorType ?? '',
+          reason: t.reason ?? '',
           duration: t.duration ?? '',
           href: testId
             ? `/reports/${runId}/${encodeURIComponent(browser)}/${encodeURIComponent(viewport)}/${encodeURIComponent(testId)}`
@@ -525,13 +552,14 @@ export class AzureService implements AppService {
       sessions.push({
         browser,
         viewport,
-        status: meta.status === 'FAIL' ? 'FAIL' : meta.status === 'PASS' ? 'PASS' : '',
+        status: testStatus(meta.status),
         model: meta.model ?? '',
         duration: meta.duration ?? '',
         summary: meta.summary ?? '',
         cost: Math.round((Number(meta.cost) || 0) * 1e6) / 1e6,
         pass: (meta.tests ?? []).filter((t) => t.status === 'PASS').length,
         fail: (meta.tests ?? []).filter((t) => t.status === 'FAIL').length,
+        error: (meta.tests ?? []).filter((t) => t.status === 'ERROR').length,
         tests: testRows,
       });
     }
@@ -542,20 +570,14 @@ export class AzureService implements AppService {
     return {
       runId,
       date: runMeta.date ?? `${runId.slice(0, 10)}T${runId.slice(11).replace(/-/g, ':')}Z`,
-      status:
-        rawStatus === 'PASS' || rawStatus === 'FAIL'
-          ? rawStatus
-          : agg.fail > 0
-            ? 'FAIL'
-            : agg.total > 0
-              ? 'PASS'
-              : '',
+      status: statusFrom(rawStatus, agg),
       ...agg,
       // Durata della run: dal metadata di run (wall-clock)
       duration: runMeta.duration ?? '',
       cost: Math.round(sessions.reduce((acc, s) => acc + s.cost, 0) * 1e6) / 1e6,
       environments: sessionDirs,
       sessions,
+      abortReason: runMeta.abort?.reason ?? '',
     };
   }
 
@@ -584,6 +606,8 @@ export class AzureService implements AppService {
     const entry = (sessionMeta.tests ?? []).find((t) => t.id === testId);
     const status = entry?.status ?? '';
     const duration = entry?.duration ?? '';
+    const errorType = entry?.errorType ?? '';
+    const reason = entry?.reason ?? '';
 
     // Screenshot del test: file in screenshots/ prefissati con "<testId>-"
     // (elencati in sessionMeta.screenshotPaths dalla pipeline).
@@ -603,12 +627,19 @@ export class AzureService implements AppService {
         }),
     );
 
+    // Log completo della sessione del test (run successive all'introduzione dei log)
+    const logBlob = `${runId}/${browser}/${viewport}/logs/${testId}.log`;
+    const logUrl = (await blobExists(logBlob)) ? await sasUrl(logBlob) : '';
+
     return {
       runId,
       browser,
       viewport,
       report,
       status,
+      errorType,
+      reason,
+      logUrl,
       duration,
       screenshots,
     };

@@ -13,8 +13,8 @@ import { join } from 'node:path';
 //   {
 //     "run": "2026-09-28_10-07-34",              // id run (= nome cartella report)
 //     "date": "2026-09-28T10:07:34Z",            // data/ora UTC ISO
-//     "status": "PASS" | "FAIL",
-//     "pass": 3, "fail": 1, "total": 4,
+//     "status": "PASS" | "FAIL" | "ERROR",
+//     "pass": 3, "fail": 1, "error": 1, "total": 5,   // total = pass + fail + error
 //     "passRate": 75,                            // percentuale arrotondata
 //     "bugs": { "high": 0, "medium": 1, "low": 0 },
 //     "duration": "12m 0s",
@@ -22,12 +22,17 @@ import { join } from 'node:path';
 //     "branch": "refs/heads/main"                // opzionale, solo su Azure
 //   }
 //
+// ERROR = test non giunti a esito (o run interrotta).
+//
 // Il file è un array di questi oggetti, ordinato dal più recente al più vecchio.
 // La scrittura è IDEMPOTENTE: upsert per `run`, senza duplicati, preservando
 // i record delle run precedenti.
 // ============================================================================
 
 export const RUN_INDEX_FILE = 'index.json';
+
+/** Esiti ammessi per una run (vedi schema sopra). */
+const RUN_STATUSES = ['PASS', 'FAIL', 'ERROR'];
 
 /** Normalizza un conteggio a intero >= 0. */
 function count(value) {
@@ -42,16 +47,17 @@ function count(value) {
  * @param {object} input
  * @param {string} input.run            Stamp della run (es. "2026-09-28_10-07-34")
  * @param {string} input.date           Data UTC ISO della run
- * @param {boolean} input.hasFailures   true se almeno un test è fallito
+ * @param {string} input.status        Esito della run: PASS | FAIL | ERROR
  * @param {Array<object>} input.sessions  Metadata di sessione (browser, viewport, tests, bugs, duration)
  * @param {string} [input.branch]       Branch sorgente (solo su Azure Pipelines)
  * @returns {object} Record RunIndexEntry
  */
-export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, duration, branch }) {
+export function buildRunIndexEntry({ run, date, status, sessions, cost, duration, branch }) {
   const tests = (sessions ?? []).flatMap((s) => s?.tests ?? []);
   const pass = count(tests.filter((t) => t?.status === 'PASS').length);
   const fail = count(tests.filter((t) => t?.status === 'FAIL').length);
-  const total = pass + fail;
+  const error = count(tests.filter((t) => t?.status === 'ERROR').length);
+  const total = pass + fail + error;
 
   const bugs = { high: 0, medium: 0, low: 0 };
   for (const s of sessions ?? []) {
@@ -72,9 +78,10 @@ export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, dur
   return {
     run,
     date,
-    status: hasFailures ? 'FAIL' : 'PASS',
+    status: RUN_STATUSES.includes(status) ? status : 'FAIL',
     pass,
     fail,
+    error,
     total,
     passRate: total > 0 ? Math.round((pass / total) * 100) : 0,
     bugs,
@@ -97,7 +104,9 @@ export function buildRunIndexEntry({ run, date, hasFailures, sessions, cost, dur
 function normalizeEntry(e) {
   const pass = count(e.pass);
   const fail = count(e.fail);
-  const total = count(e.total) || pass + fail;
+  // Entry legacy senza "error": 0 (il loro total escludeva gli ERROR)
+  const error = count(e.error);
+  const total = count(e.total) || pass + fail + error;
   const bugs = e.bugs && typeof e.bugs === 'object' ? e.bugs : {};
   const environments = Array.isArray(e.environments)
     ? e.environments
@@ -111,9 +120,10 @@ function normalizeEntry(e) {
   const entry = {
     run: e.run,
     date: typeof e.date === 'string' ? e.date : '',
-    status: e.status === 'PASS' || e.status === 'FAIL' ? e.status : '',
+    status: RUN_STATUSES.includes(e.status) ? e.status : '',
     pass,
     fail,
+    error,
     total,
     passRate:
       total > 0

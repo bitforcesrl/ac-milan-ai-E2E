@@ -11,6 +11,7 @@ import type { ReadableStream as WebReadableStream } from 'node:stream/web';
  * Equivale funzionalmente agli URL SAS di Azure Blob usati in modalita' standard.
  *
  * GET /api/reports-asset/<stamp>/<browser>/<viewport>/screenshots/<file>.png
+ * GET /api/reports-asset/<stamp>/<browser>/<viewport>/logs/<test-id>.log
  */
 
 const REPORTS_DIR = PATHS_CONFIG.reports;
@@ -24,6 +25,7 @@ const MIME_BY_EXT: Record<string, string> = {
   '.svg': 'image/svg+xml',
   '.md': 'text/markdown; charset=utf-8',
   '.json': 'application/json',
+  '.log': 'text/plain; charset=utf-8',
 };
 
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
