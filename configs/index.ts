@@ -66,7 +66,7 @@ export const E2E_TESTS: E2ETest[] = [
 
 // ============================================================================
 // BROWSER & VIEWPORT: catalogo unico per script CI, file configs/*.json e
-// form Next.js. Le selezioni per-flusso vivono in configs/ (manual,
+// form Next.js. Le selezioni per-flusso vivono in configs/ (default,
 // pull-request, health-check, local) o arrivano dal form come configJson inline.
 // ============================================================================
 
@@ -78,8 +78,13 @@ export const BROWSERS: BrowserConfig[] = [
 
 // NOTE: per simulare ambienti tablet/mobile è necessario specificare il campo "device" corrispondente al device Playwright da emulare.
 // altrimenti è come si stesse usando un device desktop,
+// Lista dei device disponibili (nome esatto da usare nel campo "device"):
+// https://github.com/microsoft/playwright/blob/main/packages/isomorphic/deviceDescriptorsSource.json
+// Il campo opzionale "size" imposta un viewport personalizzato (es. desktop a 1920x1080:
+// { id: 'desktop', label: 'Desktop (1920x1080)', default: true, size: { width: 1920, height: 1080 } }),
+// mantenendo user-agent, touch e densità di pixel del device emulato.
 export const VIEWPORTS: ViewportConfig[] = [
-  { id: 'desktop', label: 'Desktop', default: true },
+  { id: 'desktop', label: 'Desktop (1440x900)', default: true, size: { width: 1440, height: 900 } },
   { id: 'tablet', label: 'Tablet (iPad gen 11)', default: false, device: 'iPad (gen 11)' },
   { id: 'mobile', label: 'Mobile (iPhone 17 Pro)', default: false, device: 'iPhone 17 Pro' },
 ];
@@ -95,12 +100,18 @@ export const AI_MODELS: string[] = [
 // EMAIL: destinatari di default precompilati nel form Next.js quando la run
 // viene avviata dall'app. La mail in quel caso viene inviata SEMPRE (pass o
 // fail). Per run manuali/schedulate i destinatari vivono in
-// configs/manual.config.json e configs/health-check.config.json
+// configs/default.config.json e configs/health-check.config.json
 // (emailRecipients, invio solo su FAIL), per PR il destinatario e' l'autore
 // della pull request (invio solo su FAIL).
 // ============================================================================
 export const DEFAULT_EMAIL_RECIPIENTS: string[] = [];
 
+// ============================================================================
+// PROMPT PROGETTO: istruzioni specifiche del progetto iniettate nel prompt
+// dell'agente (in scripts/run-e2e.mjs, tra le regole generali e la definizione
+// del test). Il testo generico condiviso resta hardcoded nello script: qui va
+// SOLO la personalizzazione del progetto. Formato libero (Markdown).
+// ============================================================================
 export const PROJECT_PROMPT: string = `
 Istruzioni specifiche del progetto:
 - Il sito e' lo shop ufficiale AC Milan: e-commerce con maglie e prodotti personalizzabili (nome/numero giocatore,
