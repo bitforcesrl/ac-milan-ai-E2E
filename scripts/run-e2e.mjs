@@ -1,7 +1,15 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import 'dotenv/config';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 
 import { createJiti } from 'jiti';
 
@@ -118,9 +126,205 @@ function loadConfig() {
       Number(process.env.OPENROUTER_MAX_TURNS) >= 1
         ? Number(process.env.OPENROUTER_MAX_TURNS)
         : 300,
+    // Timeout della singola chiamata OpenRouter: senza, una richiesta appesa
+    // resta bloccata fino al timeout di default di Node (~5 minuti).
+    llmTimeoutMs:
+      Number(process.env.OPENROUTER_TIMEOUT_MS) >= 1000
+        ? Number(process.env.OPENROUTER_TIMEOUT_MS)
+        : 120000,
     mcpToolTimeout: 180000,
     ...runConfig,
   };
+}
+
+// ============================================================================
+// 1b. MODELLO ERRORI, INTERRUZIONE RUN & LOG DI SESSIONE
+// ============================================================================
+//
+// Ogni test chiude con PASS / FAIL (esito reale dichiarato dall'agente) oppure
+// ERROR (test non giunto a esito) con un errorType che ne classifica la causa.
+
+const ERROR_TYPES = {
+  llm_quota: {
+    label: 'Credito o chiave OpenRouter non validi (HTTP 401/402/403)',
+    hint: 'Verificare credito e limiti della chiave OpenRouter, poi rilanciare la run.',
+  },
+  llm_transient: {
+    label: 'Errore temporaneo OpenRouter (rete, 429, 5xx o timeout) persistente dopo i retry',
+    hint: 'Rilanciare il test; se ricorrente verificare lo stato di OpenRouter e del provider.',
+  },
+  llm_bad_response: {
+    label: 'Risposte anomale del modello (vuote o finish_reason=error) persistenti dopo i retry',
+    hint: 'Rilanciare il test; se ricorrente valutare un altro modello o provider.',
+  },
+  llm_request: {
+    label: 'Richiesta rifiutata da OpenRouter (HTTP 4xx)',
+    hint: 'Verificare modello e parametri della richiesta nel log della sessione.',
+  },
+  no_ci_status: {
+    label: "Il modello ha chiuso la sessione senza dichiarare l'esito (CI_STATUS)",
+    hint: "Leggere l'ultima risposta del modello e il log della sessione, poi rilanciare il test.",
+  },
+  turn_budget: {
+    label: 'Budget turni esaurito prima della conclusione del test',
+    hint: 'Semplificare il test o aumentare OPENROUTER_MAX_TURNS.',
+  },
+  mcp_init: {
+    label: 'Avvio dei server MCP o del browser fallito',
+    hint: "Verificare installazione dei browser Playwright e connettivita' dell'agente.",
+  },
+  mcp_crash: {
+    label: 'Server MCP terminato durante la sessione',
+    hint: "Verificare memoria e risorse dell'agente Azure, poi rilanciare il test.",
+  },
+  aborted: {
+    label: 'Run interrotta (pipeline cancellata o agente arrestato)',
+    hint: "Verificare la run su Azure DevOps e lo stato dell'agente, poi rilanciare.",
+  },
+  skipped: {
+    label: 'Test non avviato: la run era già stata interrotta',
+    hint: "Risolvere la causa dell'interruzione indicata nel dettaglio e rilanciare la run.",
+  },
+  internal: {
+    label: 'Errore interno del runner',
+    hint: 'Consultare lo stack trace nel log della sessione.',
+  },
+};
+
+// Solleciti a dichiarare l'esito quando il modello chiude senza CI_STATUS, e
+// continuazioni concesse per risposte troncate (finish_reason=length): turni
+// extra, non conteggiati nel budget.
+const MAX_CI_STATUS_NUDGES = 2;
+const MAX_LENGTH_NUDGES = 2;
+// Tempo massimo per la finalizzazione dopo SIGTERM/SIGINT prima dell'uscita forzata
+const ABORT_GRACE_MS = 25000;
+
+/** Errore di una chiamata OpenRouter, classificato per decidere retry/abort. */
+class LlmError extends Error {
+  /** @param {'quota'|'transient'|'bad_response'|'request'|'aborted'} kind */
+  constructor(kind, message, httpStatus) {
+    super(message);
+    this.name = 'LlmError';
+    this.kind = kind;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/** Errore che chiude la sessione con un errorType esplicito. */
+class SessionError extends Error {
+  constructor(errorType, message) {
+    super(message);
+    this.name = 'SessionError';
+    this.errorType = errorType;
+  }
+}
+
+// Interruzione globale della run: credito LLM esaurito (le sessioni in corso
+// chiudono alla chiamata successiva, le nuove non partono) o segnale di
+// terminazione (le chiamate in corso vengono annullate via abortController).
+const runAbort = { kind: null, reason: null };
+const abortController = new AbortController();
+
+function triggerRunAbort(kind, reason) {
+  if (runAbort.kind) return;
+  runAbort.kind = kind;
+  runAbort.reason = reason;
+  console.error(`\n[CI ABORT] ${reason}: nessun nuovo test verra' avviato.\n`);
+}
+
+function installProcessHandlers() {
+  let signals = 0;
+  const onSignal = (signal) => {
+    signals += 1;
+    if (signals > 1) {
+      console.error(`[CI] ${signal} ricevuto di nuovo: uscita immediata.`);
+      process.exit(130);
+    }
+    triggerRunAbort(
+      'aborted',
+      `Run interrotta da ${signal} (pipeline cancellata o agente arrestato)`,
+    );
+    abortController.abort();
+    // Rete di sicurezza: se la finalizzazione non termina in tempo, esci comunque
+    setTimeout(() => {
+      console.error('[CI] Finalizzazione oltre il tempo limite: uscita forzata.');
+      process.exit(130);
+    }, ABORT_GRACE_MS).unref();
+  };
+  process.on('SIGTERM', onSignal);
+  process.on('SIGINT', onSignal);
+  // Una promise orfana (es. errore di trasporto MCP) non deve abbattere
+  // l'intera run: la sessione coinvolta viene gestita dal suo flusso.
+  process.on('unhandledRejection', (err) => {
+    console.error('[CI] Promise rejection non gestita (ignorata):', err);
+  });
+}
+
+/**
+ * Logger di una sessione (un test): prefissa ogni riga della console con
+ * [browser/viewport/test] (le sessioni parallele si alternano nel log della
+ * pipeline) e scrive il log completo della sessione in
+ * reports/<run>/<browser>/<viewport>/logs/<test-id>.log.
+ */
+function createSessionLogger({ stamp, browser, viewport, testId }) {
+  const prefix = `[${browser}/${viewport}/${testId}]`;
+  const dir = `${PATHS.reports}/${stamp}/${browser}/${viewport}/logs`;
+  const file = `${dir}/${testId}.log`;
+  try {
+    mkdirSync(dir, { recursive: true });
+  } catch {
+    // il log su file non deve mai bloccare la sessione
+  }
+
+  const append = (level, msg, detail) => {
+    const body = detail ? `${msg}\n${indentBlock(detail)}` : msg;
+    try {
+      appendFileSync(file, `${new Date().toISOString()} ${level.padEnd(5)} ${body}\n`, 'utf8');
+    } catch {
+      // il log su file non deve mai bloccare la sessione
+    }
+  };
+  const prefixed = (msg) =>
+    String(msg)
+      .split('\n')
+      .map((line) => `${prefix} ${line}`)
+      .join('\n');
+
+  return {
+    file,
+    info(msg, detail) {
+      console.log(prefixed(msg));
+      append('INFO', msg, detail);
+    },
+    warn(msg, detail) {
+      console.warn(prefixed(msg));
+      append('WARN', msg, detail);
+    },
+    error(msg, detail) {
+      console.error(prefixed(msg));
+      append('ERROR', msg, detail);
+    },
+    // Solo console (il contenuto e' gia' registrato su file con debug)
+    stdout(msg) {
+      console.log(prefixed(msg));
+    },
+    // Solo su file: dettagli voluminosi (contenuti completi, argomenti dei tool)
+    debug(msg, detail) {
+      append('DEBUG', msg, detail);
+    },
+  };
+}
+
+function indentBlock(text) {
+  return String(text)
+    .split('\n')
+    .map((line) => `    ${line}`)
+    .join('\n');
+}
+
+function truncate(text, max) {
+  const s = String(text ?? '');
+  return s.length > max ? `${s.slice(0, max)}… [troncato, ${s.length} caratteri]` : s;
 }
 
 // ============================================================================
@@ -137,6 +341,7 @@ async function main() {
   }
 
   const stamp = buildRunStamp();
+  installProcessHandlers();
 
   // Unità di esecuzione: browser x viewport x test
   const units = config.browsers.flatMap((browser) =>
@@ -154,7 +359,6 @@ async function main() {
   console.log(`Browser MCP: ${config.browserMode}`);
   console.log(`Cartella run: ${PATHS.reports}/${stamp}\n`);
 
-  let hasFailures = false;
   const sessionMetas = [];
   const resultsByCombo = new Map();
   // Finestra temporale reale (wall clock) per combo browser/viewport: min start
@@ -163,23 +367,26 @@ async function main() {
   // per-test sovrastimerebbe).
   const comboTimes = new Map();
   let cursor = 0;
+  // Wall clock dell'intera run: start prima del pool, end dopo Promise.all
+  const runStartedAt = Date.now();
 
   async function worker() {
     while (cursor < units.length) {
       const unit = units[cursor++];
       const comboKey = `${unit.browser}/${unit.viewport}`;
 
-      console.log(
-        `\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`,
-      );
-
       const startedAt = Date.now();
-      const { exitCode, status, reason } = await runSession(
-        unit,
-        config,
-        stamp,
-        config.browserMode === 'headed',
-      );
+      let result;
+      if (runAbort.kind) {
+        // Run interrotta (credito LLM esaurito o segnale): il test non parte
+        result = skipUnit(unit, stamp);
+      } else {
+        console.log(
+          `\n========== E2E: ${unit.browser} @ ${unit.viewport} - test: ${unit.test.id} - Model: ${config.model} ==========\n`,
+        );
+        result = await runSession(unit, config, stamp, config.browserMode === 'headed');
+      }
+      const { exitCode, status, errorType, reason, statusSource } = result;
       const endedAt = Date.now();
 
       // Finestra temporale della combo: min start / max end dei suoi test
@@ -195,21 +402,20 @@ async function main() {
       resultsByCombo.get(comboKey).push({
         test: unit.test,
         // Status osservato dalla CI: PASS / FAIL (dichiarato dall'agente) o
-        // ERROR (sessione troncata/errata senza CI_STATUS).
+        // ERROR (test non giunto a esito, causa in errorType/reason).
         status,
+        ...(errorType ? { errorType } : {}),
         ...(reason ? { reason } : {}),
+        ...(statusSource ? { statusSource } : {}),
       });
 
       if (exitCode !== 0) {
-        hasFailures = true;
         process.exitCode = Math.max(process.exitCode || 0, exitCode);
       }
     }
   }
 
   const poolSize = Math.min(config.maxParallelSessions, units.length);
-  // Wall clock dell'intera run: start prima del pool, end dopo Promise.all
-  const runStartedAt = Date.now();
   await Promise.all(Array.from({ length: poolSize }, worker));
   const runDurationSeconds = Math.max(0, Math.round((Date.now() - runStartedAt) / 1000));
 
@@ -230,11 +436,20 @@ async function main() {
     }
   }
 
-  writeRunMetadata(stamp, config, hasFailures, sessionMetas, runDurationSeconds);
-  updateRunsIndex(stamp, config, hasFailures, sessionMetas, runDurationSeconds);
+  const runStatus = computeOutcomeStatus(sessionMetas.flatMap((s) => s.tests));
+  writeRunMetadata(stamp, config, runStatus, sessionMetas, runDurationSeconds);
+  updateRunsIndex(stamp, runStatus, sessionMetas, runDurationSeconds);
+  cleanupMcpOutput(stamp);
 
-  if (hasFailures) {
-    console.error('\n[CI FAIL] Uno o più test/browser hanno fallito.');
+  if (runAbort.kind) {
+    console.error(`\n[CI ABORT] Run interrotta: ${runAbort.reason}`);
+  }
+  if (runStatus !== 'PASS') {
+    console.error(
+      runStatus === 'ERROR'
+        ? '\n[CI ERROR] Uno o più test non sono giunti a esito (vedi errorType/reason nei report).'
+        : '\n[CI FAIL] Uno o più test/browser hanno fallito.',
+    );
     // Marker file per la pipeline Azure DevOps: il job e2e gira con
     // continueOnError=true (upload report + email devono partire comunque),
     // quindi lo step finale "fail-pipeline" legge questo file per capire se
@@ -256,15 +471,29 @@ async function main() {
 // ============================================================================
 
 async function runSession({ browser, viewport, test }, config, stamp, headed) {
+  const log = createSessionLogger({ stamp, browser, viewport, testId: test.id });
+  // Diagnostica della sessione: alimenta il report di fallback quando il test
+  // non giunge a esito (ultima risposta, ultime azioni, finish_reason...).
+  const diag = {
+    turns: 0,
+    lastFinishReason: null,
+    lastNativeFinishReason: null,
+    lastAssistantText: '',
+    recentTools: [],
+    toolErrors: 0,
+    ciStatusNudges: 0,
+    lengthNudges: 0,
+  };
   let mcp;
   let sessionCost = 0;
   // Durata reale del singolo test (wall clock, Date.now())
   const startedAt = Date.now();
-  // Status osservato dalla CI: default ERROR (sessione non completata).
-  let sessionStatus = 'ERROR';
-  let sessionReason = null;
+  // Esito osservato dalla CI: default ERROR (sessione non completata).
+  let outcome = { status: 'ERROR', errorType: 'internal', reason: 'Sessione non completata' };
+
+  log.info(`Avvio sessione (modello ${config.model}, budget ${config.maxTurns} turni).`);
   try {
-    mcp = await initMcpServers(browser, headed, viewport);
+    mcp = await initMcpWithRetry(browser, headed, viewport, stamp, test.id, log);
     const messages = [
       { role: 'user', content: buildPrompt(browser, viewport, test, config.model, stamp, headed) },
     ];
@@ -278,7 +507,13 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
     // True se l'agente ha chiuso naturalmente (risposta senza tool call)
     let completedNaturally = false;
 
-    for (let turn = 0; turn < config.maxTurns; turn++) {
+    // I solleciti (CI_STATUS mancante, risposta troncata) sono turni extra
+    for (let turn = 0; turn < config.maxTurns + diag.ciStatusNudges + diag.lengthNudges; turn++) {
+      // Run interrotta (credito esaurito o segnale): chiusura alla prossima chiamata
+      if (runAbort.kind) {
+        throw new SessionError(runAbort.kind, runAbort.reason);
+      }
+
       // Nudge a soglia: turni in esaurimento, finalizzare subito
       if (turn === nudgeTurn) {
         messages.push({
@@ -288,34 +523,41 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
             `finalizza ORA il test, scrivi il report ${stamp}/tests/${test.id}.md e i metadata, ` +
             'e rispondi con CI_STATUS=PASS o CI_STATUS=FAIL.',
         });
-        console.warn(
-          `[${browser}/${test.id}] Nudge finalizzazione a turno ${turn}/${config.maxTurns}.`,
-        );
+        log.warn(`Nudge finalizzazione a turno ${turn}/${config.maxTurns}.`);
       }
 
-      const response = await chatCompletion(messages, mcp.tools, config);
-      const choice = response.choices?.[0]?.message;
+      const { data: response, cost: callCost } = await chatCompletion(
+        messages,
+        mcp.tools,
+        config,
+        log,
+      );
+      sessionCost += callCost;
 
-      // Costo della singola chiamata (USD), fornito da OpenRouter con usage: { include: true }
-      const callCost = Number(response.usage?.cost);
-      if (Number.isFinite(callCost) && callCost > 0) {
-        sessionCost += callCost;
-      }
+      // chatCompletion garantisce una choice con contenuto o tool call
+      const choice = response.choices[0];
+      const message = choice.message;
+      const toolCalls = message.tool_calls ?? [];
+      diag.turns = turn + 1;
+      diag.lastFinishReason = choice.finish_reason ?? null;
+      diag.lastNativeFinishReason = choice.native_finish_reason ?? null;
+      log.debug(
+        `[llm] turno ${turn + 1} finish_reason=${choice.finish_reason ?? 'n/d'} ` +
+          `native=${choice.native_finish_reason ?? 'n/d'} tool_calls=${toolCalls.length} ` +
+          `token=${response.usage?.prompt_tokens ?? '?'}/${response.usage?.completion_tokens ?? '?'} ` +
+          `costo=${callCost.toFixed(6)}`,
+        message.content || undefined,
+      );
 
-      if (!choice) {
-        console.error(`[${browser}/${test.id}] Nessuna risposta ricevuta da OpenRouter.`);
-        sessionReason = 'Nessuna risposta da OpenRouter';
-        return { exitCode: 2, status: sessionStatus, reason: sessionReason };
-      }
+      messages.push(message);
 
-      messages.push(choice);
-
-      if (choice.content) {
-        process.stdout.write(choice.content);
-        finalText += `\n${choice.content}`;
+      if (message.content) {
+        log.stdout(`[assistant] ${message.content}`);
+        finalText += `\n${message.content}`;
+        diag.lastAssistantText = message.content;
 
         // Rilevamento ripetizioni: stesso contenuto assistant per 3 turni
-        const key = choice.content.trim();
+        const key = message.content.trim();
         if (key && key === lastAssistantKey) {
           repeatCount += 1;
         } else {
@@ -327,81 +569,212 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
           messages.push({
             role: 'user',
             content:
-              'Stai ripetendo la stessa azione/risposta senza progresso. NON ripetere: se un bug e\u0300 gia\u0300 ' +
+              'Stai ripetendo la stessa azione/risposta senza progresso. NON ripetere: se un bug è già ' +
               'confermato, documentalo e passa avanti; altrimenti finalizza il test, scrivi report e metadata ' +
               'e rispondi con CI_STATUS=PASS o CI_STATUS=FAIL.',
           });
-          console.warn(
-            `[${browser}/${test.id}] Nudge anti-ripetizione (contenuto identico x${repeatCount}).`,
-          );
+          log.warn(`Nudge anti-ripetizione (contenuto identico x${repeatCount}).`);
         }
       }
 
-      const toolCalls = choice.tool_calls ?? [];
       if (!toolCalls.length) {
+        if (lastCiStatus(finalText)) {
+          completedNaturally = true;
+          break;
+        }
+        // Risposta troncata per lunghezza: chiedi di continuare
+        if (choice.finish_reason === 'length' && diag.lengthNudges < MAX_LENGTH_NUDGES) {
+          diag.lengthNudges += 1;
+          messages.push({
+            role: 'user',
+            content:
+              'La tua risposta è stata troncata per lunghezza. Continua da dove eri rimasto, in modo conciso.',
+          });
+          log.warn(`Risposta troncata (finish_reason=length): richiesta di continuare.`);
+          continue;
+        }
+        // Chiusura senza esito: sollecita la dichiarazione di CI_STATUS
+        if (diag.ciStatusNudges < MAX_CI_STATUS_NUDGES) {
+          diag.ciStatusNudges += 1;
+          messages.push({
+            role: 'user',
+            content:
+              "Non hai ancora dichiarato l'esito del test. Se il test non è concluso, completalo usando i tool; " +
+              `altrimenti verifica che il report ${stamp}/tests/${test.id}.md e i metadata siano scritti e termina ` +
+              'la risposta con CI_STATUS=PASS o CI_STATUS=FAIL.',
+          });
+          log.warn(
+            `Risposta senza tool call e senza CI_STATUS (finish_reason=${choice.finish_reason ?? 'n/d'}): ` +
+              `sollecito ${diag.ciStatusNudges}/${MAX_CI_STATUS_NUDGES}.`,
+          );
+          continue;
+        }
         completedNaturally = true;
         break;
       }
 
       for (const call of toolCalls) {
-        const toolResult = await executeToolCall(call, mcp.toolMap, config.mcpToolTimeout);
+        const toolResult = await executeToolCall(call, mcp, config.mcpToolTimeout, log, diag);
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
           content: toolResult,
         });
       }
+
+      // Server MCP terminato: inutile proseguire alla cieca (se la run e' stata
+      // interrotta, il server e' caduto per lo stesso segnale: vale l'abort)
+      if (mcp.dead && !runAbort.kind) {
+        throw new SessionError(
+          'mcp_crash',
+          `Server MCP "${mcp.dead}" terminato durante la sessione (turno ${turn + 1})`,
+        );
+      }
     }
 
-    console.log(`\n--- ${browser} @ ${viewport} - ${test.id} completato ---`);
-
-    if (!/CI_STATUS=(PASS|FAIL)/.test(finalText)) {
-      // Sessione troncata (budget turni esaurito) o interrotta: status ERROR,
-      // NON un FAIL del test (il test non e' mai giunto a esito).
-      sessionStatus = 'ERROR';
-      sessionReason = completedNaturally
-        ? 'Sessione terminata senza CI_STATUS'
-        : 'Budget turni esaurito (sessione troncata)';
-      console.error(`[${browser}/${test.id}] ${sessionReason}: status ERROR.`);
-      return { exitCode: 2, status: sessionStatus, reason: sessionReason };
-    }
-
-    sessionStatus = finalText.includes('CI_STATUS=PASS') ? 'PASS' : 'FAIL';
-    sessionReason = null;
-    return { exitCode: sessionStatus === 'PASS' ? 0 : 2, status: sessionStatus, reason: null };
-  } catch (err) {
-    console.error(`[${browser}/${test.id}] Errore sessione: ${err.message}`, err);
-    sessionStatus = 'ERROR';
-    sessionReason = `Errore sessione: ${err.message}`;
-    return { exitCode: 1, status: sessionStatus, reason: sessionReason };
-  } finally {
-    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-    // Costo AI (USD) e durata reale del test: aggiunti ai metadati TEMPORANEI
-    // per-test scritti dall'agente (o creati come fallback minimo se l'agente
-    // non li ha mai scritti), così l'aggregazione li raccoglie come gli altri
-    // campi.
-    writeTestMeta(
+    outcome = resolveOutcome({
+      finalText,
+      completedNaturally,
+      diag,
+      config,
       stamp,
       browser,
       viewport,
-      test.id,
-      sessionCost,
-      durationSeconds,
-      sessionStatus,
-      sessionReason,
+      test,
+    });
+  } catch (err) {
+    outcome = outcomeFromError(err);
+    if (err instanceof LlmError && err.kind === 'quota') {
+      triggerRunAbort('llm_quota', `Credito o chiave OpenRouter non validi: ${err.message}`);
+    }
+    log.error(`Errore sessione [${outcome.errorType}]: ${err.message}`, err.stack);
+  } finally {
+    const durationSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+    log.info(
+      `Esito ${outcome.status}${outcome.errorType ? ` [${outcome.errorType}]` : ''}` +
+        `${outcome.reason ? `: ${outcome.reason}` : ''} — ${diag.turns} turni, ` +
+        `${formatDuration(durationSeconds)}, ${roundCost(sessionCost)} USD.`,
     );
+    // Costo AI, durata, esito CI e diagnostica: aggiunti ai metadati TEMPORANEI
+    // per-test scritti dall'agente (o creati come fallback minimo se l'agente
+    // non li ha mai scritti), così l'aggregazione li raccoglie come gli altri
+    // campi.
+    writeTestMeta(stamp, browser, viewport, test.id, {
+      cost: sessionCost,
+      durationSeconds,
+      outcome,
+      diagnostics: diag,
+      logFile: toBlobPath(log.file),
+    });
     if (mcp?.clients) {
+      mcp.closing = true;
       await closeMcpClients(mcp.clients);
     }
   }
+
+  return { exitCode: outcome.status === 'PASS' ? 0 : 2, ...outcome };
+}
+
+/** Ultimo CI_STATUS dichiarato nel testo dell'agente (PASS/FAIL) o null. */
+function lastCiStatus(text) {
+  const matches = [...String(text).matchAll(/CI_STATUS=(PASS|FAIL)/g)];
+  return matches.length ? matches[matches.length - 1][1] : null;
 }
 
 /**
- * Aggiunge i campi "cost" (USD) e "durationSeconds" ai metadati temporanei
- * per-test `${sessionDir}/metadata/<test-id>.json` scritti dall'agente.
- * Il file viene poi aggregato nel metadata.json di sessione e cancellato.
+ * Esito di una sessione conclusa senza eccezioni: CI_STATUS dichiarato,
+ * altrimenti lo status scritto dall'agente nei metadata del test, altrimenti
+ * ERROR (budget turni esaurito o chiusura senza CI_STATUS).
  */
-function writeTestMeta(stamp, browser, viewport, testId, cost, durationSeconds, status, reason) {
+function resolveOutcome({
+  finalText,
+  completedNaturally,
+  diag,
+  config,
+  stamp,
+  browser,
+  viewport,
+  test,
+}) {
+  const declared = lastCiStatus(finalText);
+  if (declared) return { status: declared, statusSource: 'ci' };
+
+  const missing = completedNaturally
+    ? `il modello ha chiuso la sessione senza CI_STATUS dopo ${diag.ciStatusNudges} solleciti ` +
+      `(ultimo finish_reason: ${diag.lastFinishReason ?? 'n/d'})`
+    : `budget di ${config.maxTurns} turni esaurito senza CI_STATUS`;
+
+  const agentStatus = readAgentDeclaredStatus(stamp, browser, viewport, test.id);
+  if (agentStatus) {
+    return {
+      status: agentStatus,
+      statusSource: 'agent-metadata',
+      reason: `Esito letto dai metadata scritti dall'agente: ${missing}.`,
+    };
+  }
+
+  return {
+    status: 'ERROR',
+    errorType: completedNaturally ? 'no_ci_status' : 'turn_budget',
+    reason: `${missing.charAt(0).toUpperCase()}${missing.slice(1)}.`,
+  };
+}
+
+/** Converte un'eccezione della sessione in un esito ERROR classificato. */
+function outcomeFromError(err) {
+  if (err instanceof SessionError) {
+    return { status: 'ERROR', errorType: err.errorType, reason: err.message };
+  }
+  if (err instanceof LlmError) {
+    const errorType = {
+      quota: 'llm_quota',
+      transient: 'llm_transient',
+      bad_response: 'llm_bad_response',
+      request: 'llm_request',
+      aborted: runAbort.kind ?? 'aborted',
+    }[err.kind];
+    return { status: 'ERROR', errorType, reason: err.message };
+  }
+  return { status: 'ERROR', errorType: 'internal', reason: err?.message ?? String(err) };
+}
+
+/** Status PASS/FAIL scritto dall'agente in metadata/<test-id>.json, o null. */
+function readAgentDeclaredStatus(stamp, browser, viewport, testId) {
+  const path = `${PATHS.reports}/${stamp}/${browser}/${viewport}/metadata/${testId}.json`;
+  if (!existsSync(path)) return null;
+  try {
+    const status = JSON.parse(readFileSync(path, 'utf8'))?.status;
+    return status === 'PASS' || status === 'FAIL' ? status : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Esito di un test non avviato perche' la run era gia' stata interrotta. */
+function skipUnit({ browser, viewport, test }, stamp) {
+  const outcome = {
+    status: 'ERROR',
+    errorType: 'skipped',
+    reason: `Test non avviato: ${runAbort.reason}`,
+  };
+  console.warn(`[${browser}/${viewport}/${test.id}] ${outcome.reason}`);
+  writeTestMeta(stamp, browser, viewport, test.id, { cost: 0, durationSeconds: 0, outcome });
+  return { exitCode: 2, ...outcome };
+}
+
+/**
+ * Aggiunge costo (USD), durata, esito CI e diagnostica ai metadati
+ * temporanei per-test `${sessionDir}/metadata/<test-id>.json` scritti
+ * dall'agente. Il file viene poi aggregato nel metadata.json di sessione e
+ * cancellato.
+ */
+function writeTestMeta(
+  stamp,
+  browser,
+  viewport,
+  testId,
+  { cost, durationSeconds, outcome, diagnostics, logFile },
+) {
   const path = `${PATHS.reports}/${stamp}/${browser}/${viewport}/metadata/${testId}.json`;
   let meta = null;
   if (existsSync(path)) {
@@ -420,22 +793,25 @@ function writeTestMeta(stamp, browser, viewport, testId, cost, durationSeconds, 
       name: testId,
       browser,
       viewport,
-      status: status === 'PASS' || status === 'FAIL' ? status : 'ERROR',
-      summary: reason || "Sessione agente incompleta: metadata non generati dall'agente.",
+      status: outcome.status,
+      summary: outcome.reason || "Sessione agente incompleta: metadata non generati dall'agente.",
       bugs: { high: 0, medium: 0, low: 0 },
       screenshotPaths: [],
+      // Distingue i metadata generati dalla CI da quelli scritti dall'agente
+      generatedBy: 'ci',
     };
     mkdirSync(`${PATHS.reports}/${stamp}/${browser}/${viewport}/metadata`, { recursive: true });
-    console.warn(`[report] Metadata mancanti per ${testId}: creato fallback minimo in ${path}`);
   }
   try {
     meta.cost = roundCost(cost);
     meta.durationSeconds = Math.max(0, Math.round(Number(durationSeconds) || 0));
-    if (reason && meta.status === 'ERROR') meta.reason = reason;
+    meta.ciStatus = outcome.status;
+    if (outcome.errorType) meta.errorType = outcome.errorType;
+    if (outcome.reason) meta.reason = outcome.reason;
+    if (outcome.statusSource) meta.statusSource = outcome.statusSource;
+    if (diagnostics) meta.diagnostics = diagnostics;
+    if (logFile) meta.log = logFile;
     writeFileSync(path, JSON.stringify(meta, null, 2), 'utf8');
-    console.log(
-      `[report] Costo AI ${meta.cost} USD e durata ${formatDuration(meta.durationSeconds)} registrati in ${path}`,
-    );
   } catch (err) {
     console.warn(`[report] Impossibile registrare costo/durata in ${path}: ${err.message}`);
   }
@@ -449,7 +825,7 @@ function writeTestMeta(stamp, browser, viewport, testId, cost, durationSeconds, 
 // flag --device con i descrittori di Playwright (viewport + isMobile + hasTouch
 // + user-agent). Il viewport reale e' SEMPRE quello del device emulato.
 // - tablet/mobile: device dal catalogo configs/index.ts (campo "device" su
-//   VIEWPORTS, es. "iPhone 17 Pro", "iPad Pro 11").
+//   VIEWPORTS, es. "iPhone 17 Pro", "iPad (gen 11)").
 // - desktop: device derivato dall'engine (proprieta' dell'engine, non config
 //   utente).
 function deviceForViewport(viewport) {
@@ -466,7 +842,25 @@ function deviceForBrowser(browser) {
   return DESKTOP_DEVICE_BY_BROWSER[browser];
 }
 
-async function initMcpServers(browser, headed, viewport) {
+// Cartella degli output automatici di @playwright/mcp (snapshot, log console):
+// una per sessione, cosi' le sessioni parallele non si cancellano i file a
+// vicenda. Resta dentro la working directory perche' l'agente li legge con i
+// tool filesystem; viene rimossa a fine run (cleanupMcpOutput).
+const MCP_OUTPUT_ROOT = '.playwright-mcp';
+
+function mcpOutputDir(stamp, browser, viewport, testId) {
+  return `${process.cwd()}/${MCP_OUTPUT_ROOT}/${stamp}/${browser}-${viewport}-${testId}`;
+}
+
+function cleanupMcpOutput(stamp) {
+  try {
+    rmSync(`${MCP_OUTPUT_ROOT}/${stamp}`, { recursive: true, force: true });
+  } catch (err) {
+    console.warn(`[mcp] Impossibile rimuovere ${MCP_OUTPUT_ROOT}/${stamp}: ${err.message}`);
+  }
+}
+
+async function initMcpServers(browser, headed, viewport, outputDir, log) {
   const cwd = process.cwd();
   // Priorita' al device del viewport (mobile/tablet); fallback al device del
   // browser (desktop).
@@ -487,6 +881,8 @@ async function initMcpServers(browser, headed, viewport) {
         // Device emulation REALE per tutti gli ambienti: il viewport reale e'
         // sempre quello del device emulato.
         ...(device ? ['--device', device] : []),
+        '--output-dir',
+        outputDir,
       ],
       env: { ...process.env, PLAYWRIGHT_MCP_BROWSER: browser, PLAYWRIGHT_MCP_ISOLATED: 'true' },
     },
@@ -502,45 +898,76 @@ async function initMcpServers(browser, headed, viewport) {
     },
   ];
 
-  const clients = [];
-  const tools = [];
-  const toolMap = new Map();
+  // dead: nome del server MCP terminato durante la sessione (null se tutti vivi)
+  // closing: true durante la chiusura volontaria (non e' un crash)
+  const mcp = { clients: [], tools: [], toolMap: new Map(), dead: null, closing: false };
 
-  for (const s of serverConfigs) {
-    const transport = new StdioClientTransport({
-      command: s.command,
-      args: s.args,
-      cwd,
-      env: s.env,
-    });
-    const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
-
-    console.log(`[mcp] Connessione a ${s.name}...`);
-    await client.connect(transport);
-
-    const { tools: mcpTools } = await client.listTools();
-    for (const t of mcpTools) {
-      const exposedName = `${s.name}__${t.name}`;
-      tools.push({
-        type: 'function',
-        function: {
-          name: exposedName,
-          description: `[${s.name}] ${t.description ?? ''}`,
-          parameters: t.inputSchema ?? { type: 'object', properties: {} },
-        },
+  try {
+    for (const s of serverConfigs) {
+      const transport = new StdioClientTransport({
+        command: s.command,
+        args: s.args,
+        cwd,
+        env: s.env,
       });
-      toolMap.set(exposedName, { client, mcpName: t.name });
-    }
+      const client = new Client({ name: 'e2e-ci-agent', version: '1.0.0' });
 
-    clients.push(client);
-    console.log(`[mcp] ${s.name}: ${mcpTools.length} tool caricati`);
+      log.info(`[mcp] Connessione a ${s.name}...`);
+      await client.connect(transport);
+      mcp.clients.push(client);
+      client.onclose = () => {
+        if (mcp.closing || mcp.dead) return;
+        mcp.dead = s.name;
+        log.error(`[mcp] Server ${s.name} terminato inaspettatamente.`);
+      };
+
+      const { tools: mcpTools } = await client.listTools();
+      for (const t of mcpTools) {
+        const exposedName = `${s.name}__${t.name}`;
+        mcp.tools.push({
+          type: 'function',
+          function: {
+            name: exposedName,
+            description: `[${s.name}] ${t.description ?? ''}`,
+            parameters: t.inputSchema ?? { type: 'object', properties: {} },
+          },
+        });
+        mcp.toolMap.set(exposedName, { client, mcpName: t.name });
+      }
+
+      log.info(`[mcp] ${s.name}: ${mcpTools.length} tool caricati`);
+    }
+  } catch (err) {
+    // Avvio parziale: chiudi i server gia' avviati prima di propagare l'errore
+    mcp.closing = true;
+    await closeMcpClients(mcp.clients);
+    throw err;
   }
 
-  console.log(`[mcp] Totale tool disponibili per ${browser}: ${tools.length}`);
-  return { clients, tools, toolMap };
+  log.info(`[mcp] Totale tool disponibili per ${browser}: ${mcp.tools.length}`);
+  return mcp;
 }
 
-async function executeToolCall(call, toolMap, timeout) {
+/** Avvio MCP con un retry (download npx o avvio browser possono fallire). */
+async function initMcpWithRetry(browser, headed, viewport, stamp, testId, log) {
+  const outputDir = mcpOutputDir(stamp, browser, viewport, testId);
+  mkdirSync(outputDir, { recursive: true });
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await initMcpServers(browser, headed, viewport, outputDir, log);
+    } catch (err) {
+      // Run interrotta: i server possono cadere per lo stesso segnale
+      if (runAbort.kind) throw new SessionError(runAbort.kind, runAbort.reason);
+      if (attempt >= 2) {
+        throw new SessionError('mcp_init', `Avvio dei server MCP fallito: ${err.message}`);
+      }
+      log.warn(`[mcp] Avvio fallito (${err.message}): nuovo tentativo tra 3s.`);
+      await sleep(3000);
+    }
+  }
+}
+
+async function executeToolCall(call, mcp, timeout, log, diag) {
   const name = call.function.name;
   let args = {};
 
@@ -550,16 +977,19 @@ async function executeToolCall(call, toolMap, timeout) {
     args = {};
   }
 
-  console.log(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
+  log.info(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
+  log.debug(`[tool] ${name} argomenti completi`, truncate(JSON.stringify(args, null, 2), 5000));
   const startedAt = Date.now();
   let rawResult;
+  let error = null;
 
   try {
-    const entry = toolMap.get(name);
+    const entry = mcp.toolMap.get(name);
     if (!entry) throw new Error(`Tool sconosciuto: ${name}`);
 
     const res = await entry.client.callTool({ name: entry.mcpName, arguments: args }, undefined, {
       timeout,
+      signal: abortController.signal,
     });
 
     const parts = Array.isArray(res.content) ? res.content : [];
@@ -571,14 +1001,25 @@ async function executeToolCall(call, toolMap, timeout) {
           return `[${p.type}]`;
         })
         .join('\n') || JSON.stringify(res);
+    // Errore applicativo del tool (es. file inesistente): risultato con isError
+    if (res.isError) error = String(rawResult).slice(0, 300);
   } catch (err) {
-    const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-    console.error(`[tool] ${name} FALLITO dopo ${duration}s: ${err.message}`);
+    error = err.message;
     rawResult = `TOOL ERROR: ${err.message}`;
   }
 
   const duration = ((Date.now() - startedAt) / 1000).toFixed(1);
-  console.log(`[tool] ${name} completato in ${duration}s (${String(rawResult).length} chars)`);
+  if (error) {
+    diag.toolErrors += 1;
+    log.warn(`[tool] ${name} FALLITO dopo ${duration}s: ${error}`);
+  } else {
+    log.info(`[tool] ${name} completato in ${duration}s (${String(rawResult).length} chars)`);
+  }
+  log.debug(`[tool] ${name} risultato`, truncate(rawResult, 2000));
+  diag.recentTools = [
+    ...diag.recentTools,
+    { turn: diag.turns, name, ok: !error, error, duration: `${duration}s` },
+  ].slice(-10);
 
   return String(rawResult).slice(0, 200000);
 }
@@ -591,7 +1032,39 @@ async function closeMcpClients(clients) {
 // 5. CLIENT OPENROUTER (LLM)
 // ============================================================================
 
-async function chatCompletion(messages, tools, config) {
+/** Classe di errore di una risposta HTTP non-OK di OpenRouter. */
+function classifyHttpStatus(status) {
+  // 401 chiave non valida, 402 credito insufficiente, 403 limite della chiave
+  if (status === 401 || status === 402 || status === 403) return 'quota';
+  if (status === 408 || status === 429 || status >= 500) return 'transient';
+  return 'request';
+}
+
+/**
+ * Anomalia di una risposta HTTP 200: OpenRouter puo' restituire 200 con un
+ * errore del provider nel body o con finish_reason=error e contenuto vuoto.
+ * Ritorna la descrizione dell'anomalia o null se la risposta e' utilizzabile.
+ */
+function responseAnomaly(data) {
+  if (data?.error)
+    return `errore del provider nella risposta: ${JSON.stringify(data.error).slice(0, 300)}`;
+  const choice = data?.choices?.[0];
+  if (!choice?.message) return 'risposta senza choices';
+  if (choice.finish_reason === 'error') {
+    return `finish_reason=error (native_finish_reason=${choice.native_finish_reason ?? 'n/d'})`;
+  }
+  if (!choice.message.content?.trim() && !choice.message.tool_calls?.length) {
+    return `risposta vuota (finish_reason=${choice.finish_reason ?? 'n/d'})`;
+  }
+  return null;
+}
+
+/**
+ * Chiamata chat completions con retry sugli errori transitori e sulle
+ * risposte anomale. Ritorna { data, cost } dove cost (USD) somma anche i
+ * tentativi scartati. Solleva LlmError classificato.
+ */
+async function chatCompletion(messages, tools, config, log) {
   // Con tools vuoti (chiamate di puro testo, es. summary di sessione) li omettiamo.
   // usage.include: true -> OpenRouter include usage e costo (usage.cost, USD) nella risposta.
   const body = JSON.stringify({
@@ -601,9 +1074,12 @@ async function chatCompletion(messages, tools, config) {
     temperature: 0,
     usage: { include: true },
   });
+  const warn = (msg) => (log ? log.warn(msg) : console.warn(msg));
 
+  let cost = 0;
   let lastError;
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
+    if (runAbort.kind === 'aborted') throw new LlmError('aborted', runAbort.reason);
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -612,34 +1088,43 @@ async function chatCompletion(messages, tools, config) {
           'Content-Type': 'application/json',
         },
         body,
+        signal: AbortSignal.any([AbortSignal.timeout(config.llmTimeoutMs), abortController.signal]),
       });
 
-      if (res.ok) return await res.json();
-
-      const errBody = await res.text();
-      const isRetryable = res.status === 429 || res.status >= 500;
-      lastError = new Error(`OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`);
-
-      if (!isRetryable) throw lastError;
-
-      console.warn(
-        `[llm] Tentativo ${attempt}/${config.maxRetries} fallito (HTTP ${res.status}), retrying...`,
-      );
-    } catch (err) {
-      if (
-        err.message?.startsWith('OpenRouter API error') &&
-        !err.message.includes('429') &&
-        !err.message.includes('500')
-      ) {
-        throw err;
+      if (res.ok) {
+        const data = await res.json();
+        const callCost = Number(data.usage?.cost);
+        if (Number.isFinite(callCost) && callCost > 0) cost += callCost;
+        const anomaly = responseAnomaly(data);
+        if (!anomaly) return { data, cost };
+        lastError = new LlmError('bad_response', `Risposta anomala da OpenRouter: ${anomaly}`);
+      } else {
+        const errBody = await res.text();
+        const kind = classifyHttpStatus(res.status);
+        lastError = new LlmError(
+          kind,
+          `OpenRouter API error ${res.status}: ${errBody.slice(0, 500)}`,
+          res.status,
+        );
+        if (kind !== 'transient') throw lastError;
       }
-      lastError = err;
-      console.warn(
-        `[llm] Tentativo ${attempt}/${config.maxRetries} fallito (${err.message}), retrying...`,
-      );
+    } catch (err) {
+      if (err instanceof LlmError) {
+        if (err.kind !== 'transient' && err.kind !== 'bad_response') throw err;
+        lastError = err;
+      } else if (err?.name === 'AbortError') {
+        throw new LlmError('aborted', runAbort.reason ?? 'Richiesta annullata');
+      } else if (err?.name === 'TimeoutError') {
+        lastError = new LlmError('transient', `Timeout OpenRouter dopo ${config.llmTimeoutMs} ms`);
+      } else {
+        lastError = new LlmError('transient', `Errore di rete OpenRouter: ${err?.message ?? err}`);
+      }
     }
 
     if (attempt < config.maxRetries) {
+      warn(
+        `[llm] Tentativo ${attempt}/${config.maxRetries} fallito (${lastError.message}), retrying...`,
+      );
       await sleep(config.retryBaseMs * Math.pow(2, attempt - 1));
     }
   }
@@ -693,7 +1178,9 @@ async function generateAiSessionSummary(
     .map((t) => {
       const pt = perTestMetas.get(t.id);
       const b = pt?.bugs ?? {};
-      return `- ${t.name} (${t.status}) | bug HIGH ${b.high ?? 0} / MEDIUM ${b.medium ?? 0} / LOW ${b.low ?? 0}\n  resoconto test: ${pt?.summary?.trim() || 'non disponibile'}`;
+      const error =
+        t.status === 'ERROR' ? `\n  non giunto a esito: ${t.reason ?? 'causa non nota'}` : '';
+      return `- ${t.name} (${t.status}) | bug HIGH ${b.high ?? 0} / MEDIUM ${b.medium ?? 0} / LOW ${b.low ?? 0}\n  resoconto test: ${pt?.summary?.trim() || 'non disponibile'}${error}`;
     })
     .join('\n');
 
@@ -711,15 +1198,20 @@ Requisiti: evidenzia l'esito complessivo, i problemi piu' gravi trovati (con sev
     },
   ];
 
+  // Run interrotta (credito esaurito o segnale): nessuna chiamata LLM aggiuntiva
+  if (runAbort.kind) {
+    console.warn(`[report] Summary AI di sessione saltato (run interrotta): uso il fallback.`);
+    return { text: null, cost: 0 };
+  }
+
   try {
-    const res = await chatCompletion(messages, [], config);
-    const text = res.choices?.[0]?.message?.content?.trim();
-    const cost = Number(res.usage?.cost);
+    const { data, cost } = await chatCompletion(messages, [], config);
+    const text = data.choices?.[0]?.message?.content?.trim();
     if (!text) {
       console.warn('[report] Summary AI di sessione vuoto: uso il fallback.');
-      return { text: null, cost: Number.isFinite(cost) ? cost : 0 };
+      return { text: null, cost };
     }
-    return { text, cost: Number.isFinite(cost) ? cost : 0 };
+    return { text, cost };
   } catch (err) {
     console.warn(`[report] Summary AI di sessione fallito: ${err.message}. Uso il fallback.`);
     return { text: null, cost: 0 };
@@ -753,100 +1245,45 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   const sessionDir = `${PATHS.reports}/${stamp}/${browser}/${viewport}`;
   mkdirSync(sessionDir, { recursive: true });
 
-  // Metadati TEMPORANEI per-test scritti da ogni sessione agent (fonte primaria
-  // per i bug counts: un file per test, nessuna sovrascrittura). Verranno
-  // cancellati dopo l'aggregazione nel metadata.json di sessione.
+  // Metadati TEMPORANEI per-test scritti da ogni sessione agent e completati
+  // dalla CI (costo, durata, esito CI, diagnostica): un file per test, nessuna
+  // sovrascrittura. Verranno cancellati dopo l'aggregazione.
   const perTestMetas = readPerTestMetas(sessionDir);
 
-  // I metadati di sessione sono generati DIRETTAMENTE dall'agente AI
-  // (metadata.json strutturato, nessun parsing del Markdown).
+  // metadata.json di sessione scritto dall'agente (solo run legacy: il prompt
+  // attuale chiede i metadata per-test). Usato come fallback per screenshot,
+  // bug e costo.
   const metaPath = `${sessionDir}/metadata.json`;
-  let meta = null;
+  let legacyMeta = null;
   if (existsSync(metaPath)) {
     try {
-      meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+      legacyMeta = JSON.parse(readFileSync(metaPath, 'utf8'));
     } catch (err) {
-      console.error(`[report] JSON non valido in ${metaPath}: ${err.message}`);
+      console.warn(`[report] JSON non valido in ${metaPath}: ${err.message}`);
     }
   }
 
-  // Fallback: se l'agente non ha scritto i metadati (o non sono validi), lo
-  // script ne genera uno minimo usando lo status osservato dalla CI.
-  if (!meta) {
-    const testsMeta = [];
-    const screenshotPaths = [];
-    for (const { test, status, reason } of results) {
-      const reportPath = `${sessionDir}/tests/${test.id}.md`;
-
-      // Fallback: se l'agente non ha scritto il report Markdown, lo script ne
-      // genera uno minimo cosi' ogni test ha SEMPRE il suo report .md.
-      if (!existsSync(reportPath)) {
-        const fallback = [
-          `# Report test: ${test.name}`,
-          '',
-          `- **Test:** ${test.id} (${test.file})`,
-          `- **Browser:** ${browser} | **Viewport:** ${viewport} | **Modello AI:** ${config.model}`,
-          `- **Run:** ${stamp}`,
-          `- **Status:** ${status}`,
-          ...(reason ? `- **Motivo:** ${reason}` : []),
-          '',
-          status === 'PASS'
-            ? "Test completato con successo, ma il report Markdown non e' stato generato dall'agente."
-            : status === 'ERROR'
-              ? `Sessione agente incompleta (test non giunto a esito)${reason ? `: ${reason}` : ''}. Report non generato dall'agente: verificare i log della sessione.`
-              : "Test fallito e report Markdown non generato dall'agente: verificare i log della sessione.",
-          '',
-        ].join('\n');
-        mkdirSync(`${sessionDir}/tests`, { recursive: true });
-        writeFileSync(reportPath, fallback, 'utf8');
-        console.warn(`[report] Report mancante per ${test.id}: generato fallback in ${reportPath}`);
-      }
-
-      // Screenshot della sessione: file in screenshots/ prefissati con "<test-id>-"
-      const shotsDir = `${sessionDir}/screenshots`;
-      if (existsSync(shotsDir)) {
-        for (const f of readdirSync(shotsDir)) {
-          if (f.startsWith(`${test.id}-`)) {
-            screenshotPaths.push(toBlobPath(`${shotsDir}/${f}`));
-          }
-        }
-      }
-
-      testsMeta.push({
-        id: test.id,
-        name: test.name,
-        status,
-        ...(reason ? { reason } : {}),
-      });
-    }
-
-    meta = {
+  // Report Markdown: fallback diagnostico se l'agente non l'ha scritto, avviso
+  // in testa se l'esito CI diverge da quello del report dell'agente.
+  for (const result of results) {
+    ensureTestReport({
+      sessionDir,
       browser,
       viewport,
-      model: config.model,
-      run: stamp,
-      date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
-      status: testsMeta.every((t) => t.status === 'PASS') ? 'PASS' : 'FAIL',
-      summary: "Metadati generati dalla CI: report/metadata non generati dall'agente.",
-      tests: testsMeta,
-      bugs: { high: 0, medium: 0, low: 0 },
-      screenshotPaths,
-    };
-    writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf8');
-    console.warn(`[report] Metadata di sessione mancanti: generati fallback in ${metaPath}`);
+      config,
+      stamp,
+      result,
+      testMeta: perTestMetas.get(result.test.id),
+    });
   }
 
-  // NB: in CI ogni test e' una sessione agent separata che scrive lo STESSO
-  // metadata.json di sessione: il file sopravvissuto contiene solo l'ULTIMO
-  // test eseguito per questa combo. La lista dei test va quindi SEMPRE
-  // ricostruita dai risultati osservati dalla CI.
   // Durata della sessione: finestra temporale reale della combo (min start /
   // max end dei suoi test, tracciata nel worker pool).
   const sessionDuration = formatDuration(
-    Math.max(0, Math.round((comboTime.end - comboTime.start) / 1000)),
+    comboTime ? Math.max(0, Math.round((comboTime.end - comboTime.start) / 1000)) : 0,
   );
 
-  const testsMeta = results.map(({ test, status, reason }) => {
+  const testsMeta = results.map(({ test, status, errorType, reason, statusSource }) => {
     // Durata del singolo test: dai metadati temporanei per-test
     // (durationSeconds scritti da writeTestMeta), formattata. Fallback: ''.
     const pt = perTestMetas.get(test.id);
@@ -856,18 +1293,20 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
       name: test.name,
       // Lo status osservato dalla CI (CI_STATUS) ha la priorita' su quello dichiarato dall'agente
       status,
+      ...(errorType ? { errorType } : {}),
       ...(reason ? { reason } : {}),
+      ...(statusSource && statusSource !== 'ci' ? { statusSource } : {}),
       ...(Number.isFinite(testDuration) && testDuration > 0
         ? { duration: formatDuration(testDuration) }
         : {}),
     };
   });
 
-  // Screenshot: unione tra quelli dichiarati nei metadata sopravvissuti e
+  // Screenshot: unione tra quelli dichiarati nei metadata legacy e
   // quelli effettivamente presenti su disco (prefissati "<test-id>-").
   const shotsDir = `${sessionDir}/screenshots`;
-  const screenshotPaths = Array.isArray(meta.screenshotPaths)
-    ? meta.screenshotPaths.map(toBlobPath)
+  const screenshotPaths = Array.isArray(legacyMeta?.screenshotPaths)
+    ? legacyMeta.screenshotPaths.map(toBlobPath)
     : [];
   if (existsSync(shotsDir)) {
     for (const f of readdirSync(shotsDir)) {
@@ -878,8 +1317,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     }
   }
   // Bug counts: fonte primaria = metadata temporanei per-test (un file per test,
-  // nessuna sovrascrittura). Fallback: metadata.json di sessione sopravvissuto
-  // (run legacy o agente che non ha scritto i file temporanei), altrimenti 0.
+  // nessuna sovrascrittura). Fallback: metadata.json di sessione legacy, altrimenti 0.
   const bugs = { high: 0, medium: 0, low: 0 };
   if (perTestMetas.size > 0) {
     for (const pt of perTestMetas.values()) {
@@ -888,9 +1326,9 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
       bugs.low += Number(pt.bugs?.low) || 0;
     }
   } else {
-    bugs.high = Number(meta.bugs?.high) || 0;
-    bugs.medium = Number(meta.bugs?.medium) || 0;
-    bugs.low = Number(meta.bugs?.low) || 0;
+    bugs.high = Number(legacyMeta?.bugs?.high) || 0;
+    bugs.medium = Number(legacyMeta?.bugs?.medium) || 0;
+    bugs.low = Number(legacyMeta?.bugs?.low) || 0;
   }
 
   // Coerenza bug/screenshot: ogni bug dichiarato deve avere almeno uno screenshot
@@ -902,7 +1340,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     );
   }
 
-  const allPass = testsMeta.length > 0 && testsMeta.every((t) => t.status === 'PASS');
+  const status = computeOutcomeStatus(testsMeta);
 
   // Summary di sessione (testo leggibile, equivalente del vecchio summary.md)
   // Summary: resoconto della sessione generato con una chiamata LLM dedicata.
@@ -918,7 +1356,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   );
   const perTestSummaries = testsMeta
     .map((t) => {
-      const s = perTestMetas.get(t.id)?.summary?.trim();
+      const s = (t.status === 'ERROR' ? t.reason : perTestMetas.get(t.id)?.summary)?.trim();
       return s ? `- ${t.name} (${t.status}): ${s}` : null;
     })
     .filter(Boolean);
@@ -926,7 +1364,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     aiSummary ??
     (perTestSummaries.length ? perTestSummaries.join('\n') : null) ??
     [
-      `Esito complessivo: ${allPass ? 'PASS' : 'FAIL'}`,
+      `Esito complessivo: ${status}`,
       `Browser: ${browser} | Viewport: ${viewport} | Modello AI: ${config.model}`,
       `Data: ${stamp.slice(0, 10)} ${stamp.slice(11).replace(/-/g, ':')}`,
       `Bug: HIGH ${bugs.high} / MEDIUM ${bugs.medium} / LOW ${bugs.low}`,
@@ -939,11 +1377,11 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
   const isoDate = `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`;
 
   // Costo AI della sessione in USD: somma dei costi per-test registrati nei
-  // metadati temporanei (writeTestCost) + costo della chiamata LLM del summary
-  // di sessione. Fallback: metadata sopravvissuto.
+  // metadati temporanei (writeTestMeta) + costo della chiamata LLM del summary
+  // di sessione. Fallback: metadata legacy.
   const sessionCost =
     ([...perTestMetas.values()].reduce((acc, pt) => acc + (Number(pt.cost) || 0), 0) ||
-      Number(meta.cost) ||
+      Number(legacyMeta?.cost) ||
       0) + (Number(aiSummaryCost) || 0);
 
   const metadata = {
@@ -953,7 +1391,7 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     run: stamp,
     date: isoDate,
     duration: sessionDuration,
-    status: allPass ? 'PASS' : 'FAIL',
+    status,
     summary,
     tests: testsMeta,
     bugs,
@@ -961,8 +1399,8 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
     screenshotPaths,
   };
 
-  writeFileSync(`${sessionDir}/metadata.json`, JSON.stringify(metadata, null, 2), 'utf8');
-  console.log(`[report] Salvato ${sessionDir}/metadata.json`);
+  writeFileSync(metaPath, JSON.stringify(metadata, null, 2), 'utf8');
+  console.log(`[report] Salvato ${metaPath}`);
 
   // Cleanup: i metadata temporanei per-test sono stati aggregati, non servono piu'
   if (perTestMetas.size > 0) {
@@ -973,17 +1411,207 @@ async function aggregateSessionReports(browser, viewport, config, stamp, results
 }
 
 /**
+ * Esito aggregato di un insieme di test (sessione o run): ERROR se almeno un
+ * test non e' giunto a esito o la run e' stata interrotta, PASS se tutti
+ * passano, altrimenti FAIL.
+ */
+function computeOutcomeStatus(tests) {
+  if (runAbort.kind || tests.some((t) => t.status === 'ERROR')) return 'ERROR';
+  if (tests.length > 0 && tests.every((t) => t.status === 'PASS')) return 'PASS';
+  return 'FAIL';
+}
+
+// Marcatore dell'avviso CI in testa al report dell'agente (evita duplicati)
+const CI_BANNER_MARK = '<!-- ci-status-banner -->';
+
+/**
+ * Garantisce che ogni test abbia il suo report Markdown:
+ * - report assente -> report di fallback con motivo e diagnostica;
+ * - report dell'agente con esito diverso da quello CI -> avviso in testa.
+ */
+function ensureTestReport({ sessionDir, browser, viewport, config, stamp, result, testMeta }) {
+  const reportPath = `${sessionDir}/tests/${result.test.id}.md`;
+
+  if (!existsSync(reportPath)) {
+    mkdirSync(`${sessionDir}/tests`, { recursive: true });
+    writeFileSync(
+      reportPath,
+      buildFallbackReport({ browser, viewport, config, stamp, result, testMeta, sessionDir }),
+      'utf8',
+    );
+    console.warn(
+      `[report] Report mancante per ${result.test.id}: generato fallback in ${reportPath}`,
+    );
+    return;
+  }
+
+  // Status dichiarato dall'agente nei suoi metadata (non quelli generati dalla CI)
+  const agentStatus = testMeta && testMeta.generatedBy !== 'ci' ? testMeta.status : null;
+  const diverges =
+    result.status === 'ERROR' ||
+    result.statusSource === 'agent-metadata' ||
+    (agentStatus && agentStatus !== result.status);
+  if (!diverges) return;
+
+  const current = readFileSync(reportPath, 'utf8');
+  if (current.startsWith(CI_BANNER_MARK)) return;
+  writeFileSync(reportPath, `${buildCiStatusBanner(result, agentStatus)}\n\n${current}`, 'utf8');
+  console.warn(
+    `[report] Esito CI divergente per ${result.test.id}: avviso aggiunto in ${reportPath}`,
+  );
+}
+
+function buildCiStatusBanner(result, agentStatus) {
+  const agentLine = agentStatus
+    ? `Il report che segue è stato scritto dall'agente e indica **${agentStatus}**.`
+    : "Il report che segue è stato scritto dall'agente.";
+  if (result.status === 'ERROR') {
+    const info = ERROR_TYPES[result.errorType] ?? ERROR_TYPES.internal;
+    return [
+      CI_BANNER_MARK,
+      `> ⚠️ **Esito CI: ERROR** (\`${result.errorType}\`) — ${info.label}.`,
+      `> ${result.reason ?? ''}`,
+      `> ${agentLine} Va considerato non conclusivo.`,
+    ].join('\n');
+  }
+  return [
+    CI_BANNER_MARK,
+    `> ℹ️ **Esito CI: ${result.status}**${result.statusSource === 'agent-metadata' ? ", letto dai metadata dell'agente" : ''}.`,
+    `> ${result.reason ?? ''}`,
+    `> ${agentLine}`,
+  ].join('\n');
+}
+
+/** Cella di tabella Markdown sicura (niente pipe ne' a capo). */
+function mdCell(value) {
+  return String(value ?? '—')
+    .replace(/\|/g, '\\|')
+    .replace(/\s*\n\s*/g, ' ');
+}
+
+/**
+ * Report Markdown generato dalla CI quando l'agente non ha scritto il suo:
+ * esito, motivo classificato con indicazione su cosa fare, ultima risposta del
+ * modello, ultime azioni e artefatti parziali.
+ */
+function buildFallbackReport({ browser, viewport, config, stamp, result, testMeta, sessionDir }) {
+  const { test, status } = result;
+  const d = testMeta?.diagnostics;
+  const device = deviceForViewport(viewport) ?? deviceForBrowser(browser);
+  const statusLabel =
+    status === 'ERROR'
+      ? '⚠️ ERROR — test non giunto a esito'
+      : status === 'PASS'
+        ? '✅ PASS'
+        : '❌ FAIL';
+
+  const rows = [
+    ['Test', `\`${test.id}\` (${test.file})`],
+    ['Ambiente', `${browser} · ${viewport}${device ? ` (${device})` : ''}`],
+    ['Modello AI', config.model],
+    ['Run', stamp],
+    ['Esito', statusLabel],
+    ['Durata', formatDuration(testMeta?.durationSeconds)],
+    ['Turni LLM', d ? `${d.turns}/${config.maxTurns}` : 'non avviato'],
+    ['Costo AI', `$${(Number(testMeta?.cost) || 0).toFixed(4)}`],
+  ];
+
+  const lines = [
+    `# ${test.name} — ${status}`,
+    '',
+    '| Campo | Valore |',
+    '| --- | --- |',
+    ...rows.map(([k, v]) => `| ${k} | ${mdCell(v)} |`),
+    '',
+  ];
+
+  if (status === 'ERROR') {
+    const info = ERROR_TYPES[result.errorType] ?? ERROR_TYPES.internal;
+    lines.push(
+      '## Motivo',
+      '',
+      `**Tipo:** \`${result.errorType}\` — ${info.label}.`,
+      '',
+      `**Dettaglio:** ${result.reason ?? 'non disponibile'}`,
+      '',
+      `**Cosa fare:** ${info.hint}`,
+      '',
+    );
+  } else {
+    lines.push(
+      '## Nota',
+      '',
+      `Esito ${status} dichiarato dall'agente, ma il report Markdown non è stato generato.` +
+        (result.reason ? ` ${result.reason}` : ''),
+      '',
+    );
+  }
+
+  if (d?.lastAssistantText) {
+    lines.push(
+      '## Ultima risposta del modello',
+      '',
+      ...truncate(d.lastAssistantText.trim(), 1500)
+        .split('\n')
+        .map((l) => `> ${l}`),
+      '',
+    );
+  }
+
+  if (d?.recentTools?.length) {
+    lines.push(
+      `## Ultime azioni (${Math.min(5, d.recentTools.length)})`,
+      '',
+      '| Turno | Tool | Esito | Durata |',
+      '| --- | --- | --- | --- |',
+      ...d.recentTools
+        .slice(-5)
+        .map(
+          (t) =>
+            `| ${t.turn} | \`${t.name}\` | ${mdCell(t.ok ? 'ok' : `errore: ${truncate(t.error, 160)}`)} | ${t.duration} |`,
+        ),
+      '',
+    );
+  }
+
+  if (d) {
+    lines.push(
+      '## Diagnostica',
+      '',
+      `- Ultimo finish_reason: \`${d.lastFinishReason ?? 'n/d'}\` (native: \`${d.lastNativeFinishReason ?? 'n/d'}\`)`,
+      `- Solleciti CI_STATUS: ${d.ciStatusNudges}/${MAX_CI_STATUS_NUDGES} · continuazioni per risposta troncata: ${d.lengthNudges}/${MAX_LENGTH_NUDGES}`,
+      `- Errori dei tool: ${d.toolErrors}`,
+      '',
+    );
+  }
+
+  const shots = existsSync(`${sessionDir}/screenshots`)
+    ? readdirSync(`${sessionDir}/screenshots`).filter((f) => f.startsWith(`${test.id}-`))
+    : [];
+  lines.push(
+    '## Artefatti',
+    '',
+    `- Metadata scritti dall'agente: ${testMeta && testMeta.generatedBy !== 'ci' ? 'sì' : 'no'}`,
+    `- Screenshot: ${shots.length ? shots.map((s) => `\`${s}\``).join(', ') : 'nessuno'}`,
+    ...(testMeta?.log ? [`- Log completo della sessione: \`${testMeta.log}\``] : []),
+    '',
+  );
+
+  return lines.join('\n');
+}
+
+/**
  * Crea/aggiorna reports/index.json con il record della run corrente.
  * Upsert idempotente per `run`: preserva i record delle run precedenti
  * (presenti nel file locale, tipicamente scaricato dallo storico blob
  * da upload-reports-to-azure.mjs nelle run precedenti).
  */
-function updateRunsIndex(stamp, config, hasFailures, sessionMetas, runDurationSeconds) {
+function updateRunsIndex(stamp, status, sessionMetas, runDurationSeconds) {
   const indexPath = `${PATHS.reports}/${RUN_INDEX_FILE}`;
   const entry = buildRunIndexEntry({
     run: stamp,
     date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
-    hasFailures,
+    status,
     sessions: sessionMetas,
     // Durata wall-clock dell'intera run (misurata nel main)
     duration: formatDuration(runDurationSeconds),
@@ -997,7 +1625,7 @@ function updateRunsIndex(stamp, config, hasFailures, sessionMetas, runDurationSe
   console.log(`[report] Index run aggiornato: ${indexPath} (${updated.length} run)`);
 }
 
-function writeRunMetadata(stamp, config, hasFailures, sessionMetas = [], runDurationSeconds = 0) {
+function writeRunMetadata(stamp, config, status, sessionMetas = [], runDurationSeconds = 0) {
   const runDir = `${PATHS.reports}/${stamp}`;
   mkdirSync(runDir, { recursive: true });
 
@@ -1014,7 +1642,9 @@ function writeRunMetadata(stamp, config, hasFailures, sessionMetas = [], runDura
     run: stamp,
     // Data della run in UTC ISO: la dashboard la converte nel fuso locale dell'utente
     date: `${stamp.slice(0, 10)}T${stamp.slice(11).replace(/-/g, ':')}Z`,
-    status: hasFailures ? 'FAIL' : 'PASS',
+    status,
+    // Motivo dell'interruzione (credito LLM esaurito o segnale), se la run e' stata interrotta
+    ...(runAbort.kind ? { abort: { kind: runAbort.kind, reason: runAbort.reason } } : {}),
     sessions,
     // Durata wall-clock dell'intera run (es. "2m 34s")
     duration: formatDuration(runDurationSeconds),
@@ -1134,8 +1764,11 @@ REGOLE DI ESECUZIONE:
    - Documenta ogni anomalia, anche se sembra minore. Presta attenzione a problemi React (state management,
      re-rendering, lifecycle) e ad aggiornamenti dinamici in tempo reale (anteprime, totali, contatori).
    - Traccia il tempo di esecuzione del test e includilo nel report (sezione Execution Time).
-   - A fine test: chiudi il browser MCP e cancella il contenuto della cartella .playwright-mcp (se esiste).
-     Tutte le operazioni di cleanup e creazione cartelle sono AUTOMATICHE, senza chiedere conferma.
+   - A fine test: chiudi il browser MCP. NON cancellare la cartella .playwright-mcp ne' altri file o cartelle
+     fuori da ${sessionDir}/: altre sessioni di test sono in esecuzione in parallelo nella stessa working
+     directory e la pulizia e' gestita dalla CI a fine run.
+   - NON eseguire ricerche o comandi sul filesystem di sistema (es. find /, du /): lavora solo nella working directory.
+   - La creazione delle cartelle del report e' AUTOMATICA, senza chiedere conferma.
 ${projectPrompt}
 9. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}

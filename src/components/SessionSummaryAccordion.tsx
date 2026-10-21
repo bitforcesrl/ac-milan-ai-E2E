@@ -1,6 +1,15 @@
+import StatusChip from '@/components/StatusChip';
 import { browserLabel, viewportLabel } from '@/lib/e2e-tests';
 import type { SessionView } from '@/types/reports';
-import { CheckCircle, Clock, Cpu, FileText, HelpCircle, XCircle } from '@deemlol/next-icons';
+import {
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Cpu,
+  FileText,
+  HelpCircle,
+  XCircle,
+} from '@deemlol/next-icons';
 import Link from 'next/link';
 
 const muted = 'text-dark-grey';
@@ -9,9 +18,22 @@ const metaChip =
 const metaIcon = 'text-dark-grey';
 
 function statusIcon(status: string) {
-  const kind = status === 'PASS' ? 'pass' : status === 'FAIL' ? 'fail' : 'unknown';
+  const kind =
+    status === 'PASS'
+      ? 'pass'
+      : status === 'FAIL'
+        ? 'fail'
+        : status === 'ERROR'
+          ? 'error'
+          : 'unknown';
   const cls =
-    kind === 'pass' ? 'text-green-600' : kind === 'fail' ? 'text-red-600' : 'text-dark-grey';
+    kind === 'pass'
+      ? 'text-green-600'
+      : kind === 'fail'
+        ? 'text-red-600'
+        : kind === 'error'
+          ? 'text-orange-600'
+          : 'text-dark-grey';
   return (
     <span
       className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${cls}`}
@@ -20,6 +42,8 @@ function statusIcon(status: string) {
         <CheckCircle size={26} aria-hidden="true" />
       ) : kind === 'fail' ? (
         <XCircle size={26} aria-hidden="true" />
+      ) : kind === 'error' ? (
+        <AlertTriangle size={24} aria-hidden="true" />
       ) : (
         <HelpCircle size={16} aria-hidden="true" />
       )}
@@ -29,22 +53,23 @@ function statusIcon(status: string) {
 
 /**
  * Accordion "Analisi AI per ambiente": un <details> per sessione (browser × viewport).
- * Le sessioni FAIL sono aperte di default, le PASS chiuse. Nessun JS client.
+ * Le sessioni FAIL/ERROR sono aperte di default, le PASS chiuse. Nessun JS client.
  */
 export default function SessionSummaryAccordion({ sessions }: { sessions: SessionView[] }) {
   if (sessions.length === 0) return null;
 
-  // FAIL prima, poi nell'ordine originale.
+  // FAIL/ERROR prima, poi nell'ordine originale.
+  const notPassed = (s: SessionView) => s.status === 'FAIL' || s.status === 'ERROR';
   const sorted = [...sessions].sort((a, b) => {
-    const aFail = a.status === 'FAIL' ? 0 : 1;
-    const bFail = b.status === 'FAIL' ? 0 : 1;
+    const aFail = notPassed(a) ? 0 : 1;
+    const bFail = notPassed(b) ? 0 : 1;
     return aFail - bFail;
   });
 
   return (
     <div className="flex flex-col gap-2">
       {sorted.map((session) => {
-        const open = session.status === 'FAIL';
+        const open = notPassed(session);
         const key = `${session.browser}/${session.viewport}`;
         return (
           <details
@@ -115,7 +140,20 @@ export default function SessionSummaryAccordion({ sessions }: { sessions: Sessio
                         key={test.id}
                         className="border-grey bg-grey hover:border-dark-grey flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 transition-colors hover:bg-white"
                       >
-                        <span className="text-sm font-semibold break-all">{test.name}</span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold break-all">{test.name}</span>
+                          {test.reason && (
+                            <span
+                              title={test.reason}
+                              className={`mt-0.5 line-clamp-2 text-xs break-all ${test.status === 'ERROR' ? 'text-orange-700' : muted}`}
+                            >
+                              {test.errorType && (
+                                <code className="mr-1 font-mono">{test.errorType}</code>
+                              )}
+                              {test.reason}
+                            </span>
+                          )}
+                        </span>
                         <span className="flex shrink-0 items-center gap-2.5">
                           {test.duration && (
                             <span
@@ -126,21 +164,7 @@ export default function SessionSummaryAccordion({ sessions }: { sessions: Sessio
                               {test.duration}
                             </span>
                           )}
-                          {test.status === 'PASS' ? (
-                            <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-green-700">
-                              PASS
-                            </span>
-                          ) : test.status === 'FAIL' ? (
-                            <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-red-700">
-                              FAIL
-                            </span>
-                          ) : (
-                            <span
-                              className={`bg-grey border-grey inline-block rounded-full border px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide ${muted}`}
-                            >
-                              N/D
-                            </span>
-                          )}
+                          <StatusChip status={test.status} />
                           {test.href && (
                             <Link
                               className="text-sm font-bold tracking-wide whitespace-nowrap text-black uppercase hover:underline"

@@ -40,6 +40,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
       />
 
       <main className="mx-auto max-w-7xl px-6 pt-8 pb-24">
+        {run.abortReason && (
+          <p className="mb-2 rounded-lg border-l-4 border-orange-500 bg-orange-100 px-4 py-3.5 font-semibold text-orange-700">
+            Run interrotta: {run.abortReason}
+          </p>
+        )}
         <dl className="border-grey my-5 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-3 border-y py-4">
           <div>
             <dt className={`text-xs font-bold tracking-wide uppercase ${muted}`}>Test Superati</dt>
@@ -49,6 +54,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
             <dt className={`text-xs font-bold tracking-wide uppercase ${muted}`}>Test Falliti</dt>
             <dd className={`mt-0.5 text-xl font-bold ${run.fail ? 'text-red-600' : ''}`}>
               {run.fail}
+            </dd>
+          </div>
+          <div>
+            <dt className={`text-xs font-bold tracking-wide uppercase ${muted}`}>Test in errore</dt>
+            <dd className={`mt-0.5 text-xl font-bold ${run.error ? 'text-orange-600' : ''}`}>
+              {run.error}
             </dd>
           </div>
           <div>

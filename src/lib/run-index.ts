@@ -15,8 +15,10 @@ function toCount(value: unknown): number {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
+const RUN_STATUSES = ['PASS', 'FAIL', 'ERROR'];
+
 function toStatus(value: unknown): string {
-  return value === 'PASS' || value === 'FAIL' ? value : '';
+  return typeof value === 'string' && RUN_STATUSES.includes(value) ? value : '';
 }
 
 /**
@@ -30,7 +32,9 @@ export function normalizeRunIndexEntry(raw: unknown): RunIndexEntry | null {
 
   const pass = toCount(e.pass);
   const fail = toCount(e.fail);
-  const total = toCount(e.total) || pass + fail;
+  // Entry legacy senza "error": 0 (il loro total escludeva gli ERROR)
+  const error = toCount(e.error);
+  const total = toCount(e.total) || pass + fail + error;
   const bugsRaw = (e.bugs ?? {}) as Record<string, unknown>;
 
   const environments = Array.isArray(e.environments)
@@ -51,6 +55,7 @@ export function normalizeRunIndexEntry(raw: unknown): RunIndexEntry | null {
     status: toStatus(e.status),
     pass,
     fail,
+    error,
     total,
     passRate:
       total > 0

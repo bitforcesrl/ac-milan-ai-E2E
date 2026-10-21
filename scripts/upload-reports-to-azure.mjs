@@ -86,6 +86,8 @@ function contentTypeFor(filePath) {
       return 'text/markdown; charset=utf-8';
     case '.json':
       return 'application/json; charset=utf-8';
+    case '.log':
+      return 'text/plain; charset=utf-8';
     case '.png':
       return 'image/png';
     case '.jpg':
