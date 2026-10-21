@@ -38,6 +38,11 @@ export const BROWSERS: BrowserConfig[] = [
 
 // NOTE: per simulare ambienti tablet/mobile è necessario specificare il campo "device" corrispondente al device Playwright da emulare.
 // altrimenti è come si stesse usando un device desktop,
+// Lista dei device disponibili (nome esatto da usare nel campo "device"):
+// https://github.com/microsoft/playwright/blob/main/packages/isomorphic/deviceDescriptorsSource.json
+// Il campo opzionale "size" imposta un viewport personalizzato (es. desktop a 1920x1080:
+// { id: 'desktop', label: 'Desktop (1920x1080)', default: true, size: { width: 1920, height: 1080 } }),
+// mantenendo user-agent, touch e densità di pixel del device emulato.
 export const VIEWPORTS: ViewportConfig[] = [
   { id: 'desktop', label: 'Desktop', default: true },
   { id: 'tablet', label: 'Tablet (iPad Pro 11)', default: false, device: 'iPad Pro 11' },

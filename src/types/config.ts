@@ -23,7 +23,13 @@ export type ViewportConfig = {
   id: string;
   label: string;
   default: boolean;
+  /** Device del catalogo Playwright da emulare (es. "iPhone 17 Pro"). */
   device?: string;
+  /**
+   * Dimensione personalizzata del viewport (opzionale): sostituisce quella del
+   * device emulato mantenendone user-agent, touch e densita' di pixel.
+   */
+  size?: { width: number; height: number };
 };
 
 export type MaxParallelSessions = {
