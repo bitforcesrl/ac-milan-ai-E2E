@@ -34,13 +34,18 @@ export type RunIndexEntry = {
   run: string;
   /** Data/ora di inizio run in UTC ISO (es. "2026-09-28T10:07:34Z"). */
   date: string;
-  /** Esito complessivo: "PASS" | "FAIL". */
+  /**
+   * Esito complessivo: "PASS" | "FAIL" | "ERROR" (test non giunti a esito o
+   * run interrotta).
+   */
   status: string;
   /** Test superati. */
   pass: number;
   /** Test falliti. */
   fail: number;
-  /** Totale test eseguiti (pass + fail). */
+  /** Test non giunti a esito (ERROR). 0 per le entry legacy. */
+  error: number;
+  /** Totale test (pass + fail + error). */
   total: number;
   /** Percentuale di successo (0-100, arrotondata). */
   passRate: number;

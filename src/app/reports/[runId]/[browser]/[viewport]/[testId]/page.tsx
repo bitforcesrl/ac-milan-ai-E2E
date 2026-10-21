@@ -2,7 +2,7 @@ import PageHeader from '@/components/PageHeader';
 import ReportMarkdown from '@/components/ReportMarkdown';
 import { browserLabel, viewportLabel } from '@/lib/e2e-tests';
 import { getService } from '@/lib/services';
-import { CheckCircle, XCircle } from '@deemlol/next-icons';
+import { AlertTriangle, ArrowUpRight, CheckCircle, XCircle } from '@deemlol/next-icons';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 
@@ -34,7 +34,31 @@ export default async function TestDetailPage({
   }
 
   const isPass = detail.status === 'PASS';
+  const isError = detail.status === 'ERROR';
   const backHref = `/reports/${runId}`;
+  // Stili e testi per esito: ERROR (test non giunto a esito) distinto da FAIL
+  const chipClass = isPass
+    ? 'bg-green-100 text-green-600'
+    : isError
+      ? 'bg-orange-100 text-orange-700'
+      : 'bg-red-100 text-red-700';
+  const bannerClass = isPass
+    ? 'border-green-500 bg-green-100 text-green-700'
+    : isError
+      ? 'border-orange-500 bg-orange-100 text-orange-700'
+      : 'border-red-500 bg-red-100 text-red-700';
+  const statusIcon = isPass ? (
+    <CheckCircle size={18} aria-hidden="true" />
+  ) : isError ? (
+    <AlertTriangle size={18} aria-hidden="true" />
+  ) : (
+    <XCircle size={18} aria-hidden="true" />
+  );
+  const bannerText = isPass
+    ? 'Test superato con successo'
+    : isError
+      ? 'Test non giunto a esito - Verificare il motivo e il log della sessione'
+      : 'Test fallito - Verificare gli errori';
 
   // I report linkano gli screenshot con percorso relativo (../screenshots/<file>.png):
   // li riscriviamo con gli URL SAS dei blob cosi' le immagini si vedono nella pagina.
@@ -122,35 +146,45 @@ export default async function TestDetailPage({
           <div className="border-grey border-b pb-5">
             {detail.status && (
               <p
-                className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${isPass ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-700'}`}
+                className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${chipClass}`}
               >
-                {isPass ? (
-                  <CheckCircle size={18} aria-hidden="true" />
-                ) : (
-                  <XCircle size={18} aria-hidden="true" className="text-red-600" />
-                )}{' '}
-                {isPass ? 'PASS' : 'FAIL'}
+                {statusIcon} {detail.status}
               </p>
             )}
             {metaBits}
+            {detail.logUrl && (
+              <p className="my-1.5 flex items-center justify-between gap-3 text-sm">
+                <span className={`shrink-0 ${muted}`}>Log</span>
+                <a
+                  href={detail.logUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Apri il log completo della sessione in una nuova scheda"
+                  className="border-grey bg-grey hover:border-dark-grey focus-visible:ring-primary/50 inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[0.72rem] font-semibold text-black transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  Apri log
+                  <ArrowUpRight size={12} aria-hidden="true" />
+                </a>
+              </p>
+            )}
           </div>
         </aside>
 
         <main className="max-w-3xl min-w-0 pt-8 pb-24">
           {detail.status && (
-            <p
-              className={`mb-7 flex items-center gap-2.5 rounded-lg border-l-4 px-4 py-3.5 font-semibold ${isPass ? 'border-green-500 bg-green-100 text-green-700' : 'border-red-500 bg-red-100 text-red-700'}`}
-            >
-              {isPass ? (
-                <>
-                  <CheckCircle size={18} aria-hidden="true" /> Test superato con successo
-                </>
-              ) : (
-                <>
-                  <XCircle size={18} aria-hidden="true" /> Test fallito - Verificare gli errori
-                </>
+            <div className={`mb-7 rounded-lg border-l-4 px-4 py-3.5 ${bannerClass}`}>
+              <p className="flex items-center gap-2.5 font-semibold">
+                {statusIcon} {bannerText}
+              </p>
+              {detail.reason && (
+                <p className="mt-1.5 text-sm">
+                  {detail.errorType && (
+                    <code className="mr-1.5 font-mono font-semibold">{detail.errorType}</code>
+                  )}
+                  {detail.reason}
+                </p>
               )}
-            </p>
+            </div>
           )}
 
           {/* Report Markdown generato dall'agente (contenuto fidato, prodotto dalla pipeline) */}

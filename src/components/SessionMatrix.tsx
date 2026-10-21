@@ -1,3 +1,4 @@
+import StatusChip from '@/components/StatusChip';
 import { browserLabel, viewportLabel } from '@/lib/e2e-tests';
 import type { RunDetail, SessionView } from '@/types/reports';
 import Link from 'next/link';
@@ -5,36 +6,6 @@ import Link from 'next/link';
 const muted = 'text-dark-grey';
 
 type Cell = { test: SessionView['tests'][number] | null; session: SessionView };
-
-function passChip(href?: string) {
-  const chip = (
-    <span className="inline-block rounded-full bg-green-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-green-700">
-      PASS
-    </span>
-  );
-  return href ? (
-    <Link href={href} className="hover:opacity-80" aria-label="Vai al dettaglio del test">
-      {chip}
-    </Link>
-  ) : (
-    chip
-  );
-}
-
-function failChip(href?: string) {
-  const chip = (
-    <span className="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-[0.65rem] font-bold tracking-wide text-red-700">
-      FAIL
-    </span>
-  );
-  return href ? (
-    <Link href={href} className="hover:opacity-80" aria-label="Vai al dettaglio del test">
-      {chip}
-    </Link>
-  ) : (
-    chip
-  );
-}
 
 function clickableCell(href: string | undefined, chip: React.ReactNode) {
   if (!href) return chip;
@@ -77,7 +48,7 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
     key: `${session.browser}/${session.viewport}`,
   }));
 
-  // Righe: test unici per id, nell'ordine di apparizione; i FAIL prima.
+  // Righe: test unici per id, nell'ordine di apparizione; FAIL/ERROR prima.
   const rowIds: string[] = [];
   const rowNames = new Map<string, string>();
   const cells = new Map<string, Cell>(); // key: testId|browser/viewport
@@ -89,8 +60,13 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
     }
   }
   const sortedRowIds = [...rowIds].sort((a, b) => {
-    const aFail = sessions.some((s) => s.tests.find((t) => t.id === a)?.status === 'FAIL');
-    const bFail = sessions.some((s) => s.tests.find((t) => t.id === b)?.status === 'FAIL');
+    const notPassed = (id: string) =>
+      sessions.some((s) => {
+        const status = s.tests.find((t) => t.id === id)?.status;
+        return status === 'FAIL' || status === 'ERROR';
+      });
+    const aFail = notPassed(a);
+    const bFail = notPassed(b);
     if (aFail !== bFail) return aFail ? -1 : 1;
     return rowIds.indexOf(a) - rowIds.indexOf(b);
   });
@@ -174,11 +150,12 @@ export default function SessionMatrix({ run }: { run: RunDetail }) {
                     key={key}
                     className="border-grey border-r px-3 py-3 text-center last:border-r-0"
                   >
-                    {test.status === 'PASS'
-                      ? clickableCell(test.href, passChip())
-                      : test.status === 'FAIL'
-                        ? clickableCell(test.href, failChip())
-                        : ndChip()}
+                    {test.status
+                      ? clickableCell(
+                          test.href,
+                          <StatusChip status={test.status} title={test.reason} />,
+                        )
+                      : ndChip()}
                   </td>
                 );
               })}
