@@ -832,6 +832,14 @@ function deviceForViewport(viewport) {
   return VIEWPORTS.find((v) => v.id === viewport)?.device;
 }
 
+// Viewport personalizzato (campo opzionale "size" su VIEWPORTS): sostituisce la
+// dimensione del device emulato (--viewport-size di @playwright/mcp) mantenendo
+// user-agent, touch e densita' di pixel del device. Ritorna "WxH" o null.
+function sizeForViewport(viewport) {
+  const size = VIEWPORTS.find((v) => v.id === viewport)?.size;
+  return size ? `${size.width}x${size.height}` : null;
+}
+
 const DESKTOP_DEVICE_BY_BROWSER = {
   chromium: 'Desktop Chrome',
   firefox: 'Desktop Firefox',
@@ -881,6 +889,7 @@ async function initMcpServers(browser, headed, viewport, outputDir, log) {
         // Device emulation REALE per tutti gli ambienti: il viewport reale e'
         // sempre quello del device emulato.
         ...(device ? ['--device', device] : []),
+        ...(sizeForViewport(viewport) ? ['--viewport-size', sizeForViewport(viewport)] : []),
         '--output-dir',
         outputDir,
       ],
@@ -1507,7 +1516,10 @@ function buildFallbackReport({ browser, viewport, config, stamp, result, testMet
 
   const rows = [
     ['Test', `\`${test.id}\` (${test.file})`],
-    ['Ambiente', `${browser} · ${viewport}${device ? ` (${device})` : ''}`],
+    [
+      'Ambiente',
+      `${browser} · ${viewport}${device ? ` (${device}${sizeForViewport(viewport) ? `, ${sizeForViewport(viewport)}` : ''})` : ''}`,
+    ],
     ['Modello AI', config.model],
     ['Run', stamp],
     ['Esito', statusLabel],
@@ -1696,7 +1708,7 @@ servizi, app web): applica le regole generali qui sotto a qualunque contesto, e 
 (se presenti) hanno priorita' su eventuali ambiguita'.
 
 Browser obbligatorio per questa run: ${browser}
-Ambiente obbligatorio per questa run: ${viewport} (il browser e' gia' avviato con device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${deviceForViewport(viewport) ? " — MODALITA' MOBILE/TABLET: isMobile, hasTouch e user-agent mobile sono ATTIVI. Interagisci come su un device reale: tap invece di hover, niente hover state, layout e navigazione mobile" : ''}. NON usare browser_resize e NON cambiare le dimensioni: il viewport del device e' quello corretto e va rispettato per tutto il test)
+Ambiente obbligatorio per questa run: ${viewport} (il browser e' gia' avviato con device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${sizeForViewport(viewport) ? ` con viewport personalizzato ${sizeForViewport(viewport)}` : ''}${deviceForViewport(viewport) ? " — MODALITA' MOBILE/TABLET: isMobile, hasTouch e user-agent mobile sono ATTIVI. Interagisci come su un device reale: tap invece di hover, niente hover state, layout e navigazione mobile" : ''}. NON usare browser_resize e NON cambiare le dimensioni: il viewport del device e' quello corretto e va rispettato per tutto il test)
 
 Hai accesso a questi gruppi di tool MCP (prefisso nel nome del tool):
 - filesystem__: leggi/scrivi file del repository (working directory: ${process.cwd()})
@@ -1712,7 +1724,7 @@ REGOLE DI ESECUZIONE:
      NON modificare codice sorgente, NON testare backend/API/logica server-side.
 2. Preparazione browser (PRIMA di navigare all'url del test):
    - Avvia il browser in modalita' incognito/profilo isolato per simulare un utente reale senza cookie/cache preesistenti.
-   - Il browser e' gia' avviato con device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${deviceForViewport(viewport) ? ' (isMobile, hasTouch, user-agent mobile, viewport del device)' : ' (user-agent desktop, viewport del device)'}. NON usare browser_resize e NON modificare le dimensioni: il viewport e' gia' quello corretto.
+   - Il browser e' gia' avviato con device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${sizeForViewport(viewport) ? ` con viewport personalizzato ${sizeForViewport(viewport)}` : ''}${deviceForViewport(viewport) ? ' (isMobile, hasTouch, user-agent mobile, viewport del device)' : ' (user-agent desktop, viewport del device)'}. NON usare browser_resize e NON modificare le dimensioni: il viewport e' gia' quello corretto.
    - Attendi che la pagina sia completamente caricata prima di iniziare il test (contenuto principale visibile,
      spinner/loader concluse).
    - Chiudi banner e popup: cerca e chiudi eventuali consensi cookie, banner pubblicitari, popup di newsletter o altri
@@ -1773,7 +1785,7 @@ ${projectPrompt}
 9. Il test di questa run e' UNO SOLO (definizioni in configs/index.ts). NON eseguire altri test.
    - id: ${test.id} | name: ${test.name} | file: ${test.file} | url: ${test.url}${test.notes ? ` | note: ${test.notes} (applica questa nota con priorita')` : ''}
 10. Esegui il test: naviga all'url indicato, leggi le istruzioni dal file "tests/${test.file}" con un tool filesystem e applicale.
-11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? "browser VISIBILE (headed): non chiudere la finestra, l'operatore umano sta guardando" : 'headless'}, ambiente ${viewport} (rispettalo per tutta la run), device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}" ATTIVA: NON ridimensionare il viewport.
+11. Usa i tool playwright__ per il browser ${browser}: profilo isolato, ${headed ? "browser VISIBILE (headed): non chiudere la finestra, l'operatore umano sta guardando" : 'headless'}, ambiente ${viewport} (rispettalo per tutta la run), device emulation Playwright "${deviceForViewport(viewport) ?? deviceForBrowser(browser)}"${sizeForViewport(viewport) ? ` con viewport personalizzato ${sizeForViewport(viewport)}` : ''} ATTIVA: NON ridimensionare il viewport.
 12. L'unico file Markdown di reportistica e' il report del test del punto 13; i metadati JSON del punto 14
    vanno generati direttamente da te (NESSUN parsing del Markdown da parte di script).
    Struttura obbligatoria dei file (usa i tool filesystem per creare file e cartelle):
@@ -1808,7 +1820,7 @@ ${projectPrompt}
    - UX Issues: problemi di usabilita' con suggerimenti
    - Recommendations: suggerimenti per fix prioritizzati
    - Execution Time: tempo totale impiegato per eseguire il test
-   - Viewport: ambiente di esecuzione (${viewport}, device emulato: ${deviceForViewport(viewport) ?? deviceForBrowser(browser)})
+   - Viewport: ambiente di esecuzione (${viewport}, device emulato: ${deviceForViewport(viewport) ?? deviceForBrowser(browser)}${sizeForViewport(viewport) ? `, viewport ${sizeForViewport(viewport)}` : ''})
    Regole per il Markdown:
    - Gli screenshot vanno linkati inline con percorso relativo: ![descrizione](../screenshots/${test.id}-001.png)
    - Per ogni bug usa il template con "**Severity:** HIGH/MEDIUM/LOW" (o gli emoji 🔴/🟡/🟢 nel titolo),
