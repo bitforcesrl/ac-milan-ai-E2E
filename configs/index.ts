@@ -80,7 +80,7 @@ export const BROWSERS: BrowserConfig[] = [
 // altrimenti è come si stesse usando un device desktop,
 export const VIEWPORTS: ViewportConfig[] = [
   { id: 'desktop', label: 'Desktop', default: true },
-  { id: 'tablet', label: 'Tablet (iPad Pro 11)', default: false, device: 'iPad Pro 11' },
+  { id: 'tablet', label: 'Tablet (iPad gen 11)', default: false, device: 'iPad (gen 11)' },
   { id: 'mobile', label: 'Mobile (iPhone 17 Pro)', default: false, device: 'iPhone 17 Pro' },
 ];
 
