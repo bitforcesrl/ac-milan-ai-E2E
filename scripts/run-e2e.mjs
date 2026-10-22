@@ -10,6 +10,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
 import { createJiti } from 'jiti';
 
@@ -132,6 +133,15 @@ function loadConfig() {
       Number(process.env.OPENROUTER_TIMEOUT_MS) >= 1000
         ? Number(process.env.OPENROUTER_TIMEOUT_MS)
         : 120000,
+    // Tetto ai token generati per chiamata (ragionamento + output visibile):
+    // impedisce che un ragionamento fuori controllo tenga la richiesta appesa
+    // fino al timeout. Il modello che lo supera chiude con finish_reason=length.
+    maxOutputTokens:
+      Number(process.env.OPENROUTER_MAX_TOKENS) >= 1
+        ? Number(process.env.OPENROUTER_MAX_TOKENS)
+        : 16000,
+    // Livello di ragionamento (es. "low", "high", "none"); vuoto = default del modello.
+    reasoningEffort: process.env.OPENROUTER_REASONING_EFFORT?.trim() || null,
     mcpToolTimeout: 180000,
     ...runConfig,
   };
@@ -526,12 +536,11 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
         log.warn(`Nudge finalizzazione a turno ${turn}/${config.maxTurns}.`);
       }
 
-      const { data: response, cost: callCost } = await chatCompletion(
-        messages,
-        mcp.tools,
-        config,
-        log,
-      );
+      const {
+        data: response,
+        cost: callCost,
+        latencyMs,
+      } = await chatCompletion(messages, mcp.tools, config, log);
       sessionCost += callCost;
 
       // chatCompletion garantisce una choice con contenuto o tool call
@@ -545,6 +554,8 @@ async function runSession({ browser, viewport, test }, config, stamp, headed) {
         `[llm] turno ${turn + 1} finish_reason=${choice.finish_reason ?? 'n/d'} ` +
           `native=${choice.native_finish_reason ?? 'n/d'} tool_calls=${toolCalls.length} ` +
           `token=${response.usage?.prompt_tokens ?? '?'}/${response.usage?.completion_tokens ?? '?'} ` +
+          `reasoning=${response.usage?.completion_tokens_details?.reasoning_tokens ?? '?'} ` +
+          `provider=${response.provider ?? '?'} latenza=${(latencyMs / 1000).toFixed(1)}s ` +
           `costo=${callCost.toFixed(6)}`,
         message.content || undefined,
       );
@@ -909,7 +920,14 @@ async function initMcpServers(browser, headed, viewport, outputDir, log) {
 
   // dead: nome del server MCP terminato durante la sessione (null se tutti vivi)
   // closing: true durante la chiusura volontaria (non e' un crash)
-  const mcp = { clients: [], tools: [], toolMap: new Map(), dead: null, closing: false };
+  const mcp = {
+    clients: [],
+    tools: [],
+    toolMap: new Map(),
+    dead: null,
+    closing: false,
+    outputDir,
+  };
 
   try {
     for (const s of serverConfigs) {
@@ -984,6 +1002,15 @@ async function executeToolCall(call, mcp, timeout, log, diag) {
     args = JSON.parse(call.function.arguments || '{}');
   } catch {
     args = {};
+  }
+
+  // @playwright/mcp risolve un "filename" relativo (es. browser_snapshot su
+  // file) rispetto alla working directory, sporcando la root del repo: lo
+  // reindirizziamo nella cartella di output della sessione (.playwright-mcp,
+  // ignorata da git e rimossa a fine run). I percorsi assoluti (screenshot
+  // nei report) restano invariati.
+  if (name.startsWith('playwright__') && typeof args.filename === 'string' && args.filename) {
+    if (!isAbsolute(args.filename)) args.filename = join(mcp.outputDir, args.filename);
   }
 
   log.info(`[tool] ${name} args=${JSON.stringify(args).slice(0, 500)}`);
@@ -1062,7 +1089,13 @@ function responseAnomaly(data) {
   if (choice.finish_reason === 'error') {
     return `finish_reason=error (native_finish_reason=${choice.native_finish_reason ?? 'n/d'})`;
   }
-  if (!choice.message.content?.trim() && !choice.message.tool_calls?.length) {
+  // Vuota per lunghezza (ragionamento che ha esaurito maxOutputTokens): non e'
+  // un'anomalia da ritentare, la gestisce la sessione chiedendo di continuare.
+  if (
+    !choice.message.content?.trim() &&
+    !choice.message.tool_calls?.length &&
+    choice.finish_reason !== 'length'
+  ) {
     return `risposta vuota (finish_reason=${choice.finish_reason ?? 'n/d'})`;
   }
   return null;
@@ -1070,8 +1103,9 @@ function responseAnomaly(data) {
 
 /**
  * Chiamata chat completions con retry sugli errori transitori e sulle
- * risposte anomale. Ritorna { data, cost } dove cost (USD) somma anche i
- * tentativi scartati. Solleva LlmError classificato.
+ * risposte anomale. Ritorna { data, cost, latencyMs } dove cost (USD) somma
+ * anche i tentativi scartati e latencyMs e' la durata del tentativo riuscito.
+ * Solleva LlmError classificato.
  */
 async function chatCompletion(messages, tools, config, log) {
   // Con tools vuoti (chiamate di puro testo, es. summary di sessione) li omettiamo.
@@ -1081,6 +1115,8 @@ async function chatCompletion(messages, tools, config, log) {
     messages,
     ...(tools.length ? { tools, tool_choice: 'auto' } : {}),
     temperature: 0,
+    max_tokens: config.maxOutputTokens,
+    ...(config.reasoningEffort ? { reasoning: { effort: config.reasoningEffort } } : {}),
     usage: { include: true },
   });
   const warn = (msg) => (log ? log.warn(msg) : console.warn(msg));
@@ -1089,6 +1125,7 @@ async function chatCompletion(messages, tools, config, log) {
   let lastError;
   for (let attempt = 1; attempt <= config.maxRetries; attempt++) {
     if (runAbort.kind === 'aborted') throw new LlmError('aborted', runAbort.reason);
+    const attemptStartedAt = Date.now();
     try {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -1105,7 +1142,7 @@ async function chatCompletion(messages, tools, config, log) {
         const callCost = Number(data.usage?.cost);
         if (Number.isFinite(callCost) && callCost > 0) cost += callCost;
         const anomaly = responseAnomaly(data);
-        if (!anomaly) return { data, cost };
+        if (!anomaly) return { data, cost, latencyMs: Date.now() - attemptStartedAt };
         lastError = new LlmError('bad_response', `Risposta anomala da OpenRouter: ${anomaly}`);
       } else {
         const errBody = await res.text();
